@@ -1,0 +1,15 @@
+{
+  "name": "@rankmybrand/monorepo",
+  "private": true,
+  "workspaces": [
+    "services/*",
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "docker-compose up",
+    "build": "docker-compose build",
+    "test": "jest",
+    "lint": "eslint ."
+  }
+}

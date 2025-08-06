@@ -1,0 +1,75 @@
+groups:
+  - name: web_crawler_alerts
+    interval: 30s
+    rules:
+      - alert: CrawlerHighErrorRate
+        expr: rate(crawler_errors_total[5m]) > 0.1
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High error rate in web crawler"
+          description: "Error rate is {{ $value }} errors per second"
+
+      - alert: CrawlerHighMemoryUsage
+        expr: process_resident_memory_bytes / 1024 / 1024 > 2000
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Web crawler memory usage is high"
+          description: "Memory usage is {{ $value }}MB"
+
+      - alert: CrawlerSlowResponseTime
+        expr: histogram_quantile(0.95, rate(http_request_duration_seconds_bucket[5m])) > 5
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "95th percentile response time is high"
+          description: "P95 response time is {{ $value }} seconds"
+
+      - alert: DatabaseConnectionFailure
+        expr: up{job="postgres"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "PostgreSQL is down"
+          description: "Cannot connect to PostgreSQL database"
+
+      - alert: RedisConnectionFailure
+        expr: up{job="redis"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Redis is down"
+          description: "Cannot connect to Redis"
+
+      - alert: CrawlerJobStuck
+        expr: crawler_job_duration_seconds > 3600
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Crawler job running for too long"
+          description: "Job {{ $labels.job_id }} has been running for {{ $value }} seconds"
+
+      - alert: HighJSRenderingRate
+        expr: rate(crawler_js_rendered_pages_total[5m]) / rate(crawler_pages_crawled_total[5m]) > 0.15
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "JS rendering budget exceeded"
+          description: "{{ $value }}% of pages are being JS rendered (budget: 10%)"
+
+      - alert: LowCrawlThroughput
+        expr: rate(crawler_pages_crawled_total[5m]) < 1
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Crawl throughput is low"
+          description: "Only {{ $value }} pages per second being crawled"

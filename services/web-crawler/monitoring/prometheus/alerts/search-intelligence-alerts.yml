@@ -1,0 +1,222 @@
+groups:
+  - name: search_intelligence_alerts
+    interval: 30s
+    rules:
+      # Budget Alerts
+      - alert: DailyBudgetWarning
+        expr: (sum(search_intel_current_daily_spend) / 10) * 100 > 80
+        for: 5m
+        labels:
+          severity: warning
+          service: search-intelligence
+        annotations:
+          summary: "Daily budget at {{ $value | humanize }}% of limit"
+          description: "Search Intelligence daily budget is at {{ $value | humanize }}% of the $10 limit. Current spend: ${{ printf \"%.2f\" (sum(search_intel_current_daily_spend)) }}"
+
+      - alert: DailyBudgetCritical
+        expr: (sum(search_intel_current_daily_spend) / 10) * 100 > 95
+        for: 1m
+        labels:
+          severity: critical
+          service: search-intelligence
+        annotations:
+          summary: "Daily budget critical - {{ $value | humanize }}% of limit"
+          description: "Search Intelligence daily budget is at {{ $value | humanize }}% of the $10 limit. Searches may be blocked soon."
+
+      - alert: MonthlyBudgetWarning
+        expr: (sum(search_intel_current_monthly_spend) / 300) * 100 > 80
+        for: 30m
+        labels:
+          severity: warning
+          service: search-intelligence
+        annotations:
+          summary: "Monthly budget at {{ $value | humanize }}% of limit"
+          description: "Search Intelligence monthly budget is at {{ $value | humanize }}% of the $300 limit."
+
+      # Performance Alerts
+      - alert: HighAPIFailureRate
+        expr: |
+          (
+            sum(rate(search_intel_searches_failed[5m])) / 
+            sum(rate(search_intel_searches_total[5m]))
+          ) * 100 > 5
+        for: 10m
+        labels:
+          severity: critical
+          service: search-intelligence
+        annotations:
+          summary: "High API failure rate: {{ $value | humanize }}%"
+          description: "Search Intelligence API failure rate is {{ $value | humanize }}% over the last 5 minutes. This exceeds the 5% threshold."
+
+      - alert: LowCacheHitRate
+        expr: search_intel_cache_hit_rate < 60
+        for: 30m
+        labels:
+          severity: warning
+          service: search-intelligence
+        annotations:
+          summary: "Low cache hit rate: {{ $value | humanize }}%"
+          description: "Search Intelligence cache hit rate is {{ $value | humanize }}%, below the 60% threshold. This may increase API costs."
+
+      - alert: SlowSearchQueries
+        expr: |
+          histogram_quantile(0.95, 
+            sum by (le) (rate(search_intel_search_duration_seconds_bucket[5m]))
+          ) > 5
+        for: 15m
+        labels:
+          severity: warning
+          service: search-intelligence
+        annotations:
+          summary: "Slow search queries detected"
+          description: "95th percentile search query latency is {{ $value | humanizeSeconds }}, exceeding the 5-second threshold."
+
+      # Resource Alerts
+      - alert: HighMemoryUsage
+        expr: search_intel_memory_usage_mb > 1000
+        for: 10m
+        labels:
+          severity: warning
+          service: search-intelligence
+        annotations:
+          summary: "High memory usage: {{ $value | humanize }}MB"
+          description: "Search Intelligence service is using {{ $value | humanize }}MB of memory, which may indicate a memory leak."
+
+      - alert: HighCPUUsage
+        expr: search_intel_cpu_usage_percent > 80
+        for: 15m
+        labels:
+          severity: warning
+          service: search-intelligence
+        annotations:
+          summary: "High CPU usage: {{ $value | humanize }}%"
+          description: "Search Intelligence service CPU usage is {{ $value | humanize }}%, which may impact performance."
+
+      # Queue Alerts
+      - alert: LargeJobQueue
+        expr: sum(search_intel_queue_size) > 100
+        for: 10m
+        labels:
+          severity: warning
+          service: search-intelligence
+        annotations:
+          summary: "Large job queue: {{ $value }} jobs pending"
+          description: "Search Intelligence has {{ $value }} jobs in queue. Consider scaling up workers."
+
+      - alert: StuckAnalyses
+        expr: |
+          search_intel_active_analyses{status="processing"} > 0 and
+          increase(search_intel_analyses_completed[30m]) == 0
+        for: 30m
+        labels:
+          severity: critical
+          service: search-intelligence
+        annotations:
+          summary: "Analyses appear to be stuck"
+          description: "There are active analyses but none have completed in the last 30 minutes."
+
+      # Provider Alerts
+      - alert: ProviderDown
+        expr: search_intel_provider_availability == 0
+        for: 5m
+        labels:
+          severity: critical
+          service: search-intelligence
+        annotations:
+          summary: "SERP provider {{ $labels.provider }} is down"
+          description: "The {{ $labels.provider }} SERP provider has been unavailable for 5 minutes."
+
+      - alert: AllProvidersDown
+        expr: sum(search_intel_provider_availability) == 0
+        for: 1m
+        labels:
+          severity: critical
+          service: search-intelligence
+          pagerduty: true
+        annotations:
+          summary: "All SERP providers are down"
+          description: "All SERP API providers are currently unavailable. Search Intelligence is non-functional."
+
+      # Rate Limiting Alerts
+      - alert: FrequentRateLimits
+        expr: sum(rate(search_intel_rate_limit_hits[5m])) > 1
+        for: 10m
+        labels:
+          severity: warning
+          service: search-intelligence
+        annotations:
+          summary: "Frequent rate limiting detected"
+          description: "Search Intelligence is hitting rate limits frequently ({{ $value | humanize }} per second). Consider adjusting request rate."
+
+      # Database Alerts
+      - alert: SlowDatabaseQueries
+        expr: |
+          histogram_quantile(0.95,
+            sum by (le) (rate(search_intel_db_query_seconds_bucket[5m]))
+          ) > 0.5
+        for: 15m
+        labels:
+          severity: warning
+          service: search-intelligence
+        annotations:
+          summary: "Slow database queries detected"
+          description: "95th percentile database query time is {{ $value | humanizeSeconds }}, exceeding 500ms threshold."
+
+      # Business Metric Alerts
+      - alert: LowVisibilityScores
+        expr: |
+          histogram_quantile(0.5,
+            sum by (le) (rate(search_intel_visibility_scores_bucket[1h]))
+          ) < 30
+        for: 2h
+        labels:
+          severity: info
+          service: search-intelligence
+        annotations:
+          summary: "Low average visibility scores"
+          description: "Median visibility score is {{ $value }}, which is below 30. This may indicate poor search performance across analyses."
+
+      # Cost Anomaly Detection
+      - alert: UnusualSpendingPattern
+        expr: |
+          (
+            sum(increase(search_intel_api_costs_total[1h])) /
+            sum(increase(search_intel_api_costs_total[1h] offset 24h))
+          ) > 2
+        for: 30m
+        labels:
+          severity: warning
+          service: search-intelligence
+        annotations:
+          summary: "Unusual spending pattern detected"
+          description: "API spending in the last hour is {{ $value | humanize }}x higher than the same hour yesterday."
+
+# Recording Rules for Performance
+  - name: search_intelligence_recording_rules
+    interval: 30s
+    rules:
+      # Pre-calculate frequently used queries
+      - record: search_intel:request_rate
+        expr: sum(rate(search_intel_searches_total[5m]))
+
+      - record: search_intel:error_rate
+        expr: |
+          sum(rate(search_intel_searches_failed[5m])) / 
+          sum(rate(search_intel_searches_total[5m]))
+
+      - record: search_intel:p95_latency
+        expr: |
+          histogram_quantile(0.95,
+            sum by (le) (rate(search_intel_search_duration_seconds_bucket[5m]))
+          )
+
+      - record: search_intel:cache_hit_ratio
+        expr: |
+          sum(rate(search_intel_searches_cached[5m])) /
+          sum(rate(search_intel_searches_total[5m]))
+
+      - record: search_intel:daily_spend_percentage
+        expr: (sum(search_intel_current_daily_spend) / 10) * 100
+
+      - record: search_intel:active_analyses_total
+        expr: sum(search_intel_active_analyses)

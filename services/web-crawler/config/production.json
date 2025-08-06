@@ -1,0 +1,181 @@
+{
+  "server": {
+    "port": 3002,
+    "host": "0.0.0.0",
+    "trustProxy": true,
+    "logger": {
+      "level": "info",
+      "prettyPrint": false
+    }
+  },
+  "crawler": {
+    "maxPagesPerCrawl": 1000,
+    "maxDepth": 5,
+    "maxConcurrency": 10,
+    "jsRenderingBudget": 0.15,
+    "rateLimitPerSecond": 10,
+    "requestTimeout": 30000,
+    "pageLoadTimeout": 60000,
+    "crawlDelayMs": 100,
+    "userAgent": "RankMyBrand-Crawler/1.0 (+https://rankmybrand.ai/bot)"
+  },
+  "searchIntelligence": {
+    "enabled": true,
+    "providers": {
+      "serpapi": {
+        "enabled": true,
+        "priority": 1,
+        "costPerQuery": 0.01,
+        "rateLimit": 10,
+        "timeout": 10000
+      },
+      "valueserp": {
+        "enabled": true,
+        "priority": 2,
+        "costPerQuery": 0.008,
+        "rateLimit": 15,
+        "timeout": 10000
+      },
+      "scaleserp": {
+        "enabled": true,
+        "priority": 3,
+        "costPerQuery": 0.005,
+        "rateLimit": 20,
+        "timeout": 10000
+      }
+    },
+    "budget": {
+      "dailyLimit": 10,
+      "monthlyLimit": 300,
+      "warningThreshold": 0.8,
+      "criticalThreshold": 0.95
+    },
+    "cache": {
+      "enabled": true,
+      "ttl": 86400,
+      "compression": true,
+      "maxSize": 1000,
+      "preWarmEnabled": true,
+      "preWarmInterval": 21600
+    },
+    "queues": {
+      "concurrency": 5,
+      "maxRetries": 3,
+      "retryDelay": 60000,
+      "stalledInterval": 60000,
+      "removeOnComplete": 100,
+      "removeOnFail": 1000
+    },
+    "optimization": {
+      "deduplication": true,
+      "prioritization": true,
+      "batchSize": 10,
+      "parallelQueries": 5,
+      "smartQuerySelection": true
+    }
+  },
+  "database": {
+    "pool": {
+      "min": 5,
+      "max": 20,
+      "idleTimeoutMillis": 30000,
+      "connectionTimeoutMillis": 5000
+    },
+    "ssl": {
+      "rejectUnauthorized": true
+    }
+  },
+  "redis": {
+    "host": "${REDIS_HOST}",
+    "port": 6379,
+    "password": "${REDIS_PASSWORD}",
+    "db": 0,
+    "keyPrefix": "search-intel:",
+    "enableOfflineQueue": true,
+    "connectTimeout": 10000,
+    "maxRetriesPerRequest": 3,
+    "retryStrategy": {
+      "times": 10,
+      "interval": 1000
+    }
+  },
+  "monitoring": {
+    "prometheus": {
+      "enabled": true,
+      "port": 9090,
+      "path": "/metrics"
+    },
+    "healthcheck": {
+      "enabled": true,
+      "path": "/health",
+      "interval": 30000
+    },
+    "logging": {
+      "level": "info",
+      "format": "json",
+      "destination": "stdout",
+      "errorFile": "/var/log/search-intel/error.log"
+    }
+  },
+  "security": {
+    "rateLimit": {
+      "windowMs": 60000,
+      "max": 100,
+      "message": "Too many requests from this IP"
+    },
+    "cors": {
+      "origin": "${CORS_ORIGIN}",
+      "credentials": true
+    },
+    "helmet": {
+      "contentSecurityPolicy": {
+        "directives": {
+          "defaultSrc": ["'self'"],
+          "scriptSrc": ["'self'", "'unsafe-inline'"],
+          "styleSrc": ["'self'", "'unsafe-inline'"],
+          "imgSrc": ["'self'", "data:", "https:"],
+          "connectSrc": ["'self'", "wss:"]
+        }
+      },
+      "hsts": {
+        "maxAge": 31536000,
+        "includeSubDomains": true,
+        "preload": true
+      }
+    }
+  },
+  "scaling": {
+    "autoScale": {
+      "enabled": true,
+      "minInstances": 2,
+      "maxInstances": 10,
+      "targetCPU": 70,
+      "targetMemory": 80,
+      "scaleUpThreshold": 3,
+      "scaleDownThreshold": 5
+    },
+    "clustering": {
+      "enabled": true,
+      "workers": "auto"
+    }
+  },
+  "resilience": {
+    "circuitBreaker": {
+      "enabled": true,
+      "failureThreshold": 5,
+      "resetTimeout": 60000,
+      "monitorInterval": 10000
+    },
+    "retry": {
+      "maxAttempts": 3,
+      "initialDelay": 1000,
+      "maxDelay": 10000,
+      "factor": 2
+    },
+    "timeout": {
+      "api": 30000,
+      "database": 5000,
+      "redis": 3000
+    }
+  }
+}
