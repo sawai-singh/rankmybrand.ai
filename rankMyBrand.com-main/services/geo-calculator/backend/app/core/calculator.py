@@ -281,6 +281,28 @@ class GEOCalculator:
                 return float(value.item())
             return float(value) if isinstance(value, (int, float)) else value
         
+        # Convert VisibilityResult objects to dictionaries
+        ai_visibility_data = result['detailed_metrics'].get('ai_visibility', {})
+        if ai_visibility_data and 'results' in ai_visibility_data:
+            serializable_results = []
+            for res in ai_visibility_data['results']:
+                if hasattr(res, '__dict__'):  # VisibilityResult object
+                    res_dict = {
+                        'provider': res.provider,
+                        'query': res.query,
+                        'found': res.found,
+                        'position': res.position,
+                        'confidence': res.confidence,
+                        'mentions': res.mentions,
+                        'metadata': res.metadata,
+                        'checked_at': res.checked_at.isoformat() if res.checked_at else None,
+                        'error': res.error
+                    }
+                    serializable_results.append(res_dict)
+                else:
+                    serializable_results.append(res)
+            ai_visibility_data['results'] = serializable_results
+        
         analysis = GEOAnalysis(
             url=url,
             domain=domain,
@@ -294,7 +316,7 @@ class GEOCalculator:
             relevance_score=ensure_float(result['metrics']['relevance']),
             metrics=result['metrics'],
             recommendations=result['recommendations'],
-            ai_visibility_data=result['detailed_metrics'].get('ai_visibility', {})
+            ai_visibility_data=ai_visibility_data
         )
         
         db.add(analysis)

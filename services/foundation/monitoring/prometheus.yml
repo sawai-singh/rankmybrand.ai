@@ -1,0 +1,155 @@
+# Prometheus Configuration for RankMyBrand.ai GEO Platform
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  external_labels:
+    monitor: 'rankmybrand-monitor'
+    environment: 'production'
+
+# Alertmanager configuration
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets: []
+          # - 'alertmanager:9093'
+
+# Load rules once and periodically evaluate them
+rule_files:
+  - "alerts/*.yml"
+
+# Scrape configurations
+scrape_configs:
+  # Prometheus self-monitoring
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']
+        labels:
+          service: 'prometheus'
+
+  # Node Exporter (if deployed)
+  - job_name: 'node'
+    static_configs:
+      - targets: ['node-exporter:9100']
+        labels:
+          service: 'node-exporter'
+
+  # Caddy API Gateway
+  - job_name: 'caddy'
+    static_configs:
+      - targets: ['caddy:2019']
+        labels:
+          service: 'caddy'
+    metrics_path: '/metrics'
+
+  # PostgreSQL Exporter
+  - job_name: 'postgresql'
+    static_configs:
+      - targets: ['postgres-exporter:9187']
+        labels:
+          service: 'postgresql'
+
+  # Redis Exporter
+  - job_name: 'redis'
+    static_configs:
+      - targets: ['redis-exporter:9121']
+        labels:
+          service: 'redis'
+
+  # Foundation Service
+  - job_name: 'foundation'
+    static_configs:
+      - targets: ['foundation:3000']
+        labels:
+          service: 'foundation'
+          version: '1.0.0'
+    metrics_path: '/metrics'
+    scrape_interval: 30s
+
+  # AI Response Monitor
+  - job_name: 'ai-monitor'
+    static_configs:
+      - targets: ['ai-monitor:3001']
+        labels:
+          service: 'ai-monitor'
+    metrics_path: '/metrics'
+    scrape_interval: 30s
+
+  # Intelligence Engine
+  - job_name: 'intelligence'
+    static_configs:
+      - targets: ['intelligence:3002']
+        labels:
+          service: 'intelligence'
+    metrics_path: '/metrics'
+    scrape_interval: 30s
+
+  # Action Center
+  - job_name: 'actions'
+    static_configs:
+      - targets: ['actions:3003']
+        labels:
+          service: 'actions'
+    metrics_path: '/metrics'
+    scrape_interval: 30s
+
+  # GEO Calculator
+  - job_name: 'geo-calculator'
+    static_configs:
+      - targets: ['geo-calculator:8000']
+        labels:
+          service: 'geo-calculator'
+    metrics_path: '/metrics'
+    scrape_interval: 30s
+
+  # Web Crawler
+  - job_name: 'web-crawler'
+    static_configs:
+      - targets: ['web-crawler:3002']
+        labels:
+          service: 'web-crawler'
+    metrics_path: '/metrics'
+    scrape_interval: 30s
+
+  # Dashboard
+  - job_name: 'dashboard'
+    static_configs:
+      - targets: ['dashboard:3004']
+        labels:
+          service: 'dashboard'
+    metrics_path: '/metrics'
+    scrape_interval: 30s
+
+  # Docker metrics
+  - job_name: 'docker'
+    static_configs:
+      - targets: ['docker-exporter:9323']
+        labels:
+          service: 'docker'
+
+  # Blackbox exporter for endpoint monitoring
+  - job_name: 'blackbox'
+    metrics_path: /probe
+    params:
+      module: [http_2xx]
+    static_configs:
+      - targets:
+          - http://localhost/health
+          - http://localhost/api/foundation/health
+          - http://localhost/api/ai-monitor/health
+          - http://localhost/api/intelligence/health
+          - http://localhost/api/actions/health
+          - http://localhost/api/geo/health
+          - http://localhost/api/crawler/health
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: __param_target
+      - source_labels: [__param_target]
+        target_label: instance
+      - target_label: __address__
+        replacement: blackbox-exporter:9115
+
+# Service discovery configuration (for dynamic targets)
+# file_sd_configs:
+#   - files:
+#       - '/etc/prometheus/targets/*.json'
+#     refresh_interval: 30s

@@ -1,0 +1,435 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<module_prompt version="1.0">
+  <metadata>
+    <module_id>02</module_id>
+    <module_name>AI Intelligence Engine</module_name>
+    <description>Process AI responses to extract citations, analyze sentiment, calculate GEO scores, detect brand mentions, and identify content gaps using real NLP models</description>
+    <dependencies>
+      <upstream>Module 01 - AI Response Collector</upstream>
+      <downstream>Module 03 - Action Center</downstream>
+    </dependencies>
+    <cost_target>$30/month additional</cost_target>
+    <performance_target>100 responses/minute</performance_target>
+  </metadata>
+
+  <system_context>
+You are building Module 2: AI Intelligence Engine for RankMyBrand.ai, a GEO platform that beats AthenaHQ at 50% lower cost. This module processes raw AI responses from Module 1 and extracts actionable intelligence using production-ready NLP models.
+
+INTEGRATION POINTS:
+- INPUT: Redis Stream 'ai.responses.raw' from Module 1
+- OUTPUT: Redis Stream 'metrics.calculated' to Module 3  
+- DATABASE: PostgreSQL tables (brand_mentions, geo_scores, content_gaps)
+- MONITORING: Prometheus metrics exposed on port 9092
+
+PERFORMANCE REQUIREMENTS:
+- Process 100 AI responses per minute
+- P95 latency < 500ms per response
+- Memory usage < 2GB
+- CPU usage < 2 cores under load
+
+COST CONSTRAINTS:
+- No paid APIs (use open-source models)
+- Run on existing infrastructure
+- Total additional cost < $30/month
+  </system_context>
+
+  <implementation_requirements>
+    <tech_stack>
+      <language>Python 3.12</language>
+      <framework>FastAPI for health/metrics endpoints</framework>
+      <nlp_models>
+        - HuggingFace Transformers (sentiment-roberta-large)
+        - spaCy 3.7 (en_core_web_sm for NER)
+        - sentence-transformers (all-MiniLM-L6-v2 for embeddings)
+        - TextRank for keyword extraction
+      </nlp_models>
+      <databases>
+        - PostgreSQL (existing, port 5433)
+        - Redis Streams (existing, port 6379)
+        - pgvector extension for similarity search
+      </databases>
+      <queue>Redis Streams with consumer groups</queue>
+      <monitoring>Prometheus client with custom metrics</monitoring>
+    </tech_stack>
+
+    <nlp_pipeline>
+      1. Citation Extraction (regex + DOM parsing)
+      2. Brand/Entity Detection (spaCy NER + custom rules)
+      3. Sentiment Analysis (RoBERTa fine-tuned model)
+      4. Relevance Scoring (sentence embeddings + cosine similarity)
+      5. Authority Calculation (domain metrics + citation frequency)
+      6. Content Gap Detection (topic modeling + missing entity analysis)
+    </nlp_pipeline>
+
+    <data_flow>
+      1. Consume from 'ai.responses.raw' stream
+      2. Parse and validate message structure
+      3. Run NLP pipeline in parallel where possible
+      4. Calculate GEO metrics (weighted scoring)
+      5. Store results in PostgreSQL
+      6. Publish to 'metrics.calculated' stream
+      7. Update Prometheus metrics
+    </data_flow>
+  </implementation_requirements>
+
+  <file_structure>
+rankmybrand-platform/
+└── ai-platform-modules/
+    └── ai-intelligence-engine/
+        ├── docker-compose.yml
+        ├── Dockerfile
+        ├── requirements.txt
+        ├── .env.example
+        ├── src/
+        │   ├── __init__.py
+        │   ├── main.py                    # FastAPI app entry
+        │   ├── config.py                   # Environment config
+        │   ├── consumer.py                 # Redis Stream consumer
+        │   ├── models/
+        │   │   ├── __init__.py
+        │   │   ├── schemas.py              # Pydantic models
+        │   │   └── database.py             # SQLAlchemy models
+        │   ├── nlp/
+        │   │   ├── __init__.py
+        │   │   ├── citation_extractor.py   # Extract citations/sources
+        │   │   ├── entity_detector.py      # Brand/competitor detection
+        │   │   ├── sentiment_analyzer.py   # Sentiment scoring
+        │   │   ├── relevance_scorer.py     # Query relevance
+        │   │   ├── authority_scorer.py     # Domain authority
+        │   │   └── gap_detector.py         # Content gap analysis
+        │   ├── processors/
+        │   │   ├── __init__.py
+        │   │   ├── response_processor.py   # Main processing pipeline
+        │   │   ├── geo_calculator.py       # GEO score calculation
+        │   │   └── sov_calculator.py       # Share of Voice metrics
+        │   ├── storage/
+        │   │   ├── __init__.py
+        │   │   ├── postgres_client.py      # Database operations
+        │   │   ├── redis_client.py         # Stream operations
+        │   │   └── cache_manager.py        # Result caching
+        │   └── monitoring/
+        │       ├── __init__.py
+        │       ├── metrics.py               # Prometheus metrics
+        │       └── health.py                # Health checks
+        ├── tests/
+        │   ├── __init__.py
+        │   ├── test_nlp/                   # NLP component tests
+        │   ├── test_processors/            # Pipeline tests
+        │   └── test_integration.py         # E2E tests
+        └── scripts/
+            ├── download_models.py           # Pre-download NLP models
+            ├── init_db.py                   # Create tables
+            └── test_pipeline.py             # Manual testing
+  </file_structure>
+
+  <docker_configuration>
+FROM python:3.12-slim
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+    gcc g++ \
+    postgresql-client \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+# Install Python dependencies
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Download NLP models during build
+RUN python -c "from transformers import pipeline; pipeline('sentiment-analysis', model='cardiffnlp/twitter-roberta-base-sentiment-latest')"
+RUN python -m spacy download en_core_web_sm
+RUN python -c "from sentence_transformers import SentenceTransformer; SentenceTransformer('all-MiniLM-L6-v2')"
+
+# Copy application code
+COPY src/ ./src/
+
+# Run the consumer
+CMD ["python", "-m", "src.main"]
+  </docker_configuration>
+
+  <core_algorithms>
+    <geo_score_calculation>
+# GEO Score Formula (0-100)
+geo_score = (
+    0.35 * citation_frequency +      # How often brand is cited
+    0.25 * sentiment_score +          # Positive vs negative mentions
+    0.20 * relevance_score +          # Query-answer relevance
+    0.10 * position_weight +          # First mention vs later
+    0.10 * authority_score            # Domain authority of sources
+) * recency_weight                   # Decay for older data
+
+# Share of Voice Formula
+sov = (brand_mentions / total_mentions_in_category) * 100
+
+# Content Gap Score
+gap_score = missing_topics * query_volume * competitor_advantage
+    </geo_score_calculation>
+
+    <nlp_models_config>
+# Sentiment Analysis
+model: cardiffnlp/twitter-roberta-base-sentiment-latest
+batch_size: 32
+cache_results: true
+
+# Entity Recognition
+model: spacy en_core_web_sm
+custom_patterns: brand_names.json
+confidence_threshold: 0.7
+
+# Embeddings
+model: all-MiniLM-L6-v2
+dimension: 384
+similarity_threshold: 0.75
+
+# Keyword Extraction
+algorithm: TextRank
+top_k: 10
+window_size: 3
+    </nlp_models_config>
+  </core_algorithms>
+
+  <sample_implementation>
+# src/nlp/sentiment_analyzer.py
+from transformers import pipeline
+from typing import Dict, List
+import numpy as np
+
+class SentimentAnalyzer:
+    def __init__(self):
+        self.model = pipeline(
+            "sentiment-analysis",
+            model="cardiffnlp/twitter-roberta-base-sentiment-latest",
+            device=-1  # CPU only to save cost
+        )
+        self.cache = {}
+    
+    def analyze(self, text: str) -> Dict[str, float]:
+        # Check cache first
+        if text in self.cache:
+            return self.cache[text]
+        
+        # Clean text (remove excess whitespace, limit length)
+        text = ' '.join(text.split())[:512]
+        
+        # Get predictions
+        results = self.model(text)[0]
+        
+        # Convert to standardized format
+        sentiment = {
+            'score': self._convert_to_score(results),
+            'label': results['label'],
+            'confidence': results['score']
+        }
+        
+        # Cache result
+        self.cache[text] = sentiment
+        return sentiment
+    
+    def _convert_to_score(self, result: Dict) -> float:
+        """Convert label to -1 to 1 scale"""
+        label_map = {
+            'POSITIVE': 1.0,
+            'NEUTRAL': 0.0,
+            'NEGATIVE': -1.0
+        }
+        return label_map.get(result['label'], 0.0) * result['score']
+
+# src/processors/response_processor.py
+import asyncio
+from typing import Dict, Any
+from src.nlp import (
+    CitationExtractor,
+    EntityDetector, 
+    SentimentAnalyzer,
+    RelevanceScorer,
+    AuthorityScorer,
+    GapDetector
+)
+
+class ResponseProcessor:
+    def __init__(self):
+        self.citation_extractor = CitationExtractor()
+        self.entity_detector = EntityDetector()
+        self.sentiment_analyzer = SentimentAnalyzer()
+        self.relevance_scorer = RelevanceScorer()
+        self.authority_scorer = AuthorityScorer()
+        self.gap_detector = GapDetector()
+    
+    async def process(self, response: Dict[str, Any]) -> Dict[str, Any]:
+        """Process a single AI response through the NLP pipeline"""
+        
+        # Extract basic components
+        platform = response['platform']
+        prompt = response['promptText']
+        answer = response['responseText']
+        citations = response.get('citations', [])
+        
+        # Run NLP pipeline (parallelize where possible)
+        results = await asyncio.gather(
+            self._extract_citations(answer, citations),
+            self._detect_entities(answer),
+            self._analyze_sentiment(answer),
+            self._score_relevance(prompt, answer),
+            self._score_authority(citations),
+            self._detect_gaps(prompt, answer)
+        )
+        
+        # Combine results
+        processed = {
+            'platform': platform,
+            'prompt': prompt,
+            'citations': results[0],
+            'entities': results[1],
+            'sentiment': results[2],
+            'relevance': results[3],
+            'authority': results[4],
+            'gaps': results[5],
+            'timestamp': response['metadata']['timestamp']
+        }
+        
+        # Calculate composite scores
+        processed['geo_score'] = self._calculate_geo_score(processed)
+        processed['sov'] = self._calculate_sov(processed)
+        
+        return processed
+  </sample_implementation>
+
+  <database_schema>
+-- Brand mentions table
+CREATE TABLE IF NOT EXISTS brand_mentions (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    response_id UUID NOT NULL,
+    brand_id UUID NOT NULL,
+    mention_text TEXT NOT NULL,
+    sentiment_score FLOAT,
+    sentiment_label VARCHAR(20),
+    confidence FLOAT,
+    position INTEGER,
+    context TEXT,
+    platform VARCHAR(50),
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    INDEX idx_brand_mentions_brand (brand_id),
+    INDEX idx_brand_mentions_sentiment (sentiment_score),
+    INDEX idx_brand_mentions_created (created_at)
+);
+
+-- GEO scores table
+CREATE TABLE IF NOT EXISTS geo_scores (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    brand_id UUID NOT NULL,
+    platform VARCHAR(50) NOT NULL,
+    score FLOAT NOT NULL,
+    share_of_voice FLOAT,
+    citation_frequency FLOAT,
+    sentiment_average FLOAT,
+    relevance_average FLOAT,
+    authority_average FLOAT,
+    calculated_at TIMESTAMPTZ DEFAULT NOW(),
+    period_start TIMESTAMPTZ,
+    period_end TIMESTAMPTZ,
+    INDEX idx_geo_scores_brand_platform (brand_id, platform),
+    INDEX idx_geo_scores_calculated (calculated_at)
+);
+
+-- Content gaps table
+CREATE TABLE IF NOT EXISTS content_gaps (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    brand_id UUID NOT NULL,
+    gap_type VARCHAR(50) NOT NULL,
+    description TEXT NOT NULL,
+    priority INTEGER DEFAULT 5,
+    query_examples TEXT[],
+    competitor_advantage FLOAT,
+    estimated_impact FLOAT,
+    detected_at TIMESTAMPTZ DEFAULT NOW(),
+    resolved_at TIMESTAMPTZ,
+    INDEX idx_gaps_brand_priority (brand_id, priority),
+    INDEX idx_gaps_type (gap_type)
+);
+
+-- Citation sources table
+CREATE TABLE IF NOT EXISTS citation_sources (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    domain VARCHAR(255) NOT NULL,
+    url TEXT,
+    authority_score FLOAT,
+    citation_count INTEGER DEFAULT 1,
+    last_cited TIMESTAMPTZ DEFAULT NOW(),
+    is_competitor BOOLEAN DEFAULT FALSE,
+    is_owned BOOLEAN DEFAULT FALSE,
+    UNIQUE(domain)
+);
+  </database_schema>
+
+  <monitoring_metrics>
+# Prometheus metrics to expose
+ai_responses_processed_total = Counter('ai_responses_processed_total', 'Total AI responses processed', ['platform', 'status'])
+ai_processing_duration_seconds = Histogram('ai_processing_duration_seconds', 'Time to process AI response', ['platform'])
+nlp_model_inference_duration = Histogram('nlp_model_inference_duration', 'NLP model inference time', ['model'])
+geo_score_distribution = Histogram('geo_score_distribution', 'Distribution of GEO scores', ['brand', 'platform'])
+content_gaps_detected = Counter('content_gaps_detected', 'Number of content gaps detected', ['brand', 'type'])
+redis_stream_lag = Gauge('redis_stream_lag', 'Number of unprocessed messages in stream')
+postgres_write_errors = Counter('postgres_write_errors', 'Database write errors', ['table'])
+  </monitoring_metrics>
+
+  <deployment_steps>
+1. Build Docker image:
+   docker build -t rankmybrand/ai-intelligence-engine:latest .
+
+2. Initialize database:
+   python scripts/init_db.py
+
+3. Pre-download models (one-time):
+   python scripts/download_models.py
+
+4. Deploy with docker-compose:
+   docker-compose up -d
+
+5. Verify health:
+   curl http://localhost:8002/health
+
+6. Check metrics:
+   curl http://localhost:9092/metrics
+
+7. Monitor logs:
+   docker logs -f ai-intelligence-engine
+
+8. Test pipeline:
+   python scripts/test_pipeline.py --sample-data
+  </deployment_steps>
+
+  <production_optimizations>
+- Model caching: Cache NLP model outputs for identical text (24hr TTL)
+- Batch processing: Process responses in batches of 32 for transformer models
+- Connection pooling: 10 PostgreSQL connections, 20 Redis connections
+- Circuit breaker: Fail fast if downstream services are unavailable
+- Dead letter queue: Failed messages go to 'ai.responses.failed' stream
+- Horizontal scaling: Can run 2-4 instances with Redis consumer groups
+- Model quantization: Use INT8 quantized models if memory constrained
+- Async I/O: All database operations are async to prevent blocking
+  </production_optimizations>
+
+  <testing_requirements>
+- Unit tests: >90% coverage for NLP components
+- Integration tests: Full pipeline with sample data
+- Load tests: Verify 100 responses/minute throughput
+- Accuracy tests: Validate NLP model outputs against ground truth
+- Memory tests: Ensure < 2GB usage under load
+- Failure tests: Verify graceful degradation
+  </testing_requirements>
+
+  <success_criteria>
+✓ Processes 100+ AI responses per minute
+✓ Uses only open-source NLP models (no API costs)
+✓ P95 latency < 500ms
+✓ Memory usage < 2GB
+✓ Runs on existing infrastructure
+✓ Total cost < $30/month (just compute resources)
+✓ >95% uptime
+✓ Accurate sentiment analysis (>85% F1 score)
+✓ Reliable entity detection (>90% precision for brand names)
+✓ Meaningful content gap identification
+  </success_criteria>
+</module_prompt>

@@ -1,0 +1,71 @@
+version: '3.8'
+
+services:
+  intelligence-engine:
+    build: .
+    container_name: intelligence-engine
+    restart: unless-stopped
+    ports:
+      - "8002:8002"  # API port
+      - "9092:9092"  # Metrics port
+    environment:
+      - SERVICE_NAME=intelligence-engine
+      - SERVICE_PORT=8002
+      - METRICS_PORT=9092
+      - LOG_LEVEL=INFO
+      # Redis
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - REDIS_DB=0
+      - REDIS_STREAM_INPUT=ai.responses.raw
+      - REDIS_STREAM_OUTPUT=metrics.calculated
+      - REDIS_STREAM_FAILED=ai.responses.failed
+      - REDIS_CONSUMER_GROUP=intelligence-engine-group
+      - REDIS_CONSUMER_NAME=intelligence-engine-1
+      # PostgreSQL
+      - POSTGRES_HOST=postgres
+      - POSTGRES_PORT=5432
+      - POSTGRES_DB=rankmybrand
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+      # NLP Models
+      - SENTIMENT_MODEL=cardiffnlp/twitter-roberta-base-sentiment-latest
+      - EMBEDDING_MODEL=all-MiniLM-L6-v2
+      - SPACY_MODEL=en_core_web_sm
+      - MODEL_CACHE_DIR=/tmp/models
+      - BATCH_SIZE=32
+      # Processing
+      - MAX_WORKERS=4
+      - PROCESSING_TIMEOUT=30
+      - BATCH_TIMEOUT=5
+      - MAX_RETRIES=3
+      # Cache
+      - CACHE_ENABLED=true
+      - CACHE_TTL_SECONDS=86400
+      - CACHE_MAX_SIZE=1000
+      # Performance
+      - MAX_TEXT_LENGTH=512
+      - SIMILARITY_THRESHOLD=0.75
+      - CONFIDENCE_THRESHOLD=0.7
+      - TOP_K_KEYWORDS=10
+    volumes:
+      - ./models:/tmp/models  # Model cache
+      - ./logs:/app/logs      # Logs
+    networks:
+      - rankmybrand-network
+    depends_on:
+      - redis
+      - postgres
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 2G
+        reservations:
+          cpus: '1'
+          memory: 1G
+
+networks:
+  rankmybrand-network:
+    external: true
+    name: foundation_rankmybrand-network

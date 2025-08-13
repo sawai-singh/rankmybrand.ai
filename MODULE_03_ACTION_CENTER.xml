@@ -1,0 +1,838 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<module_prompt>
+  <quick_reference>
+    <module_id>ACTION-CENTER-001</module_id>
+    <version>1.0.0</version>
+    <dependencies>
+      - FOUNDATION-001 (Redis Streams, PostgreSQL, BullMQ)
+      - AI-COLLECTOR-001 (Response format)
+      - INTELLIGENCE-ENGINE-001 (Metrics and gaps)
+    </dependencies>
+    <estimated_time>2 weeks</estimated_time>
+    <priority>HIGH</priority>
+    <production_ready>YES - Real AI-powered recommendations with auto-execution</production_ready>
+    <monthly_cost>$20-30 (Leverages existing AI APIs, adds automation)</monthly_cost>
+  </quick_reference>
+
+  <section_1_module_identity>
+    <name>Action Center - Intelligent Recommendation Engine</name>
+    <identifier>rankmybrand-action-center</identifier>
+    <position>Layer 4 - Consumes metrics from Intelligence Engine, feeds Dashboard</position>
+    <business_value>
+      Transforms insights into ACTION. Generates specific, prioritized recommendations
+      that can be auto-executed or one-click implemented. Beats AthenaHQ by providing
+      not just "what to do" but actually DOING it automatically where possible.
+    </business_value>
+    <competitive_advantage>
+      - Auto-execution capabilities (vs AthenaHQ's manual)
+      - AI-generated content ready to publish
+      - Priority scoring based on ROI
+      - Integration with CMS platforms
+      - Tracks implementation and measures impact
+    </competitive_advantage>
+  </section_1_module_identity>
+
+  <section_2_context_prerequisites>
+    <required_reading>
+      - Foundation module implementation
+      - Intelligence Engine output format
+      - OpenAI/Anthropic API documentation for content generation
+    </required_reading>
+    <dependencies>
+      - Redis Streams operational (consuming 'metrics.calculated')
+      - PostgreSQL with metrics tables populated
+      - Module 2 running and producing metrics
+      - AI API keys from Module 1 (reuse for content generation)
+    </dependencies>
+    <integration_requirements>
+      - WordPress REST API credentials (optional)
+      - Webflow API key (optional)
+      - GitHub API token for schema changes (optional)
+      - Slack webhook for notifications (optional)
+    </integration_requirements>
+  </section_2_context_prerequisites>
+
+  <section_3_technical_specifications>
+    <architecture>
+      Event-driven microservice consuming metrics and producing recommendations.
+      Uses AI to generate content, prioritizes based on impact, and can auto-execute
+      certain actions through integrations.
+    </architecture>
+    <tech_stack>
+      - Language: Node.js 20.11.0 with TypeScript
+      - Framework: Express + BullMQ workers
+      - AI: OpenAI GPT-4 for content, Claude for analysis
+      - Database: PostgreSQL (existing) + Redis
+      - Integrations: REST APIs for CMS platforms
+      - Monitoring: Prometheus metrics
+    </tech_stack>
+    <data_flow>
+      1. Consume 'metrics.calculated' events
+      2. Analyze gaps and opportunities
+      3. Generate recommendations with AI
+      4. Score and prioritize by impact
+      5. Store in database
+      6. Publish to 'recommendations.ready' stream
+      7. Auto-execute if configured
+      8. Track implementation status
+    </data_flow>
+  </section_3_technical_specifications>
+
+  <section_4_functional_requirements>
+    <core_features>
+      1. **Gap Analysis Processing**
+         - Consume content gaps from Intelligence Engine
+         - Identify patterns across multiple gaps
+         - Group related gaps for batch solutions
+
+      2. **Recommendation Generation**
+         - Create specific, actionable recommendations
+         - Generate multiple recommendation types:
+           * Content creation (blog posts, FAQs)
+           * Schema markup additions
+           * Meta tag optimizations
+           * Internal linking suggestions
+           * Citation building strategies
+
+      3. **Content Generation**
+         - Use GPT-4 to create actual content
+         - Generate SEO-optimized drafts
+         - Create structured data schemas
+         - Build FAQ sections
+         - Write meta descriptions
+
+      4. **Priority Scoring**
+         - Calculate potential impact (0-100)
+         - Estimate implementation effort
+         - Compute ROI score
+         - Consider competitive advantage
+         - Factor in quick wins vs long-term
+
+      5. **Auto-Execution Engine**
+         - Publish to WordPress/Webflow
+         - Update GitHub repos
+         - Create Jira/Linear tickets
+         - Send Slack notifications
+         - Schedule follow-ups
+    </core_features>
+
+    <recommendation_types>
+      <type name="content_creation">
+        - Blog posts targeting gap queries
+        - FAQ sections for common questions
+        - Glossary entries for terminology
+        - Comparison pages vs competitors
+        - Case studies and examples
+      </type>
+      <type name="technical_optimization">
+        - Schema.org markup additions
+        - Meta tag improvements
+        - Sitemap updates
+        - Robots.txt modifications
+        - Page speed optimizations
+      </type>
+      <type name="link_building">
+        - Citation opportunities
+        - Guest post targets
+        - Resource page additions
+        - Directory submissions
+        - Partnership opportunities
+      </type>
+      <type name="competitive_response">
+        - Counter competitor advantages
+        - Fill competitive gaps
+        - Differentiation strategies
+        - Positioning improvements
+      </type>
+    </recommendation_types>
+  </section_4_functional_requirements>
+
+  <section_5_nonfunctional_requirements>
+    <performance>
+      - Process metrics within 1 second
+      - Generate recommendation in < 5 seconds
+      - Handle 50 concurrent recommendations
+      - Support 1000 recommendations/day
+    </performance>
+    <reliability>
+      - 99.9% uptime
+      - Graceful degradation if AI APIs fail
+      - Retry failed executions
+      - Rollback capability for auto-executions
+    </reliability>
+    <scalability>
+      - Horizontal scaling with worker pools
+      - Queue-based processing
+      - Cacheable recommendation templates
+    </scalability>
+    <security>
+      - Encrypted API credentials
+      - Audit log for all executions
+      - Approval workflow for critical changes
+      - Sandboxed execution environment
+    </security>
+  </section_5_nonfunctional_requirements>
+
+  <section_6_integration_specifications>
+    <input_stream>
+      <name>metrics.calculated</name>
+      <format>
+        {
+          brandId: string,
+          platform: string,
+          geoScore: number,
+          shareOfVoice: number,
+          sentiment: object,
+          mentions: array,
+          citations: array,
+          contentGaps: array,
+          timestamp: string
+        }
+      </format>
+    </input_stream>
+
+    <output_stream>
+      <name>recommendations.ready</name>
+      <format>
+        {
+          recommendationId: string,
+          brandId: string,
+          type: string,
+          priority: number,
+          title: string,
+          description: string,
+          implementation: object,
+          estimatedImpact: number,
+          autoExecutable: boolean,
+          status: string,
+          createdAt: string
+        }
+      </format>
+    </output_stream>
+
+    <external_apis>
+      - OpenAI API (content generation)
+      - Claude API (analysis)
+      - WordPress REST API (publishing)
+      - Webflow API (publishing)
+      - GitHub API (code changes)
+      - Slack API (notifications)
+      - Linear/Jira API (task creation)
+    </external_apis>
+  </section_6_integration_specifications>
+
+  <section_7_error_handling_resilience>
+    <error_scenarios>
+      - AI API rate limits: Exponential backoff with queue
+      - CMS API failures: Retry with fallback to draft
+      - Invalid metrics data: Log and skip
+      - Content generation failures: Template fallback
+      - Auto-execution errors: Rollback and alert
+    </error_scenarios>
+    <resilience_patterns>
+      - Circuit breaker for external APIs
+      - Dead letter queue for failed recommendations
+      - Compensation transactions for rollbacks
+      - Health checks every 30 seconds
+      - Graceful shutdown with queue draining
+    </resilience_patterns>
+  </section_7_error_handling_resilience>
+
+  <section_8_testing_requirements>
+    <unit_tests>
+      - Recommendation scoring algorithm
+      - Priority calculation
+      - Content template generation
+      - API integration mocks
+    </unit_tests>
+    <integration_tests>
+      - Stream consumption from metrics
+      - Database writes
+      - External API calls
+      - Auto-execution workflows
+    </integration_tests>
+    <e2e_tests>
+      - Full pipeline from metrics to execution
+      - Rollback scenarios
+      - Multi-brand handling
+      - Performance under load
+    </e2e_tests>
+  </section_8_testing_requirements>
+
+  <section_9_deliverables_checklist>
+    - [ ] Recommendation engine core logic
+    - [ ] AI content generator integration
+    - [ ] Priority scoring algorithm
+    - [ ] Database schema for recommendations
+    - [ ] Stream consumer for metrics
+    - [ ] Stream publisher for recommendations
+    - [ ] Auto-execution engine
+    - [ ] CMS integrations (WordPress, Webflow)
+    - [ ] Monitoring and metrics
+    - [ ] Admin UI for approval workflows
+    - [ ] API for manual triggers
+    - [ ] Documentation and examples
+    - [ ] Test suite with >80% coverage
+    - [ ] Deployment configuration
+  </section_9_deliverables_checklist>
+
+  <section_10_success_criteria>
+    - Generates recommendations within 5 seconds
+    - 90% of recommendations are actionable
+    - Auto-execution success rate > 95%
+    - Reduces time-to-implementation by 10x
+    - Costs < $30/month additional
+    - Zero manual intervention for approved types
+    - Measurable GEO score improvement within 7 days
+  </section_10_success_criteria>
+
+  <section_11_code_examples>
+    <recommendation_generator>
+```typescript
+// src/generators/recommendation-generator.ts
+import { OpenAI } from 'openai';
+import { MetricsEvent, Recommendation } from '../types';
+
+export class RecommendationGenerator {
+  private openai: OpenAI;
+  private templates: Map<string, string>;
+  
+  constructor() {
+    this.openai = new OpenAI({
+      apiKey: process.env.OPENAI_API_KEY
+    });
+    this.loadTemplates();
+  }
+  
+  async generateFromGap(
+    gap: ContentGap,
+    metrics: MetricsEvent
+  ): Promise<Recommendation> {
+    // Analyze gap type and severity
+    const gapAnalysis = this.analyzeGap(gap);
+    
+    // Generate specific recommendation
+    const recommendation = await this.createRecommendation(
+      gapAnalysis,
+      metrics
+    );
+    
+    // Generate implementation content
+    if (recommendation.type === 'content_creation') {
+      recommendation.content = await this.generateContent(
+        gap,
+        metrics.brandId
+      );
+    }
+    
+    // Calculate priority and impact
+    recommendation.priority = this.calculatePriority(
+      gap,
+      metrics,
+      recommendation
+    );
+    
+    recommendation.estimatedImpact = this.estimateImpact(
+      gap.queryVolume,
+      metrics.shareOfVoice,
+      gap.competitorAdvantage
+    );
+    
+    return recommendation;
+  }
+  
+  private async generateContent(
+    gap: ContentGap,
+    brandId: string
+  ): Promise<string> {
+    const brand = await this.getBrandContext(brandId);
+    
+    const prompt = `
+      Create SEO-optimized content to address this gap:
+      
+      Missing Topic: ${gap.description}
+      Query Examples: ${gap.queryExamples.join(', ')}
+      Brand: ${brand.name}
+      Tone: ${brand.tone || 'Professional'}
+      
+      Requirements:
+      - Include relevant keywords naturally
+      - Answer the specific queries
+      - Add structured data where applicable
+      - Optimize for AI citations
+      - Length: 500-800 words
+      
+      Format as HTML with proper headings.
+    `;
+    
+    const response = await this.openai.chat.completions.create({
+      model: 'gpt-4-turbo-preview',
+      messages: [{ role: 'user', content: prompt }],
+      temperature: 0.7,
+      max_tokens: 1500
+    });
+    
+    return response.choices[0].message.content;
+  }
+  
+  private calculatePriority(
+    gap: ContentGap,
+    metrics: MetricsEvent,
+    recommendation: Recommendation
+  ): number {
+    const weights = {
+      gapSeverity: 0.3,
+      competitorAdvantage: 0.25,
+      implementationEase: 0.2,
+      currentPerformance: 0.15,
+      queryVolume: 0.1
+    };
+    
+    const scores = {
+      gapSeverity: gap.priority / 10,
+      competitorAdvantage: gap.competitorAdvantage,
+      implementationEase: this.getImplementationEase(recommendation.type),
+      currentPerformance: 1 - (metrics.geoScore / 100),
+      queryVolume: Math.min(gap.estimatedSearchVolume / 10000, 1)
+    };
+    
+    return Object.entries(weights).reduce(
+      (total, [key, weight]) => total + (scores[key] * weight * 100),
+      0
+    );
+  }
+}
+```
+    </recommendation_generator>
+
+    <auto_executor>
+```typescript
+// src/executors/auto-executor.ts
+import { WordPress } from '../integrations/wordpress';
+import { Webflow } from '../integrations/webflow';
+import { GitHub } from '../integrations/github';
+
+export class AutoExecutor {
+  private wordpress: WordPress;
+  private webflow: Webflow;
+  private github: GitHub;
+  private approvedTypes: Set<string>;
+  
+  constructor() {
+    this.wordpress = new WordPress();
+    this.webflow = new Webflow();
+    this.github = new GitHub();
+    
+    // Auto-approve safe operations
+    this.approvedTypes = new Set([
+      'meta_description',
+      'faq_addition',
+      'schema_markup',
+      'draft_creation'
+    ]);
+  }
+  
+  async execute(recommendation: Recommendation): Promise<ExecutionResult> {
+    // Check if auto-execution is allowed
+    if (!this.canAutoExecute(recommendation)) {
+      return this.queueForApproval(recommendation);
+    }
+    
+    try {
+      // Start transaction for rollback capability
+      const transaction = await this.startTransaction(recommendation);
+      
+      // Execute based on type
+      let result: ExecutionResult;
+      
+      switch (recommendation.type) {
+        case 'content_creation':
+          result = await this.publishContent(recommendation);
+          break;
+          
+        case 'schema_markup':
+          result = await this.updateSchema(recommendation);
+          break;
+          
+        case 'meta_optimization':
+          result = await this.updateMetaTags(recommendation);
+          break;
+          
+        default:
+          result = await this.createTask(recommendation);
+      }
+      
+      // Commit transaction
+      await this.commitTransaction(transaction);
+      
+      // Track execution
+      await this.trackExecution(recommendation, result);
+      
+      // Notify stakeholders
+      await this.notify(recommendation, result);
+      
+      return result;
+      
+    } catch (error) {
+      // Rollback on failure
+      await this.rollback(recommendation, error);
+      throw error;
+    }
+  }
+  
+  private async publishContent(
+    recommendation: Recommendation
+  ): Promise<ExecutionResult> {
+    const platform = await this.detectPlatform(recommendation.brandId);
+    
+    if (platform === 'wordpress') {
+      return await this.wordpress.createPost({
+        title: recommendation.title,
+        content: recommendation.content,
+        status: 'draft', // Safety: create as draft
+        categories: recommendation.categories,
+        tags: recommendation.tags,
+        meta: {
+          _yoast_wpseo_metadesc: recommendation.metaDescription
+        }
+      });
+    }
+    
+    if (platform === 'webflow') {
+      return await this.webflow.createItem({
+        collection: 'blog-posts',
+        fields: {
+          name: recommendation.title,
+          content: recommendation.content,
+          slug: recommendation.slug,
+          'meta-description': recommendation.metaDescription
+        }
+      });
+    }
+    
+    // Fallback: create markdown file in repo
+    return await this.github.createFile({
+      path: `content/blog/${recommendation.slug}.md`,
+      content: recommendation.content,
+      message: `Auto-generated: ${recommendation.title}`
+    });
+  }
+}
+```
+    </auto_executor>
+
+    <stream_processor>
+```typescript
+// src/processors/action-processor.ts
+import { EventBus } from '../lib/event-bus';
+import { RecommendationGenerator } from '../generators/recommendation-generator';
+import { AutoExecutor } from '../executors/auto-executor';
+import { Database } from '../lib/database';
+
+export class ActionProcessor {
+  private eventBus: EventBus;
+  private generator: RecommendationGenerator;
+  private executor: AutoExecutor;
+  private db: Database;
+  
+  async start() {
+    // Subscribe to metrics stream
+    await this.eventBus.subscribe(
+      'metrics.calculated',
+      'action-center-group',
+      'action-worker-1',
+      this.processMetrics.bind(this)
+    );
+    
+    console.log('Action Center started, waiting for metrics...');
+  }
+  
+  private async processMetrics(event: MetricsEvent) {
+    console.log(`Processing metrics for brand ${event.brandId}`);
+    
+    try {
+      // Generate recommendations for each gap
+      const recommendations = await Promise.all(
+        event.contentGaps.map(gap => 
+          this.generator.generateFromGap(gap, event)
+        )
+      );
+      
+      // Sort by priority
+      recommendations.sort((a, b) => b.priority - a.priority);
+      
+      // Store in database
+      for (const rec of recommendations) {
+        await this.db.saveRecommendation(rec);
+        
+        // Publish to stream
+        await this.eventBus.publish('recommendations.ready', {
+          type: 'recommendation.created',
+          data: rec,
+          correlationId: event.correlationId
+        });
+        
+        // Auto-execute if configured
+        if (rec.autoExecutable) {
+          await this.executor.execute(rec);
+        }
+      }
+      
+      // Update metrics
+      await this.updateMetrics(event.brandId, recommendations);
+      
+    } catch (error) {
+      console.error('Error processing metrics:', error);
+      await this.handleError(event, error);
+    }
+  }
+}
+```
+    </stream_processor>
+  </section_11_code_examples>
+
+  <section_12_potential_pitfalls>
+    <pitfall name="Over-automation">
+      <risk>Auto-executing too many changes could break sites</risk>
+      <mitigation>
+        - Start with draft-only mode
+        - Implement gradual rollout
+        - Require approval for production changes
+        - Add rollback capabilities
+      </mitigation>
+    </pitfall>
+    
+    <pitfall name="AI hallucination">
+      <risk>Generated content might be inaccurate</risk>
+      <mitigation>
+        - Fact-check against brand data
+        - Use temperature 0.7 for creativity/accuracy balance
+        - Implement content validation
+        - Human review for critical content
+      </mitigation>
+    </pitfall>
+    
+    <pitfall name="API rate limits">
+      <risk>Too many OpenAI calls could hit limits</risk>
+      <mitigation>
+        - Implement request queuing
+        - Cache generated content
+        - Use batching where possible
+        - Fallback to templates
+      </mitigation>
+    </pitfall>
+    
+    <pitfall name="CMS compatibility">
+      <risk>Different CMS versions/plugins could break integration</risk>
+      <mitigation>
+        - Version detection
+        - Graceful degradation
+        - Multiple integration methods
+        - Fallback to export files
+      </mitigation>
+    </pitfall>
+  </section_12_potential_pitfalls>
+
+  <section_13_reference_materials>
+    <documentation>
+      - OpenAI API: https://platform.openai.com/docs
+      - WordPress REST API: https://developer.wordpress.org/rest-api/
+      - Webflow API: https://developers.webflow.com/
+      - GitHub API: https://docs.github.com/en/rest
+      - Content Strategy: https://moz.com/learn/seo/content
+    </documentation>
+    <algorithms>
+      - TF-IDF for keyword optimization
+      - PageRank for internal linking
+      - BERT for semantic relevance
+      - Jaccard similarity for duplicate detection
+    </algorithms>
+    <patterns>
+      - Command pattern for executions
+      - Strategy pattern for different CMS
+      - Observer pattern for status updates
+      - Saga pattern for distributed transactions
+    </patterns>
+  </section_13_reference_materials>
+
+  <section_14_validation_questions>
+    <question>How do we ensure generated content matches brand voice?</question>
+    <answer>
+      Store brand voice guidelines in database, include in prompts,
+      fine-tune on existing content, implement review workflow.
+    </answer>
+    
+    <question>What if auto-execution breaks a website?</question>
+    <answer>
+      All changes are versioned, implement rollback within 5 minutes,
+      monitor site health after changes, start with staging environment.
+    </answer>
+    
+    <question>How do we measure recommendation success?</question>
+    <answer>
+      Track GEO score changes after 7 days, monitor traffic changes,
+      measure citation increases, A/B test when possible.
+    </answer>
+    
+    <question>Can we handle multiple brands simultaneously?</question>
+    <answer>
+      Yes, using brand context isolation, separate queues per brand,
+      priority-based processing, resource pooling.
+    </answer>
+    
+    <question>What about multilingual content?</question>
+    <answer>
+      Detect brand language preferences, use appropriate GPT prompts,
+      maintain language-specific templates, validate with native APIs.
+    </answer>
+  </section_14_validation_questions>
+
+  <database_schema>
+```sql
+-- Recommendations table
+CREATE TABLE recommendations (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  brand_id UUID NOT NULL REFERENCES brands(id),
+  type VARCHAR(50) NOT NULL,
+  subtype VARCHAR(50),
+  title VARCHAR(500) NOT NULL,
+  description TEXT,
+  priority INTEGER DEFAULT 50,
+  estimated_impact FLOAT,
+  implementation_effort VARCHAR(20), -- easy, medium, hard
+  auto_executable BOOLEAN DEFAULT FALSE,
+  status VARCHAR(50) DEFAULT 'pending', -- pending, approved, executing, completed, failed
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  executed_at TIMESTAMPTZ,
+  completed_at TIMESTAMPTZ,
+  INDEX idx_recommendations_brand_status (brand_id, status),
+  INDEX idx_recommendations_priority (priority DESC),
+  INDEX idx_recommendations_created (created_at DESC)
+);
+
+-- Recommendation content table
+CREATE TABLE recommendation_content (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  recommendation_id UUID REFERENCES recommendations(id),
+  content_type VARCHAR(50), -- blog, faq, schema, meta
+  content TEXT NOT NULL,
+  metadata JSONB DEFAULT '{}',
+  version INTEGER DEFAULT 1,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Execution log table
+CREATE TABLE execution_log (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  recommendation_id UUID REFERENCES recommendations(id),
+  action VARCHAR(100) NOT NULL,
+  platform VARCHAR(50), -- wordpress, webflow, github, etc
+  status VARCHAR(50), -- started, success, failed, rolled_back
+  request JSONB,
+  response JSONB,
+  error TEXT,
+  execution_time_ms INTEGER,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  INDEX idx_execution_recommendation (recommendation_id),
+  INDEX idx_execution_status (status, created_at DESC)
+);
+
+-- Implementation tracking table
+CREATE TABLE implementation_tracking (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  recommendation_id UUID REFERENCES recommendations(id),
+  implementation_url TEXT,
+  implementation_type VARCHAR(50),
+  metrics_before JSONB,
+  metrics_after JSONB,
+  impact_measured FLOAT,
+  measured_at TIMESTAMPTZ,
+  notes TEXT,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Approval workflow table
+CREATE TABLE approval_workflow (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  recommendation_id UUID REFERENCES recommendations(id),
+  requested_by VARCHAR(255),
+  approved_by VARCHAR(255),
+  approval_status VARCHAR(50), -- pending, approved, rejected
+  approval_notes TEXT,
+  requested_at TIMESTAMPTZ DEFAULT NOW(),
+  responded_at TIMESTAMPTZ,
+  INDEX idx_approval_status (approval_status, requested_at DESC)
+);
+```
+  </database_schema>
+
+  <monitoring_metrics>
+```yaml
+# Prometheus metrics
+action_center_recommendations_generated_total:
+  type: Counter
+  labels: [brand_id, type, priority_bucket]
+  
+action_center_executions_total:
+  type: Counter  
+  labels: [platform, status, auto_executed]
+  
+action_center_generation_duration_seconds:
+  type: Histogram
+  labels: [recommendation_type]
+  
+action_center_execution_duration_seconds:
+  type: Histogram
+  labels: [platform, action_type]
+  
+action_center_content_words_generated:
+  type: Counter
+  labels: [content_type, brand_id]
+  
+action_center_priority_distribution:
+  type: Histogram
+  buckets: [0, 25, 50, 75, 100]
+  
+action_center_api_calls_total:
+  type: Counter
+  labels: [api, endpoint, status]
+  
+action_center_rollbacks_total:
+  type: Counter
+  labels: [platform, reason]
+```
+  </monitoring_metrics>
+
+  <deployment>
+```yaml
+# docker-compose.yml addition
+action-center:
+  build: ./action-center
+  environment:
+    NODE_ENV: production
+    DATABASE_URL: postgresql://user:pass@postgres:5432/rankmybrand
+    REDIS_URL: redis://redis:6379
+    OPENAI_API_KEY: ${OPENAI_API_KEY}
+    ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+    WORDPRESS_URL: ${WORDPRESS_URL}
+    WORDPRESS_USER: ${WORDPRESS_USER}
+    WORDPRESS_PASS: ${WORDPRESS_PASS}
+    WEBFLOW_API_KEY: ${WEBFLOW_API_KEY}
+    GITHUB_TOKEN: ${GITHUB_TOKEN}
+    SLACK_WEBHOOK: ${SLACK_WEBHOOK}
+  depends_on:
+    - postgres
+    - redis
+  ports:
+    - "8003:8003"
+  healthcheck:
+    test: ["CMD", "curl", "-f", "http://localhost:8003/health"]
+    interval: 30s
+    timeout: 10s
+    retries: 3
+  restart: unless-stopped
+  networks:
+    - rankmybrand_network
+```
+  </deployment>
+</module_prompt>

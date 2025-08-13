@@ -1,0 +1,26 @@
+
+> dashboard@0.1.0 dev
+> next dev
+
+  ▲ Next.js 14.2.5
+  - Local:        http://localhost:3000
+
+ ✓ Starting...
+ ✓ Ready in 4.7s
+ ○ Compiling / ...
+ ✓ Compiled / in 4.9s (2626 modules)
+ GET / 200 in 5719ms
+ ✓ Compiled in 785ms (1308 modules)
+ GET / 200 in 195ms
+ ○ Compiling /favicon.ico ...
+ ✓ Compiled /favicon.ico in 2.5s (1348 modules)
+ GET /favicon.ico 200 in 5126ms
+ GET / 200 in 172ms
+ GET /favicon.ico 200 in 13ms
+ ○ Compiling /_not-found ...
+ ✓ Compiled /_not-found in 701ms (2615 modules)
+ GET /analytics 404 in 50ms
+ GET / 200 in 49ms
+ GET / 200 in 160ms
+ ✓ Compiled /favicon.ico in 335ms (1348 modules)
+ GET /favicon.ico 200 in 391ms

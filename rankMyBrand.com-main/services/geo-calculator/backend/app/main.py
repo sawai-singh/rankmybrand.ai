@@ -1,6 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from .api import endpoints
+from .api import endpoints, quick_analyze
 from .config import settings
 
 app = FastAPI(
@@ -23,6 +23,13 @@ app.include_router(
     endpoints.router,
     prefix=f"{settings.API_PREFIX}/geo",
     tags=["GEO Analysis"]
+)
+
+# Include quick analyze router for instant scores
+app.include_router(
+    quick_analyze.router,
+    prefix=f"{settings.API_PREFIX}/geo",
+    tags=["Quick Analysis"]
 )
 
 @app.get("/")

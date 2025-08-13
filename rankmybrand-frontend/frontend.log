@@ -1,0 +1,21 @@
+
+> rankmybrand-frontend@1.0.0 dev
+> next dev
+
+  ▲ Next.js 14.2.5
+  - Local:        http://localhost:3003
+  - Environments: .env.local
+  - Experiments (use with caution):
+    · optimizeCss
+
+ ✓ Starting...
+ ✓ Ready in 4.9s
+ ○ Compiling / ...
+ ✓ Compiled / in 3.4s (1793 modules)
+ GET / 200 in 4247ms
+ ✓ Compiled in 791ms (821 modules)
+ GET / 200 in 36ms
+ GET / 200 in 40ms
+ GET / 200 in 58ms
+ GET / 200 in 45ms
+ GET / 200 in 143ms

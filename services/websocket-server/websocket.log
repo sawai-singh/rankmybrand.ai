@@ -1,0 +1,7 @@
+
+> rankmybrand-websocket-server@1.0.0 dev
+> tsx watch src/index.ts
+
+WebSocket server running on port 3001
+Health check: http://localhost:3001/health
+WebSocket endpoint: ws://localhost:3001/ws

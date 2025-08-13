@@ -1,0 +1,102 @@
+
+> rankmybrand-api-gateway@1.0.0 dev
+> tsx watch src/index.ts
+
+🚀 API Gateway running on port 4000
+📡 WebSocket endpoint: ws://localhost:4000/ws
+
+Connected services:
+  - geo: http://localhost:8000
+  - crawler: http://localhost:3002
+  - search: http://localhost:3002
+  - dashboard: http://localhost:3000
+  - websocket: http://localhost:3001
+  - intelligence: http://localhost:8002
+  - action: http://localhost:8082
+::1 - - [12/Aug/2025:19:01:23 +0000] "POST /api/analyze/instant HTTP/1.1" 200 978 "http://localhost:3003/" "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36"
+::1 - - [12/Aug/2025:19:02:34 +0000] "GET / HTTP/1.1" 404 30 "-" "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36"
+::1 - - [12/Aug/2025:19:02:34 +0000] "GET /favicon.ico HTTP/1.1" 404 30 "-" "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36"
+::1 - - [12/Aug/2025:19:04:00 +0000] "POST /api/analyze/instant HTTP/1.1" 200 1034 "-" "curl/8.7.1"
+::1 - - [12/Aug/2025:19:04:04 +0000] "POST /api/analyze/instant HTTP/1.1" 200 982 "http://localhost:3003/" "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36"
+::1 - - [12/Aug/2025:19:11:55 +0000] "POST /api/analyze/instant HTTP/1.1" 200 976 "http://localhost:3003/" "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36"
+::1 - - [12/Aug/2025:19:12:48 +0000] "POST /api/analyze/instant HTTP/1.1" 200 873 "http://localhost:3003/" "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36"
+::1 - - [12/Aug/2025:19:12:49 +0000] "POST /api/analyze/instant HTTP/1.1" 200 921 "http://localhost:3003/" "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36"
+::1 - - [12/Aug/2025:19:12:50 +0000] "POST /api/analyze/instant HTTP/1.1" 200 981 "http://localhost:3003/" "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36"
+::1 - - [12/Aug/2025:19:12:50 +0000] "POST /api/analyze/instant HTTP/1.1" 200 979 "http://localhost:3003/" "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36"
+::1 - - [12/Aug/2025:19:12:50 +0000] "POST /api/analyze/instant HTTP/1.1" 200 984 "http://localhost:3003/" "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36"
+::1 - - [12/Aug/2025:19:12:51 +0000] "POST /api/analyze/instant HTTP/1.1" 200 980 "http://localhost:3003/" "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36"
+::1 - - [12/Aug/2025:19:12:52 +0000] "POST /api/analyze/instant HTTP/1.1" 200 926 "http://localhost:3003/" "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36"
+::1 - - [12/Aug/2025:19:12:52 +0000] "POST /api/analyze/instant HTTP/1.1" 200 929 "http://localhost:3003/" "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36"
+::1 - - [12/Aug/2025:19:12:52 +0000] "POST /api/analyze/instant HTTP/1.1" 200 979 "http://localhost:3003/" "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36"
+::1 - - [12/Aug/2025:19:12:52 +0000] "POST /api/analyze/instant HTTP/1.1" 200 924 "http://localhost:3003/" "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36"
+::1 - - [12/Aug/2025:19:12:53 +0000] "POST /api/analyze/instant HTTP/1.1" 200 982 "http://localhost:3003/" "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36"
+::1 - - [12/Aug/2025:19:12:53 +0000] "POST /api/analyze/instant HTTP/1.1" 200 920 "http://localhost:3003/" "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36"
+::1 - - [12/Aug/2025:19:12:53 +0000] "POST /api/analyze/instant HTTP/1.1" 200 870 "http://localhost:3003/" "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36"
+::1 - - [12/Aug/2025:19:12:54 +0000] "POST /api/analyze/instant HTTP/1.1" 200 978 "http://localhost:3003/" "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36"
+::1 - - [12/Aug/2025:19:12:54 +0000] "POST /api/analyze/instant HTTP/1.1" 200 872 "http://localhost:3003/" "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36"
+::1 - - [12/Aug/2025:19:12:54 +0000] "POST /api/analyze/instant HTTP/1.1" 200 984 "http://localhost:3003/" "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36"
+::1 - - [12/Aug/2025:19:12:54 +0000] "POST /api/analyze/instant HTTP/1.1" 200 1036 "http://localhost:3003/" "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36"
+::1 - - [12/Aug/2025:19:12:55 +0000] "POST /api/analyze/instant HTTP/1.1" 200 977 "http://localhost:3003/" "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36"
+::1 - - [12/Aug/2025:19:12:55 +0000] "POST /api/analyze/instant HTTP/1.1" 200 928 "http://localhost:3003/" "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36"
+::1 - - [12/Aug/2025:19:12:55 +0000] "POST /api/analyze/instant HTTP/1.1" 200 982 "http://localhost:3003/" "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36"
+::1 - - [12/Aug/2025:19:12:55 +0000] "POST /api/analyze/instant HTTP/1.1" 200 976 "http://localhost:3003/" "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36"
+::1 - - [12/Aug/2025:19:12:56 +0000] "POST /api/analyze/instant HTTP/1.1" 200 930 "http://localhost:3003/" "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36"
+::1 - - [12/Aug/2025:19:12:56 +0000] "POST /api/analyze/instant HTTP/1.1" 200 873 "http://localhost:3003/" "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36"
+::1 - - [12/Aug/2025:19:12:56 +0000] "POST /api/analyze/instant HTTP/1.1" 200 921 "http://localhost:3003/" "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36"
+::1 - - [12/Aug/2025:19:12:56 +0000] "POST /api/analyze/instant HTTP/1.1" 200 927 "http://localhost:3003/" "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36"
+::1 - - [12/Aug/2025:19:12:56 +0000] "POST /api/analyze/instant HTTP/1.1" 200 929 "http://localhost:3003/" "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36"
+::1 - - [12/Aug/2025:19:12:57 +0000] "POST /api/analyze/instant HTTP/1.1" 200 924 "http://localhost:3003/" "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36"
+::1 - - [12/Aug/2025:19:12:57 +0000] "POST /api/analyze/instant HTTP/1.1" 200 922 "http://localhost:3003/" "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36"
+::1 - - [12/Aug/2025:19:12:57 +0000] "POST /api/analyze/instant HTTP/1.1" 200 977 "http://localhost:3003/" "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36"
+::1 - - [12/Aug/2025:19:12:57 +0000] "POST /api/analyze/instant HTTP/1.1" 200 872 "http://localhost:3003/" "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36"
+::1 - - [12/Aug/2025:19:12:57 +0000] "POST /api/analyze/instant HTTP/1.1" 200 921 "http://localhost:3003/" "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36"
+::1 - - [12/Aug/2025:19:12:58 +0000] "POST /api/analyze/instant HTTP/1.1" 200 925 "http://localhost:3003/" "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36"
+::1 - - [12/Aug/2025:19:12:58 +0000] "POST /api/analyze/instant HTTP/1.1" 200 925 "http://localhost:3003/" "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36"
+::1 - - [12/Aug/2025:19:12:58 +0000] "POST /api/analyze/instant HTTP/1.1" 200 870 "http://localhost:3003/" "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36"
+::1 - - [12/Aug/2025:19:12:58 +0000] "POST /api/analyze/instant HTTP/1.1" 200 924 "http://localhost:3003/" "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36"
+::1 - - [12/Aug/2025:19:12:58 +0000] "POST /api/analyze/instant HTTP/1.1" 200 981 "http://localhost:3003/" "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36"
+12:43:14 AM [tsx] change in ./src/index.ts Restarting...
+SIGTERM received, closing server...
+Server closed
+c🚀 API Gateway running on port 4000
+📡 WebSocket endpoint: ws://localhost:4000/ws
+
+Connected services:
+  - geo: http://localhost:8000
+  - crawler: http://localhost:3002
+  - search: http://localhost:3002
+  - dashboard: http://localhost:3000
+  - websocket: http://localhost:3001
+  - intelligence: http://localhost:8002
+  - action: http://localhost:8082
+GEO service not available, falling back to demo data
+::1 - - [12/Aug/2025:19:15:11 +0000] "POST /api/analyze/instant HTTP/1.1" 200 993 "http://localhost:3003/" "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36"
+::1 - - [12/Aug/2025:19:18:18 +0000] "GET / HTTP/1.1" 404 30 "-" "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36"
+GEO service not available, falling back to demo data
+::1 - - [12/Aug/2025:19:27:01 +0000] "POST /api/analyze/instant HTTP/1.1" 200 996 "http://localhost:3003/" "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36"
+GEO service not available, falling back to demo data
+::1 - - [12/Aug/2025:19:27:02 +0000] "POST /api/analyze/instant HTTP/1.1" 200 936 "http://localhost:3003/" "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36"
+GEO service not available, falling back to demo data
+::1 - - [12/Aug/2025:19:27:02 +0000] "POST /api/analyze/instant HTTP/1.1" 200 941 "http://localhost:3003/" "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36"
+GEO service not available, falling back to demo data
+::1 - - [12/Aug/2025:19:27:02 +0000] "POST /api/analyze/instant HTTP/1.1" 200 995 "http://localhost:3003/" "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36"
+GEO service not available, falling back to demo data
+::1 - - [12/Aug/2025:19:27:03 +0000] "POST /api/analyze/instant HTTP/1.1" 200 944 "http://localhost:3003/" "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36"
+GEO service not available, falling back to demo data
+::1 - - [12/Aug/2025:19:27:03 +0000] "POST /api/analyze/instant HTTP/1.1" 200 944 "http://localhost:3003/" "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36"
+1:07:17 AM [tsx] change in ./src/index.ts Restarting...
+SIGTERM received, closing server...
+Server closed
+c🚀 API Gateway running on port 4000
+📡 WebSocket endpoint: ws://localhost:4000/ws
+
+Connected services:
+  - geo: http://localhost:8000
+  - crawler: http://localhost:3002
+  - search: http://localhost:3002
+  - dashboard: http://localhost:3000
+  - websocket: http://localhost:3001
+  - intelligence: http://localhost:8002
+  - action: http://localhost:8082
+GEO service not available, falling back to demo data
+::1 - - [12/Aug/2025:20:06:47 +0000] "POST /api/analyze/instant HTTP/1.1" 200 939 "http://localhost:3003/" "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36"

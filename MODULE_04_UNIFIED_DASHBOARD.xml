@@ -1,0 +1,286 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<module id="04" name="unified-dashboard" version="1.0.0">
+  <metadata>
+    <title>RankMyBrand.ai Unified Dashboard - World-Class UI/UX</title>
+    <description>Real-time GEO monitoring dashboard with WebSocket updates, 3D visualizations, and world-class UI/UX</description>
+    <dependencies>
+      <module>foundation-infrastructure</module>
+      <module>ai-response-collector</module>
+      <module>ai-intelligence-engine</module>
+      <module>action-center</module>
+    </dependencies>
+    <cost_estimate>$25-30/month (Vercel hosting + WebSocket infrastructure)</cost_estimate>
+    <beats_athenahq>
+      - Real-time updates (vs their batch processing)
+      - 10x cheaper ($79 vs $795 for comparable features)
+      - One-click automation controls (vs manual implementation)
+      - Unified SEO + GEO view (vs GEO-only)
+      - Cost transparency dashboard (vs opaque credit system)
+      - World-class UI/UX with 3D visualizations
+      - Command palette (⌘K) for power users
+      - AI Visibility Heatmap (innovative feature)
+      - Glassmorphic design language
+    </beats_athenahq>
+  </metadata>
+
+  <architecture>
+    <frontend>
+      <framework>Next.js 14.2.5</framework>
+      <ui_components>
+        - shadcn/ui (Radix UI + Tailwind CSS)
+        - Framer Motion (animations)
+        - Recharts + Three.js (visualizations)
+        - Lucide React (icons)
+        - React Query v5 (server state)
+        - Zustand (client state)
+        - Cmdk (command palette)
+      </ui_components>
+      <key_features>
+        - App Router with RSC (React Server Components)
+        - WebSocket via Socket.io-client
+        - Optimistic UI updates
+        - PWA capabilities
+        - Dark mode support
+        - Glassmorphic design
+        - 3D visualizations
+        - Command palette (⌘K)
+        - Keyboard navigation
+        - Accessibility first (WCAG 2.1 AA)
+      </key_features>
+    </frontend>
+
+    <backend>
+      <api_routes>
+        - /api/metrics - GET real-time metrics
+        - /api/analytics - GET historical data
+        - /api/recommendations - GET/PUT recommendation actions
+        - /api/automation - POST automation controls
+        - /api/export - POST generate reports
+        - /api/health - GET system status
+        - /api/search - GET universal search
+        - /api/insights - GET AI-powered insights
+      </api_routes>
+      <websocket>
+        <events>
+          - metrics.update - Real-time GEO/SOV changes
+          - recommendations.new - New recommendations available
+          - automation.status - Execution status updates
+          - system.alert - Cost/health warnings
+          - activity.stream - Live activity feed
+          - competitor.update - Competitor position changes
+        </events>
+        <rooms>
+          - brand:{brandId} - Brand-specific updates
+          - user:{userId} - User notifications
+          - global - System-wide announcements
+        </rooms>
+      </websocket>
+    </backend>
+
+    <infrastructure>
+      <hosting>Vercel (Next.js optimized)</hosting>
+      <websocket_server>Socket.io on Railway.app or Render</websocket_server>
+      <cdn>Vercel Edge Network</cdn>
+      <monitoring>Vercel Analytics + Custom Prometheus</monitoring>
+    </infrastructure>
+  </architecture>
+
+  <world_class_features>
+    <hero_metrics>
+      - Contextual insights with each metric
+      - Sparkline visualizations
+      - Smart badges (AI-powered insights)
+      - Hover actions without clutter
+      - Animated value transitions
+      - Impact predictions
+    </hero_metrics>
+
+    <ai_visibility_heatmap>
+      - Real-time presence matrix
+      - Interactive cells with detail drill-down
+      - Platform-specific insights
+      - Live pulse indicators
+      - Time range filtering
+      - Intelligent recommendations
+    </ai_visibility_heatmap>
+
+    <competitor_landscape>
+      - 3D spatial visualization (Three.js)
+      - Interactive exploration (zoom, pan, rotate)
+      - Market gap identification
+      - Competitive positioning
+      - Trend animations
+    </competitor_landscape>
+
+    <command_palette>
+      - Universal search (⌘K)
+      - Fuzzy matching
+      - Quick actions with shortcuts
+      - AI-powered suggestions
+      - Navigation shortcuts
+      - Batch operations
+    </command_palette>
+
+    <smart_recommendations>
+      - Impact predictions
+      - Success probability gauges
+      - Visual previews
+      - One-click execution
+      - Priority-based sorting
+      - Time-to-implement estimates
+      - Rollback capabilities
+    </smart_recommendations>
+
+    <activity_feed>
+      - Real-time updates
+      - Contextual actions
+      - Smooth animations
+      - Relative timestamps
+      - Filter by type
+      - Quick actions inline
+    </activity_feed>
+
+    <design_system>
+      - Glassmorphic cards
+      - Gradient borders on hover
+      - Smooth micro-animations
+      - Dark mode optimized
+      - Responsive scaling
+      - Progressive disclosure
+      - Semantic color system
+    </design_system>
+  </world_class_features>
+
+  <ux_principles>
+    <clarity>
+      - Clear information hierarchy
+      - No decorative clutter
+      - Obvious interactions
+      - Consistent patterns
+    </clarity>
+
+    <delight>
+      - Smooth, natural animations
+      - Satisfying micro-interactions
+      - Surprising moments of joy
+      - Thoughtful details
+    </delight>
+
+    <speed>
+      - Instant feedback
+      - Optimistic updates
+      - Perceived performance
+      - Code splitting
+    </speed>
+
+    <power>
+      - Keyboard shortcuts everywhere
+      - Batch operations
+      - Advanced filtering
+      - Customizable layouts
+    </power>
+
+    <trust>
+      - Clear system status
+      - Predictable interactions
+      - Graceful error handling
+      - Transparent operations
+    </trust>
+  </ux_principles>
+
+  <performance_targets>
+    - Page Load Time: <1s (target), <2s (max)
+    - WebSocket Latency: <100ms
+    - Dashboard Update Rate: 60fps animations
+    - Concurrent Users: 100+
+    - Export Generation: <5s
+    - API Response: p99 <500ms
+    - Lighthouse Score: 95+
+    - First Contentful Paint: <1.2s
+    - Time to Interactive: <2.5s
+  </performance_targets>
+
+  <implementation_phases>
+    <phase_1 week="1">
+      - Core dashboard layout with Next.js 14
+      - Hero metrics with sparklines
+      - Command palette (⌘K)
+      - Dark mode implementation
+      - Basic WebSocket setup
+      - Responsive design
+    </phase_1>
+
+    <phase_2 week="2">
+      - AI Visibility Heatmap
+      - Smart Recommendations cards
+      - Real-time Activity Feed
+      - WebSocket full integration
+      - Glassmorphic design
+      - Animation system
+    </phase_2>
+
+    <phase_3 week="3">
+      - 3D Competitor Landscape
+      - Advanced animations (Framer Motion)
+      - Full keyboard navigation
+      - Performance optimizations
+      - PWA features
+      - Testing & polish
+    </phase_3>
+  </implementation_phases>
+
+  <monitoring>
+    <metrics>
+      - Core Web Vitals (LCP, FID, CLS)
+      - Custom business metrics
+      - User engagement tracking
+      - Feature adoption rates
+      - Error rates by component
+      - WebSocket connection stability
+    </metrics>
+    
+    <observability>
+      - Vercel Analytics for web vitals
+      - Sentry for error tracking
+      - LogDNA for centralized logging
+      - Custom Prometheus metrics
+      - Grafana dashboards
+    </observability>
+  </monitoring>
+
+  <security>
+    - JWT authentication with refresh tokens
+    - Rate limiting on all API endpoints
+    - CORS properly configured
+    - Environment variables for secrets
+    - SQL injection prevention
+    - XSS protection via React
+    - HTTPS only in production
+    - Content Security Policy
+  </security>
+
+  <accessibility>
+    - Full keyboard navigation
+    - Focus management
+    - ARIA labels throughout
+    - Screen reader optimized
+    - High contrast support
+    - Reduced motion support
+    - Skip navigation links
+    - Focus indicators
+  </accessibility>
+
+  <success_criteria>
+    ✅ Real-time metrics update within 100ms
+    ✅ Support 100+ concurrent WebSocket connections
+    ✅ Dashboard loads in <1 second
+    ✅ Export generation in <5 seconds
+    ✅ Zero downtime deployments
+    ✅ Cost under $30/month at scale
+    ✅ Mobile responsive design
+    ✅ Dark mode support
+    ✅ Accessibility (WCAG 2.1 AA)
+    ✅ Lighthouse score 95+
+    ✅ User satisfaction score >9/10
+  </success_criteria>
+</module>
