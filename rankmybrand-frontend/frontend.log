@@ -19,3 +19,39 @@
  GET / 200 in 58ms
  GET / 200 in 45ms
  GET / 200 in 143ms
+ GET / 200 in 201ms
+ ✓ Compiled in 644ms (821 modules)
+ ✓ Compiled in 472ms (1478 modules)
+ ✓ Compiled in 492ms (1511 modules)
+ ✓ Compiled in 407ms (1497 modules)
+ ✓ Compiled in 110ms (736 modules)
+ ✓ Compiled in 179ms (736 modules)
+ ✓ Compiled in 77ms (1497 modules)
+ ✓ Compiled in 191ms (736 modules)
+ ✓ Compiled in 74ms (1497 modules)
+ ✓ Compiled in 321ms (1497 modules)
+ ✓ Compiled in 255ms (736 modules)
+ GET / 200 in 203ms
+ GET / 200 in 43ms
+ GET / 200 in 59ms
+ ✓ Compiled in 550ms (1511 modules)
+ ✓ Compiled in 231ms (1511 modules)
+ GET / 200 in 132ms
+ ○ Compiling /onboarding/company ...
+ ✓ Compiled /onboarding/company in 629ms (1518 modules)
+ ✓ Compiled /onboarding/description in 300ms (1536 modules)
+ ✓ Compiled /onboarding/competitors in 247ms (1546 modules)
+ GET /onboarding/competitors 200 in 105ms
+ ✓ Compiled in 410ms (1560 modules)
+ ✓ Compiled in 300ms (1560 modules)
+ ✓ Compiled in 204ms (1560 modules)
+ ✓ Compiled in 368ms (1560 modules)
+ ○ Compiling /_not-found ...
+ ✓ Compiled /_not-found in 577ms (1549 modules)
+ GET /dashboard?onboarding=complete 404 in 47ms
+ GET /dashboard?onboarding=complete 404 in 22ms
+ ✓ Compiled in 318ms (1563 modules)
+ GET /dashboard?onboarding=complete 404 in 59ms
+ GET /dashboard?onboarding=complete 404 in 45ms
+ GET /onboarding/competitors 200 in 70ms
+ GET /onboarding/competitors 200 in 18ms

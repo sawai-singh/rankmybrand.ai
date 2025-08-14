@@ -13,6 +13,8 @@ import { WebSocketServer } from 'ws';
 import Redis from 'ioredis';
 import http from 'http';
 import dotenv from 'dotenv';
+import onboardingRoutes from './routes/onboarding.routes';
+import authRoutes from './routes/auth.routes';
 
 dotenv.config();
 
@@ -192,6 +194,16 @@ app.use('/api/actions', limiter, createProxyMiddleware({
 } as any));
 
 // ========================================
+// Authentication Routes
+// ========================================
+app.use('/api/auth', limiter, authRoutes);
+
+// ========================================
+// Onboarding Routes
+// ========================================
+app.use('/api/onboarding', limiter, onboardingRoutes);
+
+// ========================================
 // Unified API Endpoints
 // ========================================
 
@@ -252,7 +264,7 @@ app.post('/api/analyze/instant', limiter, async (req, res) => {
   try {
     // First try to call the real GEO Calculator service
     try {
-      const geoResponse = await fetch(`${SERVICES.geo}/api/v1/geo/quick-analyze`, {
+      const geoResponse = await fetch(`${SERVICES.geo}/api/v1/geo/analyze`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ domain }),

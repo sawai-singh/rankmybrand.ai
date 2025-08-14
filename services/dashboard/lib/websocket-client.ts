@@ -47,10 +47,16 @@ export class WebSocketClient extends EventEmitter {
     this.isIntentionallyClosed = false;
     
     try {
+      // Only connect if in browser environment
+      if (typeof window === 'undefined') {
+        return;
+      }
+      
       this.ws = new WebSocket(this.config.url);
       this.setupEventHandlers();
     } catch (error) {
       console.error('Failed to create WebSocket connection:', error);
+      // Silently fail and try to reconnect later
       this.scheduleReconnect();
     }
   }
@@ -90,7 +96,10 @@ export class WebSocketClient extends EventEmitter {
 
     this.ws.onerror = (error) => {
       console.error('WebSocket error:', error);
-      this.emit('error', error);
+      // Don't emit error event if no listeners are attached
+      if (this.listenerCount('error') > 0) {
+        this.emit('error', error);
+      }
     };
 
     this.ws.onclose = (event) => {

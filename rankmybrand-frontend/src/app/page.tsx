@@ -1,4 +1,4 @@
-import { InstantScoreHero } from '@/components/features/instant-score-hero';
+import { EmailCaptureHero } from '@/components/features/email-capture-hero';
 import { ComparisonTable } from '@/components/features/comparison-table';
 import { LiveTicker } from '@/components/features/live-ticker';
 import { PricingCalculator } from '@/components/features/pricing-calculator';
@@ -13,7 +13,7 @@ export default function HomePage() {
       <section className="relative py-20 px-4 overflow-hidden">
         <div className="absolute inset-0 grid-pattern opacity-5" />
         <div className="container mx-auto">
-          <InstantScoreHero />
+          <EmailCaptureHero />
         </div>
       </section>
 

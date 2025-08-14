@@ -1,5 +1,6 @@
 "use client";
 
+import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import { 
   Activity, 
@@ -111,6 +112,12 @@ function getActivityIcon(type: string) {
 }
 
 export function ActivityFeed() {
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 20 }}
@@ -144,7 +151,7 @@ export function ActivityFeed() {
                   <p className="text-xs text-muted-foreground mt-0.5">{activity.description}</p>
                 )}
                 <p className="text-xs text-muted-foreground mt-1">
-                  {getRelativeTime(activity.timestamp)}
+                  {mounted ? getRelativeTime(activity.timestamp) : "Loading..."}
                 </p>
               </div>
 
