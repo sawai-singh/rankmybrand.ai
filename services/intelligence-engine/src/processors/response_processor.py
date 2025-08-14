@@ -6,12 +6,12 @@ from typing import Dict, Any, List, Optional
 from datetime import datetime
 from src.nlp import (
     CitationExtractor,
-    EntityDetector,
     SentimentAnalyzer,
     RelevanceScorer,
     AuthorityScorer,
     GapDetector
 )
+from src.nlp.llm_entity_detector import LLMEntityDetector
 from src.processors.geo_calculator import GEOCalculator
 from src.processors.sov_calculator import SOVCalculator
 from src.models.schemas import (
@@ -25,14 +25,17 @@ from src.config import settings
 class ResponseProcessor:
     """Process AI responses through NLP pipeline."""
     
-    def __init__(self):
+    def __init__(self, customer_context: Optional[Dict[str, Any]] = None):
         # Initialize NLP components
         self.citation_extractor = CitationExtractor()
-        self.entity_detector = EntityDetector()
+        self.entity_detector = LLMEntityDetector()  # Use LLM-based detector
         self.sentiment_analyzer = SentimentAnalyzer()
         self.relevance_scorer = RelevanceScorer()
         self.authority_scorer = AuthorityScorer()
         self.gap_detector = GapDetector()
+        
+        # Store customer context for entity detection
+        self.customer_context = customer_context or {}
         
         # Initialize calculators
         self.geo_calculator = GEOCalculator()
@@ -45,7 +48,8 @@ class ResponseProcessor:
     async def process(
         self,
         response: AIResponse,
-        competitor_responses: Optional[List[str]] = None
+        competitor_responses: Optional[List[str]] = None,
+        customer_context: Optional[Dict[str, Any]] = None
     ) -> ProcessedResponse:
         """Process a single AI response through the NLP pipeline."""
         start_time = time.time()
@@ -59,7 +63,9 @@ class ResponseProcessor:
                 response.response_text,
                 response.citations
             ))
-            tasks.append(self._detect_entities_async(response.response_text))
+            # Use customer context for entity detection
+            context = customer_context or self.customer_context
+            tasks.append(self._detect_entities_async(response.response_text, context))
             tasks.append(self._analyze_sentiment_async(response.response_text))
             tasks.append(self._score_relevance_async(
                 response.prompt_text,
@@ -168,14 +174,13 @@ class ResponseProcessor:
             provided_citations
         )
     
-    async def _detect_entities_async(self, text: str):
-        """Async wrapper for entity detection."""
-        loop = asyncio.get_event_loop()
-        return await loop.run_in_executor(
-            None,
-            self.entity_detector.detect,
-            text
-        )
+    async def _detect_entities_async(self, text: str, context: Dict[str, Any]):
+        """Async wrapper for LLM entity detection."""
+        # LLMEntityDetector.detect is already async
+        if not context.get('brand_name'):
+            # Fallback to empty list if no brand specified
+            return []
+        return await self.entity_detector.detect(text, context)
     
     async def _analyze_sentiment_async(self, text: str):
         """Async wrapper for sentiment analysis."""

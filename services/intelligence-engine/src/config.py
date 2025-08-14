@@ -66,6 +66,11 @@ class Settings(BaseSettings):
     confidence_threshold: float = Field(default=0.7, env="CONFIDENCE_THRESHOLD")
     top_k_keywords: int = Field(default=10, env="TOP_K_KEYWORDS")
     
+    # OpenAI Configuration for LLM Entity Detection
+    openai_api_key: str = Field(default="", env="OPENAI_API_KEY")
+    openai_model: str = Field(default="gpt-4-turbo-preview", env="OPENAI_MODEL")
+    openai_timeout: int = Field(default=3, env="OPENAI_TIMEOUT")
+    
     @property
     def redis_url(self) -> str:
         """Get Redis connection URL."""

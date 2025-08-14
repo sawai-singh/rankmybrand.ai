@@ -11,6 +11,7 @@ from src.storage import PostgresClient, RedisClient, CacheManager
 from src.monitoring import HealthChecker
 from src.processors import ResponseProcessor
 from src.models.schemas import AIResponse, ProcessedResponse
+from src.api import analysis_routes
 
 
 # Global instances
@@ -93,6 +94,9 @@ app = FastAPI(
 # Mount Prometheus metrics endpoint
 metrics_app = make_asgi_app()
 app.mount("/metrics", metrics_app)
+
+# Include analysis routes
+app.include_router(analysis_routes.router)
 
 
 @app.get("/")
