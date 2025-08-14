@@ -5,6 +5,8 @@ from typing import Dict, Any, List
 from pydantic import BaseModel
 from src.processors.response_processor import ResponseProcessor
 from src.nlp.llm_entity_detector import LLMEntityDetector
+from src.nlp.llm_sentiment_analyzer import LLMSentimentAnalyzer
+from src.nlp.llm_gap_detector import LLMGapDetector
 from src.models.schemas import AIResponse
 import logging
 
@@ -37,6 +39,43 @@ class VisibilityAnalysisRequest(BaseModel):
     brand_variations: List[str] = []
     industry: str = "General"
     competitors: List[str] = []
+
+
+class SentimentAnalysisRequest(BaseModel):
+    """Request model for sentiment analysis."""
+    text: str
+    brand_name: str = ""
+    industry: str = "General"
+    purpose: str = "general_analysis"  # customer_review, social_media, support_ticket
+    customer_id: str = ""
+
+
+class BatchSentimentRequest(BaseModel):
+    """Request model for batch sentiment analysis."""
+    texts: List[str]
+    brand_name: str = ""
+    industry: str = "General"
+    purpose: str = "general_analysis"
+
+
+class GapDetectionRequest(BaseModel):
+    """Request model for gap detection."""
+    query: str
+    response: str
+    competitor_responses: List[str] = []
+    brand_name: str
+    industry: str = "General"
+    competitors: List[str] = []
+    target_audience: str = "General audience"
+    business_goals: str = "Improve content quality"
+
+
+class PortfolioAnalysisRequest(BaseModel):
+    """Request model for portfolio gap analysis."""
+    content_items: List[Dict[str, str]]  # [{"title": "", "content": "", "type": ""}]
+    brand_name: str
+    industry: str = "General"
+    target_audience: str = "General audience"
 
 
 @router.post("/process")
@@ -177,6 +216,224 @@ def _generate_recommendation(analysis: Dict) -> str:
             return "Excellent: Strong visibility and positive sentiment. Maintain momentum and monitor competitors."
 
 
+@router.post("/analyze-sentiment")
+async def analyze_sentiment(request: SentimentAnalysisRequest):
+    """
+    Analyze sentiment with deep business insights using LLM.
+    
+    This uses GPT-4 Turbo for nuanced sentiment analysis including:
+    - Aspect-based sentiment
+    - Emotional tone detection  
+    - Intent classification
+    - Business impact assessment
+    """
+    try:
+        analyzer = LLMSentimentAnalyzer()
+        
+        context = {
+            "brand_name": request.brand_name,
+            "industry": request.industry,
+            "purpose": request.purpose,
+            "customer_id": request.customer_id
+        }
+        
+        analysis = await analyzer.analyze(request.text, context)
+        
+        return {
+            "success": True,
+            "analysis": analysis.dict(),
+            "summary": {
+                "sentiment": analysis.sentiment_label,
+                "score": analysis.overall_sentiment,
+                "confidence": analysis.confidence,
+                "recommendation": analysis.recommendation
+            }
+        }
+        
+    except Exception as e:
+        logger.error(f"Sentiment analysis failed: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/batch-sentiment")
+async def batch_sentiment_analysis(request: BatchSentimentRequest):
+    """
+    Analyze sentiment for multiple texts in parallel.
+    
+    Useful for analyzing multiple reviews, comments, or feedback at once.
+    """
+    try:
+        analyzer = LLMSentimentAnalyzer()
+        
+        context = {
+            "brand_name": request.brand_name,
+            "industry": request.industry,
+            "purpose": request.purpose
+        }
+        
+        analyses = await analyzer.analyze_batch(request.texts, context)
+        
+        # Calculate aggregate metrics
+        total_sentiment = sum(a.overall_sentiment for a in analyses) / len(analyses)
+        sentiment_distribution = {}
+        for analysis in analyses:
+            label = analysis.sentiment_label
+            sentiment_distribution[label] = sentiment_distribution.get(label, 0) + 1
+        
+        return {
+            "success": True,
+            "count": len(analyses),
+            "aggregate_sentiment": total_sentiment,
+            "distribution": sentiment_distribution,
+            "analyses": [a.dict() for a in analyses],
+            "insights": _generate_batch_insights(analyses)
+        }
+        
+    except Exception as e:
+        logger.error(f"Batch sentiment analysis failed: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+def _generate_batch_insights(analyses):
+    """Generate insights from batch sentiment analysis."""
+    positive = sum(1 for a in analyses if a.overall_sentiment > 0.2)
+    negative = sum(1 for a in analyses if a.overall_sentiment < -0.2)
+    
+    # Find common aspects
+    aspect_sentiments = {}
+    for analysis in analyses:
+        for aspect in analysis.aspect_sentiments:
+            if aspect.aspect not in aspect_sentiments:
+                aspect_sentiments[aspect.aspect] = []
+            aspect_sentiments[aspect.aspect].append(aspect.sentiment)
+    
+    # Calculate average sentiment per aspect
+    aspect_averages = {
+        aspect: sum(scores) / len(scores)
+        for aspect, scores in aspect_sentiments.items()
+    }
+    
+    # Sort by sentiment to find best and worst aspects
+    sorted_aspects = sorted(aspect_averages.items(), key=lambda x: x[1])
+    
+    return {
+        "positive_ratio": positive / len(analyses) if analyses else 0,
+        "negative_ratio": negative / len(analyses) if analyses else 0,
+        "strongest_aspects": sorted_aspects[-3:] if len(sorted_aspects) >= 3 else sorted_aspects,
+        "weakest_aspects": sorted_aspects[:3] if len(sorted_aspects) >= 3 else sorted_aspects,
+        "urgent_actions": sum(1 for a in analyses if a.urgency_level in ["immediate", "high"]),
+        "reputation_risks": sum(1 for a in analyses if a.business_impact == "reputation_risk")
+    }
+
+
+@router.post("/detect-gaps")
+async def detect_gaps(request: GapDetectionRequest):
+    """
+    Detect content gaps using LLM analysis.
+    
+    Identifies:
+    - Missing content compared to query
+    - Competitive disadvantages
+    - Market opportunities
+    - Knowledge gaps
+    - Authority gaps
+    """
+    try:
+        detector = LLMGapDetector()
+        
+        context = {
+            "brand_name": request.brand_name,
+            "industry": request.industry,
+            "competitors": request.competitors,
+            "target_audience": request.target_audience,
+            "business_goals": request.business_goals
+        }
+        
+        analysis = await detector.detect(
+            query=request.query,
+            response=request.response,
+            competitor_responses=request.competitor_responses,
+            context=context
+        )
+        
+        return {
+            "success": True,
+            "analysis": analysis.dict(),
+            "summary": {
+                "total_gaps": analysis.total_gaps_found,
+                "critical_gaps": analysis.critical_gaps,
+                "competitive_position": analysis.competitive_position,
+                "coverage": analysis.estimated_coverage,
+                "top_priority": analysis.gaps[0].title if analysis.gaps else None
+            }
+        }
+        
+    except Exception as e:
+        logger.error(f"Gap detection failed: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/analyze-portfolio")
+async def analyze_content_portfolio(request: PortfolioAnalysisRequest):
+    """
+    Analyze entire content portfolio for strategic gaps.
+    
+    Provides portfolio-level insights and improvement roadmap.
+    """
+    try:
+        detector = LLMGapDetector()
+        
+        context = {
+            "brand_name": request.brand_name,
+            "industry": request.industry,
+            "target_audience": request.target_audience
+        }
+        
+        analysis = await detector.analyze_content_portfolio(
+            content_items=request.content_items,
+            context=context
+        )
+        
+        return {
+            "success": True,
+            "portfolio_analysis": analysis,
+            "executive_summary": _generate_executive_summary(analysis)
+        }
+        
+    except Exception as e:
+        logger.error(f"Portfolio analysis failed: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+def _generate_executive_summary(analysis: Dict) -> Dict:
+    """Generate executive summary from portfolio analysis."""
+    coverage = analysis.get("portfolio_coverage", 0)
+    maturity = analysis.get("content_maturity", "Unknown")
+    
+    if coverage >= 80:
+        health = "Excellent"
+        action = "Focus on optimization and innovation"
+    elif coverage >= 60:
+        health = "Good"
+        action = "Address critical gaps and expand coverage"
+    elif coverage >= 40:
+        health = "Needs Improvement"
+        action = "Significant content development required"
+    else:
+        health = "Critical"
+        action = "Immediate content strategy overhaul needed"
+    
+    return {
+        "portfolio_health": health,
+        "maturity_level": maturity,
+        "coverage_score": f"{coverage:.1f}%",
+        "total_gaps": analysis.get("total_gaps", 0),
+        "recommended_action": action,
+        "top_focus_areas": analysis.get("strategic_focus_areas", [])[:3],
+        "quick_wins_available": len(analysis.get("improvement_roadmap", [])) > 0
+    }
+
+
 @router.get("/health")
 async def health_check():
     """Check if analysis service is healthy."""
@@ -184,5 +441,12 @@ async def health_check():
         "status": "healthy",
         "service": "intelligence-engine",
         "llm_enabled": True,
-        "model": "gpt-4-turbo-preview"
+        "model": "gpt-4-turbo-preview",
+        "features": [
+            "entity_detection",
+            "sentiment_analysis", 
+            "gap_detection",
+            "visibility_analysis",
+            "portfolio_analysis"
+        ]
     }

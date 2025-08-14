@@ -60,20 +60,19 @@ class HealthChecker:
             }
             health_status["status"] = "unhealthy"
         
-        # Check NLP models (simplified check)
+        # Check LLM API availability
         try:
-            import spacy
-            import transformers
-            import sentence_transformers
+            import openai
             
-            health_status["checks"]["nlp_models"] = {
+            health_status["checks"]["llm_api"] = {
                 "status": "healthy",
-                "models_available": True
+                "api_available": True,
+                "provider": "OpenAI GPT-4 Turbo"
             }
         except ImportError as e:
-            health_status["checks"]["nlp_models"] = {
+            health_status["checks"]["llm_api"] = {
                 "status": "degraded",
-                "error": f"Missing module: {e}"
+                "error": f"Missing OpenAI module: {e}"
             }
             health_status["status"] = "degraded"
         

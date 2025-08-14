@@ -6,12 +6,12 @@ from typing import Dict, Any, List, Optional
 from datetime import datetime
 from src.nlp import (
     CitationExtractor,
-    SentimentAnalyzer,
-    RelevanceScorer,
-    AuthorityScorer,
-    GapDetector
+    AuthorityScorer
 )
 from src.nlp.llm_entity_detector import LLMEntityDetector
+from src.nlp.llm_sentiment_analyzer import LLMSentimentAnalyzer
+from src.nlp.llm_gap_detector import LLMGapDetector
+from src.nlp.llm_relevance_scorer import LLMRelevanceScorer
 from src.processors.geo_calculator import GEOCalculator
 from src.processors.sov_calculator import SOVCalculator
 from src.models.schemas import (
@@ -29,10 +29,10 @@ class ResponseProcessor:
         # Initialize NLP components
         self.citation_extractor = CitationExtractor()
         self.entity_detector = LLMEntityDetector()  # Use LLM-based detector
-        self.sentiment_analyzer = SentimentAnalyzer()
-        self.relevance_scorer = RelevanceScorer()
+        self.sentiment_analyzer = LLMSentimentAnalyzer()  # Use LLM-based analyzer
+        self.relevance_scorer = LLMRelevanceScorer()  # Use LLM-based scorer
         self.authority_scorer = AuthorityScorer()
-        self.gap_detector = GapDetector()
+        self.gap_detector = LLMGapDetector()  # Use LLM-based gap detector
         
         # Store customer context for entity detection
         self.customer_context = customer_context or {}
@@ -66,7 +66,8 @@ class ResponseProcessor:
             # Use customer context for entity detection
             context = customer_context or self.customer_context
             tasks.append(self._detect_entities_async(response.response_text, context))
-            tasks.append(self._analyze_sentiment_async(response.response_text))
+            # Use customer context for sentiment analysis
+            tasks.append(self._analyze_sentiment_async(response.response_text, context))
             tasks.append(self._score_relevance_async(
                 response.prompt_text,
                 response.response_text
@@ -89,7 +90,8 @@ class ResponseProcessor:
                 response.prompt_text,
                 response.response_text,
                 competitor_responses or [],
-                entities
+                entities,
+                context
             )
             
             # Calculate composite scores
@@ -97,7 +99,7 @@ class ResponseProcessor:
             
             geo_score = self.geo_calculator.calculate(
                 citation_frequency=citation_frequency,
-                sentiment_score=sentiment.score if sentiment else 0.0,
+                sentiment_score=sentiment.overall_sentiment if sentiment else 0.0,
                 relevance_score=relevance.score if relevance else 0.0,
                 authority_score=authority_score,
                 position_weight=self._calculate_position_weight(response.metadata)
@@ -182,24 +184,16 @@ class ResponseProcessor:
             return []
         return await self.entity_detector.detect(text, context)
     
-    async def _analyze_sentiment_async(self, text: str):
-        """Async wrapper for sentiment analysis."""
-        loop = asyncio.get_event_loop()
-        return await loop.run_in_executor(
-            None,
-            self.sentiment_analyzer.analyze,
-            text
-        )
+    async def _analyze_sentiment_async(self, text: str, context: Optional[Dict] = None):
+        """Async wrapper for LLM sentiment analysis."""
+        # LLMSentimentAnalyzer.analyze is already async
+        context = context or self.customer_context
+        return await self.sentiment_analyzer.analyze(text, context)
     
     async def _score_relevance_async(self, query: str, response: str):
-        """Async wrapper for relevance scoring."""
-        loop = asyncio.get_event_loop()
-        return await loop.run_in_executor(
-            None,
-            self.relevance_scorer.score,
-            query,
-            response
-        )
+        """Async wrapper for LLM relevance scoring."""
+        # LLMRelevanceScorer.score is already async
+        return await self.relevance_scorer.score(query, response)
     
     async def _score_authority_async(self, citations):
         """Async wrapper for authority scoring."""
@@ -215,17 +209,17 @@ class ResponseProcessor:
         prompt: str,
         response: str,
         competitor_responses: List[str],
-        entities
+        entities,
+        context: Optional[Dict] = None
     ):
-        """Async wrapper for gap detection."""
-        loop = asyncio.get_event_loop()
-        return await loop.run_in_executor(
-            None,
-            self.gap_detector.detect,
-            prompt,
-            response,
-            competitor_responses,
-            entities
+        """Async wrapper for LLM gap detection."""
+        # LLMGapDetector.detect is already async
+        context = context or self.customer_context
+        return await self.gap_detector.detect(
+            query=prompt,
+            response=response,
+            competitor_responses=competitor_responses,
+            context=context
         )
     
     def _calculate_position_weight(self, metadata: Dict[str, Any]) -> float:
@@ -251,16 +245,22 @@ class ResponseProcessor:
         
         for entity in entities:
             if entity.type in ["BRAND", "COMPETITOR"]:
-                # Get sentiment for this entity's context
-                sentiment = self.sentiment_analyzer.analyze(entity.context or entity.text)
+                # Use metadata sentiment if available, otherwise analyze
+                if entity.metadata and 'sentiment' in entity.metadata:
+                    sentiment_score = entity.metadata['sentiment']
+                    sentiment_label = "positive" if sentiment_score > 0 else "negative" if sentiment_score < 0 else "neutral"
+                else:
+                    # Fallback - analyze context synchronously (not ideal but for compatibility)
+                    sentiment_score = 0.0
+                    sentiment_label = "neutral"
                 
                 mention = BrandMention(
                     response_id="",  # Will be set later
                     brand_id="",  # Will be mapped later
                     brand_name=entity.text,
                     mention_text=entity.context or entity.text,
-                    sentiment_score=sentiment.score,
-                    sentiment_label=sentiment.label,
+                    sentiment_score=sentiment_score,
+                    sentiment_label=sentiment_label,
                     confidence=entity.confidence,
                     position=entity.start_pos,
                     context=entity.context or "",

@@ -1,17 +1,17 @@
 """NLP components for Intelligence Engine."""
 
 from .citation_extractor import CitationExtractor
-from .entity_detector import EntityDetector
-from .sentiment_analyzer import SentimentAnalyzer
-from .relevance_scorer import RelevanceScorer
+from .llm_entity_detector import LLMEntityDetector
+from .llm_sentiment_analyzer import LLMSentimentAnalyzer
+from .llm_gap_detector import LLMGapDetector
+from .llm_relevance_scorer import LLMRelevanceScorer
 from .authority_scorer import AuthorityScorer
-from .gap_detector import GapDetector
 
 __all__ = [
     "CitationExtractor",
-    "EntityDetector",
-    "SentimentAnalyzer",
-    "RelevanceScorer",
-    "AuthorityScorer",
-    "GapDetector"
+    "LLMEntityDetector",
+    "LLMSentimentAnalyzer",
+    "LLMGapDetector",
+    "LLMRelevanceScorer",
+    "AuthorityScorer"
 ]
