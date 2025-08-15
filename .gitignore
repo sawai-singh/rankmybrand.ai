@@ -30,7 +30,15 @@ build/
 .env.production.local
 **/.env
 **/.env.*
+.env
 
+.env 
+
+.env.local 
+
+.env.example 
+
+.env.production.template 
 # OS files
 .DS_Store
 Thumbs.db
