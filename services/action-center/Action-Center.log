@@ -1,5 +1,0 @@
-
-> @rankmybrand/action-center@1.0.0 dev
-> tsx src/index.ts
-
-sh: tsx: command not found

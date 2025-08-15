@@ -96,6 +96,8 @@ export default function CompanyDetailsPage() {
       // Save company data to session
       const sessionData = JSON.parse(sessionStorage.getItem('onboarding_session') || '{}');
       sessionData.company = company;
+      // Also preserve enrichmentData to keep competitors
+      sessionData.enrichmentData = company;
       sessionStorage.setItem('onboarding_session', JSON.stringify(sessionData));
       
       // Navigate to description generation

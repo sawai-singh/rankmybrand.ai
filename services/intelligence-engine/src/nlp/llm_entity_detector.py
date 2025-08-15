@@ -8,7 +8,7 @@ import json
 import asyncio
 import hashlib
 import re
-from typing import List, Dict, Optional, Set, Tuple
+from typing import List, Dict, Optional, Set, Tuple, Any
 from datetime import datetime, timedelta
 from concurrent.futures import ThreadPoolExecutor
 import redis
@@ -16,6 +16,7 @@ from openai import AsyncOpenAI
 from pydantic import BaseModel, Field
 from src.models.schemas import Entity
 from src.config import settings
+from src.utils import cost_tracker, circuit_breaker
 import logging
 
 logger = logging.getLogger(__name__)
@@ -23,13 +24,13 @@ logger = logging.getLogger(__name__)
 
 class EntityDetectionResult(BaseModel):
     """Structured output from LLM entity detection"""
-    brand_mentions: List[Dict[str, any]] = Field(
+    brand_mentions: List[Dict[str, Any]] = Field(
         description="All mentions of the customer's brand with context and sentiment"
     )
-    competitor_mentions: List[Dict[str, any]] = Field(
+    competitor_mentions: List[Dict[str, Any]] = Field(
         description="Competitor brand mentions with context and relationship"
     )
-    product_references: List[Dict[str, any]] = Field(
+    product_references: List[Dict[str, Any]] = Field(
         description="Product/feature mentions related to the brand or competitors"
     )
     sentiment_analysis: Dict[str, float] = Field(
@@ -266,9 +267,11 @@ Text to analyze:
 {text}
 """
             
-            response = await asyncio.wait_for(
+            # Execute with circuit breaker
+            response = await circuit_breaker.call(
+                asyncio.wait_for,
                 self.client.chat.completions.create(
-                    model="gpt-4-turbo-preview",  # Will be "gpt-5-nano" when available
+                    model="gpt-5-nano-2025-08-07",  # Will be "gpt-5-nano" when available
                     messages=[
                         {"role": "system", "content": system_prompt},
                         {"role": "user", "content": enriched_text}
@@ -281,6 +284,17 @@ Text to analyze:
                 ),
                 timeout=3.0  # 3 second timeout
             )
+            
+            # Track costs
+            customer_id = context.get('customer_id', 'unknown')
+            if response.usage:
+                await cost_tracker.track_usage(
+                    customer_id=customer_id,
+                    model="gpt-5-nano-2025-08-07",
+                    input_tokens=response.usage.prompt_tokens,
+                    output_tokens=response.usage.completion_tokens,
+                    metadata={'purpose': 'entity_detection', 'brand': context.get('brand_name')}
+                )
             
             return json.loads(response.choices[0].message.content)
             

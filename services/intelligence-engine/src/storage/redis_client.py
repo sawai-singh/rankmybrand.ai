@@ -125,13 +125,23 @@ class RedisClient:
         self,
         message_id: str,
         error: str,
-        original_data: Dict
+        original_data: Dict,
+        retry_count: int = 0,
+        is_recoverable: bool = False
     ):
-        """Send failed message to dead letter queue."""
+        """Send failed message to dead letter queue with retry tracking."""
+        # Preserve retry count in the data
+        if 'retry_count' not in original_data:
+            original_data['retry_count'] = retry_count
+        else:
+            original_data['retry_count'] = retry_count
+            
         failed_data = {
             "original_id": message_id,
             "error": error,
             "failed_at": datetime.utcnow().isoformat(),
+            "retry_count": str(retry_count),
+            "is_recoverable": "true" if is_recoverable else "false",
             "original_data": json.dumps(original_data)
         }
         

@@ -357,7 +357,7 @@ CRITICAL INSTRUCTIONS:
     
     def __init__(self, 
                  redis_client: Optional[redis.Redis] = None,
-                 model: str = "gpt-4-turbo-preview",
+                 model: str = "gpt-5-nano-2025-08-07",
                  enable_calibration: bool = True):
         """
         Initialize with OpenAI client and optional Redis cache.

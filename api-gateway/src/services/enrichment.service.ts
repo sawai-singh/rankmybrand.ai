@@ -6,6 +6,7 @@
 import axios from 'axios';
 import dns from 'dns/promises';
 import { promisify } from 'util';
+import { llmEnrichmentService } from './llm-enrichment.service';
 
 // Enrichment API configurations
 const ENRICHMENT_APIS = {
@@ -46,6 +47,7 @@ export interface CompanyEnrichment {
   };
   tags?: string[];
   techStack?: string[];
+  competitors?: string[];
   enrichmentSource: string;
   confidence: number;
 }
@@ -119,8 +121,13 @@ export class EnrichmentService {
   async enrichFromEmail(email: string): Promise<CompanyEnrichment> {
     const domain = email.split('@')[1];
     
-    // Try enrichment services in order
-    let enrichmentData = await this.tryEnrichmentChain(domain);
+    // Try LLM enrichment first (using OpenAI)
+    let enrichmentData = await llmEnrichmentService.enrichWithLLM(domain);
+    
+    if (!enrichmentData) {
+      // Try traditional enrichment services if LLM fails
+      enrichmentData = await this.tryEnrichmentChain(domain);
+    }
     
     if (!enrichmentData) {
       // Fallback to web crawler

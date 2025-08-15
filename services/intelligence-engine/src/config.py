@@ -2,7 +2,8 @@
 
 import os
 from typing import Optional
-from pydantic import BaseSettings, Field, validator, root_validator
+from pydantic_settings import BaseSettings
+from pydantic import Field, field_validator, model_validator
 
 
 class Settings(BaseSettings):
@@ -69,41 +70,49 @@ class Settings(BaseSettings):
     
     # OpenAI Configuration for LLM Entity Detection
     openai_api_key: str = Field(default="", env="OPENAI_API_KEY")
-    openai_model: str = Field(default="gpt-4-turbo-preview", env="OPENAI_MODEL")
+    openai_model: str = Field(default="gpt-5-nano-2025-08-07", env="OPENAI_MODEL")
     openai_timeout: int = Field(default=3, env="OPENAI_TIMEOUT")
     openai_max_calls_per_minute: int = Field(default=60, env="OPENAI_MAX_CALLS_PER_MINUTE")
     openai_max_calls_per_customer: int = Field(default=10, env="OPENAI_MAX_CALLS_PER_CUSTOMER")
     
-    @validator('openai_api_key')
-    def validate_openai_key(cls, v, values):
+    # Security Configuration
+    jwt_secret: str = Field(default="change-me-in-production", env="JWT_SECRET")
+    jwt_algorithm: str = Field(default="HS256", env="JWT_ALGORITHM")
+    jwt_expiration_hours: int = Field(default=24, env="JWT_EXPIRATION_HOURS")
+    
+    @field_validator('openai_api_key')
+    @classmethod
+    def validate_openai_key(cls, v, info):
         """Validate OpenAI API key format and presence."""
-        app_env = values.get('app_env', 'development')
+        app_env = info.data.get('app_env', 'development')
         
         # In production, require valid API key
         if app_env == 'production':
             if not v or v == "":
                 raise ValueError("OPENAI_API_KEY is required in production for LLM operations")
-            if not v.startswith('sk-'):
-                raise ValueError("Invalid OpenAI API key format (must start with 'sk-')")
+            # OpenAI keys can now have different prefixes, just check length
+            if len(v) < 20:
+                raise ValueError("Invalid OpenAI API key (too short)")
         
         return v
     
-    @root_validator
-    def validate_production_config(cls, values):
+    @model_validator(mode='after')
+    def validate_production_config(self):
         """Validate production configuration."""
-        if values.get('app_env') == 'production':
+        if self.app_env == 'production':
             required_fields = {
                 'openai_api_key': 'OpenAI API key',
                 'postgres_password': 'PostgreSQL password',
-                'redis_password': 'Redis password'
+                'redis_password': 'Redis password',
+                'jwt_secret': 'JWT secret key'
             }
             
             for field, name in required_fields.items():
-                value = values.get(field)
+                value = getattr(self, field, None)
                 if not value or (isinstance(value, str) and value in ["", "postgres", "password"]):
                     raise ValueError(f"{name} must be set to a secure value in production")
         
-        return values
+        return self
     
     @property
     def is_production(self) -> bool:

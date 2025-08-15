@@ -23,7 +23,7 @@ class CostTracker:
     
     # Pricing per 1K tokens (input + output averaged)
     PRICING = {
-        'gpt-4-turbo-preview': 0.01,  # $10 per 1M tokens
+        'gpt-5-nano-2025-08-07': 0.01,  # $10 per 1M tokens
         'gpt-4': 0.03,  # $30 per 1M tokens
         'gpt-3.5-turbo': 0.0015,  # $1.50 per 1M tokens
         'gpt-3.5-turbo-16k': 0.003,  # $3 per 1M tokens
@@ -75,7 +75,7 @@ class CostTracker:
         
         Args:
             customer_id: Customer identifier
-            model: Model name (e.g., 'gpt-4-turbo-preview')
+            model: Model name (e.g., 'gpt-5-nano-2025-08-07')
             input_tokens: Number of input tokens
             output_tokens: Number of output tokens
             metadata: Optional metadata (request_id, purpose, etc.)
@@ -291,7 +291,7 @@ class CostTracker:
     async def estimate_request_cost(
         self,
         text: str,
-        model: str = "gpt-4-turbo-preview"
+        model: str = "gpt-5-nano-2025-08-07"
     ) -> float:
         """
         Estimate cost for a request before making it.

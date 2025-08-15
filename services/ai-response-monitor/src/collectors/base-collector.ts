@@ -118,16 +118,32 @@ export abstract class BaseCollector {
   }
   
   /**
-   * Publish response to event bus
+   * Publish response to event bus with required context
    */
-  protected async publishResponse(response: AIResponse): Promise<void> {
+  protected async publishResponse(response: AIResponse, context?: { brand_id?: string; customer_id?: string }): Promise<void> {
+    // Ensure brand_id and customer_id are included
+    const enrichedResponse = {
+      ...response,
+      brand_id: context?.brand_id || response.metadata?.brand_id,
+      customer_id: context?.customer_id || response.metadata?.customer_id,
+      metadata: {
+        ...response.metadata,
+        brand_id: context?.brand_id || response.metadata?.brand_id,
+        customer_id: context?.customer_id || response.metadata?.customer_id
+      }
+    };
+    
     await this.eventBus.publish('ai.responses.raw', {
       type: 'response.collected',
-      data: response,
+      data: enrichedResponse,
       correlationId: response.id,
+      brand_id: context?.brand_id || response.metadata?.brand_id,
+      customer_id: context?.customer_id || response.metadata?.customer_id,
       metadata: {
         collector: this.name,
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
+        brand_id: context?.brand_id || response.metadata?.brand_id,
+        customer_id: context?.customer_id || response.metadata?.customer_id
       }
     });
   }

@@ -2,13 +2,15 @@
 
 from fastapi import APIRouter, HTTPException, Depends
 from typing import Dict, Any, List, Optional
-from pydantic import BaseModel, Field, validator
+from pydantic import BaseModel, Field, field_validator
 from src.processors.response_processor import ResponseProcessor
 from src.nlp.llm_entity_detector import LLMEntityDetector
 from src.nlp.llm_sentiment_analyzer import LLMSentimentAnalyzer
 from src.nlp.llm_gap_detector import LLMGapDetector
 from src.models.schemas import AIResponse
 from src.config import settings
+from src.api.auth import get_current_user, check_rate_limit, require_customer_id, require_brand_id
+from src.utils import cost_tracker
 import logging
 
 logger = logging.getLogger(__name__)
@@ -18,17 +20,19 @@ router = APIRouter(prefix="/api/analysis", tags=["analysis"])
 class AnalysisRequest(BaseModel):
     """Request model for analysis endpoint."""
     text: str = Field(..., min_length=1, max_length=50000, description="Text to analyze (max 50KB)")
-    platform: str = Field(default="generic", regex="^[a-z_]+$", max_length=50)
+    platform: str = Field(default="generic", pattern="^[a-z_]+$", max_length=50)
     customer_context: Dict[str, Any] = Field(..., description="Customer context with brand_id and customer_id")
     competitor_responses: List[str] = Field(default=[], max_items=10)
     
-    @validator('text')
+    @field_validator('text')
+    @classmethod
     def validate_text_length(cls, v):
         if len(v) > 50000:  # 50KB limit
             raise ValueError("Text exceeds maximum length of 50,000 characters")
         return v
     
-    @validator('customer_context')
+    @field_validator('customer_context')
+    @classmethod
     def validate_customer_context(cls, v):
         if 'customer_id' not in v:
             raise ValueError("customer_context must include customer_id")
@@ -44,9 +48,10 @@ class EntityDetectionRequest(BaseModel):
     brand_variations: List[str] = Field(default=[], max_items=20)
     industry: str = Field(default="General", max_length=100)
     competitors: List[str] = Field(default=[], max_items=50)
-    customer_id: str = Field(..., regex="^[a-zA-Z0-9_-]+$", max_length=100)
+    customer_id: str = Field(..., pattern="^[a-zA-Z0-9_-]+$", max_length=100)
     
-    @validator('brand_variations', 'competitors')
+    @field_validator('brand_variations', 'competitors')
+    @classmethod
     def validate_list_items(cls, v):
         for item in v:
             if len(item) > 100:
@@ -70,7 +75,7 @@ class SentimentAnalysisRequest(BaseModel):
     industry: str = Field(default="General", max_length=100)
     purpose: str = Field(
         default="general_analysis",
-        regex="^(general_analysis|customer_review|social_media|support_ticket)$"
+        pattern="^(general_analysis|customer_review|social_media|support_ticket)$"
     )
     customer_id: str = Field(default="", max_length=100)
 
@@ -82,10 +87,11 @@ class BatchSentimentRequest(BaseModel):
     industry: str = Field(default="General", max_length=100)
     purpose: str = Field(
         default="general_analysis",
-        regex="^(general_analysis|customer_review|social_media|support_ticket)$"
+        pattern="^(general_analysis|customer_review|social_media|support_ticket)$"
     )
     
-    @validator('texts')
+    @field_validator('texts')
+    @classmethod
     def validate_texts(cls, v):
         total_size = sum(len(text) for text in v)
         if total_size > 500000:  # 500KB total limit
@@ -117,7 +123,11 @@ class PortfolioAnalysisRequest(BaseModel):
 
 
 @router.post("/process")
-async def process_response(request: AnalysisRequest):
+async def process_response(
+    request: AnalysisRequest,
+    current_user: Dict = Depends(get_current_user),
+    _: str = Depends(check_rate_limit)
+):
     """
     Process AI response with customer-specific entity detection.
     
@@ -169,7 +179,11 @@ async def process_response(request: AnalysisRequest):
 
 
 @router.post("/detect-entities")
-async def detect_entities(request: EntityDetectionRequest):
+async def detect_entities(
+    request: EntityDetectionRequest,
+    current_user: Dict = Depends(get_current_user),
+    customer_id: str = Depends(check_rate_limit)
+):
     """
     Detect entities for a specific brand using LLM.
     
@@ -179,12 +193,13 @@ async def detect_entities(request: EntityDetectionRequest):
     try:
         detector = LLMEntityDetector()
         
+        # Override with authenticated customer_id
         customer_context = {
             "brand_name": request.brand_name,
             "brand_variations": request.brand_variations,
             "industry": request.industry,
             "competitors": request.competitors,
-            "customer_id": request.customer_id
+            "customer_id": customer_id  # Use authenticated customer_id
         }
         
         entities = await detector.detect(request.text, customer_context)
@@ -479,7 +494,7 @@ async def health_check():
         "status": "healthy",
         "service": "intelligence-engine",
         "llm_enabled": True,
-        "model": "gpt-4-turbo-preview",
+        "model": "gpt-5-nano-2025-08-07",
         "features": [
             "entity_detection",
             "sentiment_analysis", 

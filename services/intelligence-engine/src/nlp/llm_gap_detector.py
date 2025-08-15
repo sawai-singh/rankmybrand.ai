@@ -360,7 +360,7 @@ IMPORTANT GUIDELINES:
         try:
             response = await asyncio.wait_for(
                 self.client.chat.completions.create(
-                    model="gpt-4-turbo-preview",  # Will be "gpt-5-nano" when available
+                    model="gpt-5-nano-2025-08-07",  # Will be "gpt-5-nano" when available
                     messages=[
                         {"role": "system", "content": system_prompt},
                         {"role": "user", "content": f"Analyze this content for gaps:\n\n{text}"}

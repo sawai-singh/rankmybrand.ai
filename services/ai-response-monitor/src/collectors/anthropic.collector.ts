@@ -6,7 +6,7 @@ import { AIResponse, CollectionOptions } from '../types';
 
 export class AnthropicCollector extends BaseCollector {
   private client?: Anthropic;
-  private models: string[] = ['claude-3-opus-20240229', 'claude-3-sonnet-20240229', 'claude-3-haiku-20240307'];
+  private models: string[] = ['claude-3-5-sonnet-20241022', 'claude-3-5-haiku-20241022', 'claude-3-opus-20240229', 'claude-3-sonnet-20240229', 'claude-3-haiku-20240307'];
   
   constructor(redis: Redis) {
     super('anthropic', redis);
@@ -24,8 +24,11 @@ export class AnthropicCollector extends BaseCollector {
       maxRetries: 2
     });
     
-    // Test connection
-    await this.validate();
+    // Test connection and validate
+    const isValid = await this.validate();
+    if (!isValid) {
+      throw new Error('Anthropic API validation failed (invalid key or no model access)');
+    }
   }
   
   async validate(): Promise<boolean> {
@@ -58,8 +61,11 @@ export class AnthropicCollector extends BaseCollector {
     const responseId = uuidv4();
     
     try {
-      // Check cache first
-      const cacheKey = `${prompt}:${options?.model || 'claude-3-sonnet-20240229'}`;
+      // Check cache first - hash the prompt to avoid Redis key issues
+      const model = options?.model || (process as any).env.ANTHROPIC_DEFAULT_MODEL || 'claude-3-5-sonnet-20241022';
+      const crypto = require('crypto');
+      const promptHash = crypto.createHash('sha256').update(prompt).digest('hex');
+      const cacheKey = `anthropic:${model}:${promptHash}`;
       const { data: cachedResponse, fromCache } = await this.withCache(
         cacheKey,
         options?.cacheTTL || this.cacheTTL,
@@ -67,8 +73,6 @@ export class AnthropicCollector extends BaseCollector {
           // Execute with rate limiting
           return this.withRateLimit('api', async () => {
             return this.withRetry(async () => {
-              const model = options?.model || 'claude-3-sonnet-20240229';
-              
               const message = await this.client!.messages.create({
                 model,
                 max_tokens: options?.maxTokens || 2000,
@@ -142,13 +146,15 @@ export class AnthropicCollector extends BaseCollector {
       // Track failed request
       this.trackMetrics(false, 0, processingTime);
       
-      // Handle specific Anthropic errors
-      if (error.status === 401) {
+      // Handle specific Anthropic errors - check status first
+      if (error.status === 401 || error.error?.type === 'authentication_error') {
         throw new Error('Invalid Anthropic API key');
       } else if (error.status === 429) {
         throw new Error(`Rate limit exceeded: ${error.message}`);
-      } else if (error.status === 400) {
+      } else if (error.status === 400 || error.error?.type === 'invalid_request_error') {
         throw new Error(`Invalid request: ${error.message}`);
+      } else if (error.status === 503) {
+        throw new Error('Anthropic service temporarily unavailable');
       }
       
       throw new Error(`Anthropic collection failed: ${error.message}`);
@@ -164,20 +170,24 @@ export class AnthropicCollector extends BaseCollector {
       return 0;
     }
     
-    // Anthropic pricing (in cents per 1K tokens)
+    // Anthropic pricing in DOLLARS per 1K tokens (consistent units)
     const pricing: Record<string, { input: number; output: number }> = {
-      'claude-3-opus-20240229': { input: 1.5, output: 7.5 },
-      'claude-3-sonnet-20240229': { input: 0.3, output: 1.5 },
-      'claude-3-haiku-20240307': { input: 0.025, output: 0.125 }
+      'claude-3-5-sonnet-20241022': { input: 0.003, output: 0.015 },
+      'claude-3-5-haiku-20241022': { input: 0.0008, output: 0.004 },
+      'claude-3-opus-20240229': { input: 0.015, output: 0.075 },
+      'claude-3-sonnet-20240229': { input: 0.003, output: 0.015 },
+      'claude-3-haiku-20240307': { input: 0.00025, output: 0.00125 }
     };
     
-    const model = usage.model || 'claude-3-sonnet-20240229';
-    const modelPricing = pricing[model] || pricing['claude-3-sonnet-20240229'];
+    const model = usage.model || (process as any).env.ANTHROPIC_DEFAULT_MODEL || 'claude-3-5-sonnet-20241022';
+    const modelPricing = pricing[model] || pricing['claude-3-5-haiku-20241022']; // fallback to cheapest
     
+    // Cost in dollars per 1K tokens
     const inputCost = (usage.inputTokens / 1000) * modelPricing.input;
     const outputCost = (usage.outputTokens / 1000) * modelPricing.output;
     
-    return Math.round((inputCost + outputCost) * 100) / 100; // Round to 2 decimal places
+    // Keep higher precision internally, round to 4 decimal places
+    return Math.round((inputCost + outputCost) * 10000) / 10000;
   }
   
   /**
@@ -199,7 +209,7 @@ export class AnthropicCollector extends BaseCollector {
     }
     
     const stream = await this.client.messages.create({
-      model: options?.model || 'claude-3-sonnet-20240229',
+      model: options?.model || (process as any).env.ANTHROPIC_DEFAULT_MODEL || 'claude-3-5-sonnet-20241022',
       max_tokens: options?.maxTokens || 2000,
       temperature: options?.temperature || 0.7,
       messages: [
@@ -208,6 +218,7 @@ export class AnthropicCollector extends BaseCollector {
           content: prompt
         }
       ],
+      system: 'You are Claude, a helpful AI assistant. Provide informative, accurate, and well-structured responses.',
       stream: true
     });
     

@@ -4,13 +4,14 @@ import asyncio
 import signal
 import sys
 import logging
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 from datetime import datetime
 from src.config import settings
 from src.storage import PostgresClient, RedisClient, CacheManager
 from src.processors import ResponseProcessor
 from src.models.schemas import AIResponse, MetricEvent
 from src.monitoring.metrics import metrics_collector
+from src.message_translator import message_translator
 
 logger = logging.getLogger(__name__)
 
@@ -99,10 +100,41 @@ class StreamConsumer:
         customer_id = None
         
         try:
+            # Translate message format if needed
+            translated_data = message_translator.translate_ai_monitor_message(data)
+            
+            # Validate required fields
+            is_valid, missing_fields = message_translator.validate_required_fields(translated_data)
+            if not is_valid:
+                logger.error(f"Missing required fields: {missing_fields}")
+                await self.redis.send_to_failed_queue(
+                    message_id,
+                    f"Missing required fields: {missing_fields}",
+                    data,
+                    retry_count=0,
+                    is_recoverable=False
+                )
+                await self.redis.acknowledge_message(message_id)
+                return
+            
             # Parse AI response (includes brand_id and customer_id extraction)
-            response = self._parse_response(data)
+            response = self._parse_response(translated_data)
             brand_id = response.brand_id
             customer_id = response.customer_id
+            
+            # Check for required fields
+            if not brand_id or not customer_id:
+                error_msg = f"Missing required fields: brand_id={brand_id}, customer_id={customer_id}"
+                logger.error(error_msg)
+                await self.redis.send_to_failed_queue(
+                    message_id,
+                    error_msg,
+                    data,
+                    retry_count=0,
+                    is_recoverable=False
+                )
+                await self.redis.acknowledge_message(message_id)
+                return
             
             # Check cache first
             cached = await self.cache.get_processed_response(response.id)
@@ -202,18 +234,18 @@ class StreamConsumer:
             customer_id=self._extract_customer_id(data)
         )
     
-    def _extract_brand_id(self, data: Dict[str, Any]) -> str:
-        """Extract brand_id from message or raise error."""
+    def _extract_brand_id(self, data: Dict[str, Any]) -> Optional[str]:
+        """Extract brand_id from message, return None if missing."""
         brand_id = data.get("brand_id") or data.get("metadata", {}).get("brand_id")
         if not brand_id:
-            raise ValueError(f"No brand_id found in message {data.get('id')}")
+            logger.error(f"Missing brand_id in message {data.get('id')}")
         return brand_id
     
-    def _extract_customer_id(self, data: Dict[str, Any]) -> str:
-        """Extract customer_id from message or raise error."""
+    def _extract_customer_id(self, data: Dict[str, Any]) -> Optional[str]:
+        """Extract customer_id from message, return None if missing."""
         customer_id = data.get("customer_id") or data.get("metadata", {}).get("customer_id")
         if not customer_id:
-            raise ValueError(f"No customer_id found in message {data.get('id')}")
+            logger.error(f"Missing customer_id in message {data.get('id')}")
         return customer_id
     
     async def _save_results(self, processed, brand_id: str, customer_id: str):

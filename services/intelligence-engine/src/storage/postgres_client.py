@@ -2,6 +2,7 @@
 
 import asyncio
 import asyncpg
+import logging
 from typing import Dict, List, Any, Optional
 from datetime import datetime
 from contextlib import asynccontextmanager
@@ -12,6 +13,8 @@ from src.models.schemas import (
     GEOScore,
     ContentGap
 )
+
+logger = logging.getLogger(__name__)
 
 
 class PostgresClient:
@@ -191,12 +194,16 @@ class PostgresClient:
             return
         
         async with self.acquire() as conn:
-            # Prepare batch insert
+            # Prepare batch insert, skip records without brand_id
             values = []
             for mention in mentions:
+                if not mention.brand_id:
+                    logger.error(f"Skipping mention without brand_id: {mention.mention_text[:50]}")
+                    continue
+                    
                 values.append((
                     response_id,
-                    mention.brand_id or '00000000-0000-0000-0000-000000000000',  # Default UUID
+                    mention.brand_id,
                     mention.mention_text[:1000],
                     mention.sentiment_score,
                     mention.sentiment_label,

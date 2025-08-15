@@ -6,7 +6,7 @@ import { AIResponse, CollectionOptions } from '../types';
 
 export class OpenAICollector extends BaseCollector {
   private client?: OpenAI;
-  private models: string[] = ['gpt-4', 'gpt-4-turbo-preview', 'gpt-3.5-turbo'];
+  private models: string[] = ['gpt-5-nano-2025-08-07'];
   
   constructor(redis: Redis) {
     super('openai', redis);
@@ -25,8 +25,11 @@ export class OpenAICollector extends BaseCollector {
       timeout: 30000
     });
     
-    // Test connection
-    await this.validate();
+    // Test connection and validate
+    const isValid = await this.validate();
+    if (!isValid) {
+      throw new Error('OpenAI API validation failed (invalid key or no model access)');
+    }
   }
   
   async validate(): Promise<boolean> {
@@ -53,8 +56,11 @@ export class OpenAICollector extends BaseCollector {
     const responseId = uuidv4();
     
     try {
-      // Check cache first
-      const cacheKey = `${prompt}:${options?.model || 'gpt-3.5-turbo'}`;
+      // Check cache first - hash the prompt to avoid Redis key issues
+      const model = options?.model || process.env.OPENAI_DEFAULT_MODEL || 'gpt-5-nano-2025-08-07';
+      const crypto = require('crypto');
+      const promptHash = crypto.createHash('sha256').update(prompt).digest('hex');
+      const cacheKey = `openai:${model}:${promptHash}`;
       const { data: cachedResponse, fromCache } = await this.withCache(
         cacheKey,
         options?.cacheTTL || this.cacheTTL,
@@ -62,8 +68,6 @@ export class OpenAICollector extends BaseCollector {
           // Execute with rate limiting
           return this.withRateLimit('api', async () => {
             return this.withRetry(async () => {
-              const model = options?.model || 'gpt-3.5-turbo';
-              
               const completion = await this.client!.chat.completions.create({
                 model,
                 messages: [
@@ -140,13 +144,15 @@ export class OpenAICollector extends BaseCollector {
       // Track failed request
       this.trackMetrics(false, 0, processingTime);
       
-      // Handle specific OpenAI errors
-      if (error.code === 'insufficient_quota') {
-        throw new Error('OpenAI API quota exceeded');
-      } else if (error.code === 'invalid_api_key') {
+      // Handle specific OpenAI errors - check status first, then error type
+      if (error.status === 401 || error.error?.type === 'invalid_api_key') {
         throw new Error('Invalid OpenAI API key');
       } else if (error.status === 429) {
         throw new Error(`Rate limit exceeded: ${error.message}`);
+      } else if (error.error?.type === 'insufficient_quota') {
+        throw new Error('OpenAI API quota exceeded');
+      } else if (error.status === 503) {
+        throw new Error('OpenAI service temporarily unavailable');
       }
       
       throw new Error(`OpenAI collection failed: ${error.message}`);
@@ -162,22 +168,26 @@ export class OpenAICollector extends BaseCollector {
       return 0;
     }
     
-    // OpenAI pricing (in cents per 1K tokens)
+    // OpenAI pricing in DOLLARS per 1K tokens (consistent units)
     const pricing: Record<string, { prompt: number; completion: number }> = {
-      'gpt-4': { prompt: 3.0, completion: 6.0 },
-      'gpt-4-turbo': { prompt: 1.0, completion: 3.0 },
-      'gpt-4-turbo-preview': { prompt: 1.0, completion: 3.0 },
-      'gpt-3.5-turbo': { prompt: 0.05, completion: 0.15 },
-      'gpt-3.5-turbo-16k': { prompt: 0.3, completion: 0.4 }
+      'gpt-4': { prompt: 0.03, completion: 0.06 },
+      'gpt-4-turbo': { prompt: 0.01, completion: 0.03 },
+      'gpt-4-turbo-preview': { prompt: 0.01, completion: 0.03 },
+      'gpt-3.5-turbo': { prompt: 0.0005, completion: 0.0015 },
+      'gpt-3.5-turbo-16k': { prompt: 0.003, completion: 0.004 },
+      'gpt-5-nano-2025-08-07': { prompt: 0.003, completion: 0.004 },
+      'gpt-4o-mini': { prompt: 0.00015, completion: 0.0006 }
     };
     
-    const model = usage.model || 'gpt-3.5-turbo';
-    const modelPricing = pricing[model] || pricing['gpt-3.5-turbo'];
+    const model = usage.model || process.env.OPENAI_DEFAULT_MODEL || 'gpt-5-nano-2025-08-07';
+    const modelPricing = pricing[model] || pricing['gpt-4o-mini']; // fallback to cheapest
     
+    // Cost in dollars per 1K tokens
     const promptCost = (usage.promptTokens / 1000) * modelPricing.prompt;
     const completionCost = (usage.completionTokens / 1000) * modelPricing.completion;
     
-    return Math.round((promptCost + completionCost) * 100) / 100; // Round to 2 decimal places
+    // Keep higher precision internally, round to 4 decimal places
+    return Math.round((promptCost + completionCost) * 10000) / 10000;
   }
   
   /**
@@ -190,11 +200,16 @@ export class OpenAICollector extends BaseCollector {
     
     try {
       const models = await this.client.models.list();
-      const gptModels = models.data
-        .filter(model => model.id.startsWith('gpt'))
+      // Return all chat-capable models, not just those starting with 'gpt'
+      const chatModels = models.data
+        .filter(model => 
+          model.id.includes('gpt') || 
+          model.id.includes('claude') || 
+          model.id.includes('text-')
+        )
         .map(model => model.id);
       
-      return gptModels.length > 0 ? gptModels : this.models;
+      return chatModels.length > 0 ? chatModels : this.models;
     } catch (error) {
       return this.models;
     }
@@ -212,8 +227,12 @@ export class OpenAICollector extends BaseCollector {
     }
     
     const stream = await this.client.chat.completions.create({
-      model: options?.model || 'gpt-3.5-turbo',
+      model: options?.model || (process as any).env.OPENAI_DEFAULT_MODEL || 'gpt-5-nano-2025-08-07',
       messages: [
+        {
+          role: 'system',
+          content: 'You are a helpful assistant. Provide informative and accurate responses.'
+        },
         {
           role: 'user',
           content: prompt
@@ -225,7 +244,7 @@ export class OpenAICollector extends BaseCollector {
     });
     
     for await (const chunk of stream) {
-      const content = chunk.choices[0]?.delta?.content;
+      const content = chunk?.choices?.[0]?.delta?.content;
       if (content) {
         yield content;
       }

@@ -201,7 +201,7 @@ export class RecommendationGenerator {
     
     try {
       const response = await this.openai.chat.completions.create({
-        model: options.model || process.env.OPENAI_MODEL || 'gpt-4-turbo-preview',
+        model: options.model || process.env.OPENAI_MODEL || 'gpt-5-nano-2025-08-07',
         messages: [{ role: 'user', content: prompt }],
         temperature: options.temperature || 0.7,
         max_tokens: options.maxTokens || 1500

@@ -35,8 +35,34 @@ export default function CompetitorsPage() {
     const session = JSON.parse(sessionData);
     setCompany(session.company || session.enrichmentData);
     
-    // Find competitors
-    findCompetitors(session);
+    // Check if we already have competitors from enrichment
+    const enrichmentData = session.enrichmentData || session.company;
+    if (enrichmentData?.competitors && enrichmentData.competitors.length > 0) {
+      // Use competitors from enrichment
+      const competitorsFromEnrichment = enrichmentData.competitors.map((comp: string | any) => {
+        if (typeof comp === 'string') {
+          return {
+            name: comp,
+            domain: `${comp.toLowerCase().replace(/\s+/g, '')}.com`,
+            reason: 'Identified by AI analysis',
+            similarity: 85 + Math.random() * 15,
+            source: 'AI',
+            selected: true
+          };
+        }
+        return {
+          ...comp,
+          selected: true
+        };
+      });
+      
+      setCompetitors(competitorsFromEnrichment);
+      setSelectedCount(competitorsFromEnrichment.length);
+      setLoading(false);
+    } else {
+      // Find competitors if not already available
+      findCompetitors(session);
+    }
   }, []);
 
   const findCompetitors = async (session: any) => {
