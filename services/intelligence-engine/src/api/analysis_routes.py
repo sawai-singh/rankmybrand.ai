@@ -1,13 +1,14 @@
 """Analysis API routes with LLM entity detection."""
 
 from fastapi import APIRouter, HTTPException, Depends
-from typing import Dict, Any, List
-from pydantic import BaseModel
+from typing import Dict, Any, List, Optional
+from pydantic import BaseModel, Field, validator
 from src.processors.response_processor import ResponseProcessor
 from src.nlp.llm_entity_detector import LLMEntityDetector
 from src.nlp.llm_sentiment_analyzer import LLMSentimentAnalyzer
 from src.nlp.llm_gap_detector import LLMGapDetector
 from src.models.schemas import AIResponse
+from src.config import settings
 import logging
 
 logger = logging.getLogger(__name__)
@@ -16,20 +17,41 @@ router = APIRouter(prefix="/api/analysis", tags=["analysis"])
 
 class AnalysisRequest(BaseModel):
     """Request model for analysis endpoint."""
-    text: str
-    platform: str = "generic"
-    customer_context: Dict[str, Any]
-    competitor_responses: List[str] = []
+    text: str = Field(..., min_length=1, max_length=50000, description="Text to analyze (max 50KB)")
+    platform: str = Field(default="generic", regex="^[a-z_]+$", max_length=50)
+    customer_context: Dict[str, Any] = Field(..., description="Customer context with brand_id and customer_id")
+    competitor_responses: List[str] = Field(default=[], max_items=10)
+    
+    @validator('text')
+    def validate_text_length(cls, v):
+        if len(v) > 50000:  # 50KB limit
+            raise ValueError("Text exceeds maximum length of 50,000 characters")
+        return v
+    
+    @validator('customer_context')
+    def validate_customer_context(cls, v):
+        if 'customer_id' not in v:
+            raise ValueError("customer_context must include customer_id")
+        if 'brand_id' not in v:
+            raise ValueError("customer_context must include brand_id")
+        return v
 
 
 class EntityDetectionRequest(BaseModel):
     """Request model for entity detection."""
-    text: str
-    brand_name: str
-    brand_variations: List[str] = []
-    industry: str = "General"
-    competitors: List[str] = []
-    customer_id: str
+    text: str = Field(..., min_length=1, max_length=50000)
+    brand_name: str = Field(..., min_length=1, max_length=100)
+    brand_variations: List[str] = Field(default=[], max_items=20)
+    industry: str = Field(default="General", max_length=100)
+    competitors: List[str] = Field(default=[], max_items=50)
+    customer_id: str = Field(..., regex="^[a-zA-Z0-9_-]+$", max_length=100)
+    
+    @validator('brand_variations', 'competitors')
+    def validate_list_items(cls, v):
+        for item in v:
+            if len(item) > 100:
+                raise ValueError(f"List item '{item[:50]}...' exceeds maximum length of 100 characters")
+        return v
 
 
 class VisibilityAnalysisRequest(BaseModel):
@@ -43,19 +65,35 @@ class VisibilityAnalysisRequest(BaseModel):
 
 class SentimentAnalysisRequest(BaseModel):
     """Request model for sentiment analysis."""
-    text: str
-    brand_name: str = ""
-    industry: str = "General"
-    purpose: str = "general_analysis"  # customer_review, social_media, support_ticket
-    customer_id: str = ""
+    text: str = Field(..., min_length=1, max_length=50000)
+    brand_name: str = Field(default="", max_length=100)
+    industry: str = Field(default="General", max_length=100)
+    purpose: str = Field(
+        default="general_analysis",
+        regex="^(general_analysis|customer_review|social_media|support_ticket)$"
+    )
+    customer_id: str = Field(default="", max_length=100)
 
 
 class BatchSentimentRequest(BaseModel):
     """Request model for batch sentiment analysis."""
-    texts: List[str]
-    brand_name: str = ""
-    industry: str = "General"
-    purpose: str = "general_analysis"
+    texts: List[str] = Field(..., min_items=1, max_items=100)
+    brand_name: str = Field(default="", max_length=100)
+    industry: str = Field(default="General", max_length=100)
+    purpose: str = Field(
+        default="general_analysis",
+        regex="^(general_analysis|customer_review|social_media|support_ticket)$"
+    )
+    
+    @validator('texts')
+    def validate_texts(cls, v):
+        total_size = sum(len(text) for text in v)
+        if total_size > 500000:  # 500KB total limit
+            raise ValueError("Total text size exceeds 500KB limit")
+        for text in v:
+            if len(text) > 50000:
+                raise ValueError("Individual text exceeds 50KB limit")
+        return v
 
 
 class GapDetectionRequest(BaseModel):

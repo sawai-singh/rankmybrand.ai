@@ -3,6 +3,7 @@
 import asyncio
 import signal
 import sys
+import logging
 from typing import Dict, Any
 from datetime import datetime
 from src.config import settings
@@ -10,6 +11,8 @@ from src.storage import PostgresClient, RedisClient, CacheManager
 from src.processors import ResponseProcessor
 from src.models.schemas import AIResponse, MetricEvent
 from src.monitoring.metrics import metrics_collector
+
+logger = logging.getLogger(__name__)
 
 
 class StreamConsumer:
@@ -92,10 +95,14 @@ class StreamConsumer:
     async def process_message(self, message_id: str, data: Dict[str, Any]):
         """Process a single message."""
         start_time = asyncio.get_event_loop().time()
+        brand_id = None
+        customer_id = None
         
         try:
-            # Parse AI response
+            # Parse AI response (includes brand_id and customer_id extraction)
             response = self._parse_response(data)
+            brand_id = response.brand_id
+            customer_id = response.customer_id
             
             # Check cache first
             cached = await self.cache.get_processed_response(response.id)
@@ -109,12 +116,17 @@ class StreamConsumer:
             
             metrics_collector.record_cache_operation("get", "miss")
             
-            # Process response through NLP pipeline
-            print(f"Processing response {response.id} from {response.platform}")
-            processed = await self.processor.process(response)
+            # Process response through NLP pipeline with customer context
+            print(f"Processing response {response.id} from {response.platform} for customer {customer_id}")
+            customer_context = {
+                'brand_id': brand_id,
+                'customer_id': customer_id,
+                'brand_name': data.get('metadata', {}).get('brand_name')
+            }
+            processed = await self.processor.process(response, customer_context=customer_context)
             
-            # Save to database
-            await self._save_results(processed)
+            # Save to database with brand and customer context
+            await self._save_results(processed, brand_id, customer_id)
             
             # Cache result
             await self.cache.set_processed_response(
@@ -122,15 +134,15 @@ class StreamConsumer:
                 processed.dict()
             )
             
-            # Publish metrics to output stream
-            await self._publish_metrics(processed)
+            # Publish metrics to output stream with brand context
+            await self._publish_metrics(processed, brand_id)
             
-            # Record metrics
+            # Record metrics with customer context
             duration = asyncio.get_event_loop().time() - start_time
             metrics_collector.record_response_processed(response.platform, "success")
             metrics_collector.record_processing_time(response.platform, duration)
-            metrics_collector.record_geo_score("default", response.platform, processed.geo_score)
-            metrics_collector.record_share_of_voice("default", processed.share_of_voice)
+            metrics_collector.record_geo_score(customer_id, response.platform, processed.geo_score)
+            metrics_collector.record_share_of_voice(customer_id, processed.share_of_voice)
             
             # Acknowledge message
             await self.redis.acknowledge_message(message_id)
@@ -149,15 +161,30 @@ class StreamConsumer:
             )
             metrics_collector.record_processing_error(type(e).__name__)
             
-            # Send to failed queue
+            # Determine if error is recoverable
+            recoverable_errors = (asyncio.TimeoutError, ConnectionError, TimeoutError)
+            is_recoverable = isinstance(e, recoverable_errors)
+            
+            # Send to failed queue with retry info
             await self.redis.send_to_failed_queue(
                 message_id,
                 str(e),
-                data
+                data,
+                retry_count=data.get('retry_count', 0) + 1,
+                is_recoverable=is_recoverable
             )
             
-            # Still acknowledge to prevent reprocessing
-            await self.redis.acknowledge_message(message_id)
+            # Only acknowledge if non-recoverable or max retries reached
+            retry_count = data.get('retry_count', 0)
+            max_retries = 3
+            
+            if not is_recoverable or retry_count >= max_retries:
+                # Acknowledge to prevent infinite reprocessing
+                await self.redis.acknowledge_message(message_id)
+                logger.error(f"Message {message_id} failed permanently after {retry_count} retries")
+            else:
+                # Don't acknowledge - let it be retried by claim_abandoned_messages
+                logger.warning(f"Message {message_id} failed (attempt {retry_count + 1}), will retry")
     
     def _parse_response(self, data: Dict[str, Any]) -> AIResponse:
         """Parse message data into AIResponse."""
@@ -170,22 +197,37 @@ class StreamConsumer:
             metadata=data.get("metadata", {}),
             collected_at=datetime.fromisoformat(
                 data.get("collectedAt", datetime.utcnow().isoformat())
-            )
+            ),
+            brand_id=self._extract_brand_id(data),
+            customer_id=self._extract_customer_id(data)
         )
     
-    async def _save_results(self, processed):
-        """Save processing results to database."""
+    def _extract_brand_id(self, data: Dict[str, Any]) -> str:
+        """Extract brand_id from message or raise error."""
+        brand_id = data.get("brand_id") or data.get("metadata", {}).get("brand_id")
+        if not brand_id:
+            raise ValueError(f"No brand_id found in message {data.get('id')}")
+        return brand_id
+    
+    def _extract_customer_id(self, data: Dict[str, Any]) -> str:
+        """Extract customer_id from message or raise error."""
+        customer_id = data.get("customer_id") or data.get("metadata", {}).get("customer_id")
+        if not customer_id:
+            raise ValueError(f"No customer_id found in message {data.get('id')}")
+        return customer_id
+    
+    async def _save_results(self, processed, brand_id: str, customer_id: str):
+        """Save processing results to database with customer context."""
         try:
-            # Save processed response
-            response_id = await self.postgres.save_processed_response(processed)
+            # Save processed response with customer context
+            response_id = await self.postgres.save_processed_response(processed, customer_id)
             
             # Extract brand mentions and save
             brand_mentions = []
             for entity in processed.entities:
                 if entity.type in ["BRAND", "COMPETITOR"]:
-                    # This would be enhanced with proper brand mapping
                     brand_mentions.append({
-                        "brand_id": "00000000-0000-0000-0000-000000000000",
+                        "brand_id": brand_id,
                         "brand_name": entity.text,
                         "mention_text": entity.context or entity.text,
                         "sentiment_score": processed.sentiment.score if processed.sentiment else 0,
@@ -199,11 +241,11 @@ class StreamConsumer:
             if brand_mentions:
                 await self.postgres.save_brand_mentions(brand_mentions, response_id)
             
-            # Save content gaps
+            # Save content gaps with brand context
             if processed.gaps:
                 await self.postgres.save_content_gaps(
                     processed.gaps,
-                    "00000000-0000-0000-0000-000000000000"  # Default brand ID
+                    brand_id
                 )
             
             # Update citation sources
@@ -219,11 +261,11 @@ class StreamConsumer:
             metrics_collector.record_db_error("processed_responses")
             raise
     
-    async def _publish_metrics(self, processed):
+    async def _publish_metrics(self, processed, brand_id: str):
         """Publish calculated metrics to output stream."""
         metric_event = MetricEvent(
             type="geo_metrics",
-            brand_id="00000000-0000-0000-0000-000000000000",  # Default brand ID
+            brand_id=brand_id,
             metrics={
                 "geo_score": processed.geo_score,
                 "share_of_voice": processed.share_of_voice,

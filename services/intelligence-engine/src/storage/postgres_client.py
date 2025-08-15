@@ -21,18 +21,19 @@ class PostgresClient:
         self.pool: Optional[asyncpg.Pool] = None
     
     async def initialize(self):
-        """Initialize connection pool."""
+        """Initialize connection pool with production-ready settings."""
         self.pool = await asyncpg.create_pool(
             host=settings.postgres_host,
             port=settings.postgres_port,
             database=settings.postgres_db,
             user=settings.postgres_user,
             password=settings.postgres_password,
-            min_size=5,
+            min_size=2,  # Reduced min size for better resource usage
             max_size=settings.postgres_pool_size,
             command_timeout=10,
-            max_queries=50000,
-            max_cacheable_statement_size=0
+            max_queries=1000,  # Reduced from 50000 - prevents connection exhaustion
+            max_cacheable_statement_size=16384,  # Enable statement caching for performance
+            max_inactive_connection_lifetime=300.0  # Close idle connections after 5 minutes
         )
         
         # Create schema if not exists

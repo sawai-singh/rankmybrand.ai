@@ -61,6 +61,8 @@ class AIResponse(BaseModel):
     citations: List[Dict[str, Any]] = []
     metadata: Dict[str, Any] = {}
     collected_at: datetime
+    brand_id: Optional[str] = None  # Required for processing
+    customer_id: Optional[str] = None  # Required for multi-tenancy
 
 
 class ProcessedResponse(BaseModel):
