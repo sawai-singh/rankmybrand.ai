@@ -13,7 +13,8 @@ class Citation(BaseModel):
     title: Optional[str] = None
     snippet: Optional[str] = None
     position: int = 0
-    authority_score: float = 0.0
+    authority_score: Optional[float] = None
+    source_name: Optional[str] = None  # Original source name before resolution
 
 
 class Entity(BaseModel):

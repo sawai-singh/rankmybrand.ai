@@ -1,15 +1,45 @@
-"""GEO score calculation."""
+"""GEO (Generative Engine Optimization) score calculation with robust validation."""
 
-from typing import Dict, Optional
-from datetime import datetime, timedelta
+from typing import Dict, List, Tuple, Optional
+from datetime import datetime, timezone
+import math
 
 
 class GEOCalculator:
-    """Calculate GEO (Generative Engine Optimization) scores."""
+    """
+    Calculate GEO (Generative Engine Optimization) scores.
     
-    def __init__(self):
-        # Weight configuration for GEO score components
-        self.weights = {
+    GEO scores range from 0-100 and measure brand visibility/performance in AI responses.
+    Higher scores indicate better optimization for generative AI engines.
+    
+    Score interpretation:
+    - 80-100: Excellent visibility and optimization
+    - 60-79: Good performance with room for improvement  
+    - 40-59: Average performance, significant optimization needed
+    - 20-39: Poor visibility, major improvements required
+    - 0-19: Critical issues, comprehensive optimization needed
+    """
+    
+    def __init__(
+        self,
+        weights: Optional[Dict[str, float]] = None,
+        citation_cap: int = 10,
+        recency_half_life_days: float = 30.0,
+        trend_stability_threshold: float = 1.0,
+        acceleration_threshold: float = 0.1
+    ):
+        """
+        Initialize GEO calculator with configurable parameters.
+        
+        Args:
+            weights: Component weights (must sum to ~1.0)
+            citation_cap: Maximum citations to consider (default 10)
+            recency_half_life_days: Days for score to halve (default 30)
+            trend_stability_threshold: Change threshold for stable trend (default 1.0)
+            acceleration_threshold: Threshold for acceleration detection (default 0.1)
+        """
+        # Default weight configuration
+        self.weights = weights or {
             "citation_frequency": 0.35,
             "sentiment": 0.25,
             "relevance": 0.20,
@@ -17,8 +47,44 @@ class GEOCalculator:
             "authority": 0.10
         }
         
-        # Recency decay parameters
-        self.recency_half_life_days = 30  # Score halves every 30 days
+        # Validate and normalize weights
+        self._validate_and_normalize_weights()
+        
+        # Configurable parameters
+        self.citation_cap = max(1, citation_cap)
+        self.recency_half_life_days = max(1.0, recency_half_life_days)
+        self.trend_stability_threshold = max(0.0, trend_stability_threshold)
+        self.acceleration_threshold = max(0.0, acceleration_threshold)
+        
+        # Pre-calculate ln(2) for decay
+        self.ln2 = math.log(2)
+    
+    def _validate_and_normalize_weights(self) -> None:
+        """Validate weights sum to ~1.0 and normalize if needed."""
+        weight_sum = sum(self.weights.values())
+        
+        # Allow small epsilon for floating point
+        epsilon = 0.001
+        if abs(weight_sum - 1.0) > epsilon:
+            # Normalize weights to sum to 1.0
+            if weight_sum > 0:
+                for key in self.weights:
+                    self.weights[key] /= weight_sum
+            else:
+                # Reset to equal weights if invalid
+                num_components = len(self.weights)
+                for key in self.weights:
+                    self.weights[key] = 1.0 / num_components if num_components > 0 else 0.2
+    
+    def set_weights(self, weights: Dict[str, float]) -> None:
+        """
+        Update component weights.
+        
+        Args:
+            weights: New weight configuration (will be normalized to sum to 1.0)
+        """
+        self.weights = weights.copy()
+        self._validate_and_normalize_weights()
     
     def calculate(
         self,
@@ -30,30 +96,41 @@ class GEOCalculator:
         response_date: Optional[datetime] = None
     ) -> float:
         """
-        Calculate GEO score from components.
+        Calculate GEO score from components with validation.
         
         Args:
-            citation_frequency: How often brand is cited (0-100)
-            sentiment_score: Sentiment (-1 to 1, converted to 0-1)
+            citation_frequency: How often brand is cited (0+, capped at citation_cap)
+            sentiment_score: Sentiment (-1 to 1)
             relevance_score: Query-answer relevance (0-1)
             authority_score: Domain authority of sources (0-1)
-            position_weight: Position in results (0-1)
-            response_date: When response was collected
+            position_weight: Position in results (0-1, 1=top position)
+            response_date: When response was collected (for recency weighting)
         
         Returns:
             GEO score (0-100)
         """
-        # Normalize inputs
-        citation_freq_normalized = min(citation_frequency / 10, 1.0)  # Cap at 10 citations
-        sentiment_normalized = (sentiment_score + 1) / 2  # Convert -1,1 to 0,1
+        # Validate and clamp inputs
+        citation_frequency = max(0.0, citation_frequency) if citation_frequency is not None else 0.0
+        sentiment_score = max(-1.0, min(1.0, sentiment_score)) if sentiment_score is not None else 0.0
+        relevance_score = max(0.0, min(1.0, relevance_score)) if relevance_score is not None else 0.0
+        authority_score = max(0.0, min(1.0, authority_score)) if authority_score is not None else 0.0
+        position_weight = max(0.0, min(1.0, position_weight)) if position_weight is not None else 0.0
+        
+        # Normalize components to [0, 1]
+        citation_freq_normalized = min(citation_frequency / self.citation_cap, 1.0)
+        sentiment_normalized = (sentiment_score + 1.0) / 2.0  # Convert [-1, 1] to [0, 1]
+        
+        # Ensure all normalized values are clamped
+        citation_freq_normalized = max(0.0, min(1.0, citation_freq_normalized))
+        sentiment_normalized = max(0.0, min(1.0, sentiment_normalized))
         
         # Calculate weighted score
         raw_score = (
-            self.weights["citation_frequency"] * citation_freq_normalized +
-            self.weights["sentiment"] * sentiment_normalized +
-            self.weights["relevance"] * relevance_score +
-            self.weights["position"] * position_weight +
-            self.weights["authority"] * authority_score
+            self.weights.get("citation_frequency", 0.35) * citation_freq_normalized +
+            self.weights.get("sentiment", 0.25) * sentiment_normalized +
+            self.weights.get("relevance", 0.20) * relevance_score +
+            self.weights.get("position", 0.10) * position_weight +
+            self.weights.get("authority", 0.10) * authority_score
         )
         
         # Apply recency weight if date provided
@@ -61,25 +138,44 @@ class GEOCalculator:
             recency_weight = self._calculate_recency_weight(response_date)
             raw_score *= recency_weight
         
-        # Convert to 0-100 scale
-        geo_score = raw_score * 100
+        # Convert to 0-100 scale and clamp
+        geo_score = max(0.0, min(100.0, raw_score * 100))
         
-        # Ensure score is within bounds
-        return max(0, min(100, geo_score))
+        return round(geo_score, 2)
     
     def _calculate_recency_weight(self, response_date: datetime) -> float:
-        """Calculate recency weight using exponential decay."""
-        now = datetime.utcnow()
-        days_old = (now - response_date).days
+        """
+        Calculate recency weight using exponential decay with fractional days.
         
-        # Exponential decay formula
-        decay_rate = 0.693 / self.recency_half_life_days  # ln(2) / half_life
-        weight = pow(2, -days_old / self.recency_half_life_days)
+        Args:
+            response_date: Date of response
+            
+        Returns:
+            Weight between 0.1 and 1.0
+        """
+        # Use timezone-aware datetime
+        now = datetime.now(timezone.utc)
         
-        # Don't let weight go below 0.1 (10% of original value)
-        return max(weight, 0.1)
+        # Ensure response_date is timezone-aware
+        if response_date.tzinfo is None:
+            response_date = response_date.replace(tzinfo=timezone.utc)
+        
+        # Calculate fractional days difference
+        time_diff = now - response_date
+        days_old = time_diff.total_seconds() / 86400.0  # Use fractional days
+        
+        # Handle future dates (clamp to 1.0)
+        if days_old < 0:
+            return 1.0
+        
+        # Exponential decay formula: weight = 2^(-days/half_life)
+        # Using ln(2) / half_life as decay rate
+        weight = math.pow(2, -days_old / self.recency_half_life_days)
+        
+        # Clamp between 0.1 and 1.0
+        return max(0.1, min(1.0, weight))
     
-    def calculate_trend(self, scores: list[tuple[datetime, float]]) -> Dict:
+    def calculate_trend(self, scores: List[Tuple[datetime, float]]) -> Dict:
         """
         Calculate GEO score trend over time.
         
@@ -87,71 +183,114 @@ class GEOCalculator:
             scores: List of (datetime, score) tuples
         
         Returns:
-            Trend analysis dictionary
+            Trend analysis dictionary with metrics
         """
+        if not scores:
+            return {
+                "trend": "no_data",
+                "change": 0.0,
+                "velocity": 0.0,
+                "acceleration": 0.0,
+                "span_days": 0.0,
+                "data_points": 0
+            }
+        
         if len(scores) < 2:
             return {
                 "trend": "insufficient_data",
                 "change": 0.0,
                 "velocity": 0.0,
-                "acceleration": 0.0
+                "acceleration": 0.0,
+                "span_days": 0.0,
+                "data_points": len(scores),
+                "first_score": round(scores[0][1], 2) if scores else 0.0,
+                "last_score": round(scores[0][1], 2) if scores else 0.0
             }
         
-        # Sort by date
-        scores.sort(key=lambda x: x[0])
+        # Sort a copy to avoid mutation
+        sorted_scores = sorted(scores, key=lambda x: x[0])
         
-        # Calculate changes
-        first_score = scores[0][1]
-        last_score = scores[-1][1]
+        # Calculate basic metrics
+        first_score = sorted_scores[0][1]
+        last_score = sorted_scores[-1][1]
         change = last_score - first_score
         
-        # Calculate velocity (rate of change)
-        time_diff = (scores[-1][0] - scores[0][0]).days
-        velocity = change / max(time_diff, 1)
+        # Calculate time span in fractional days
+        time_span = sorted_scores[-1][0] - sorted_scores[0][0]
+        span_days = time_span.total_seconds() / 86400.0
+        
+        # Calculate velocity (rate of change per day)
+        velocity = change / max(span_days, 0.001)  # Avoid division by zero
         
         # Calculate acceleration if enough data points
         acceleration = 0.0
-        if len(scores) >= 3:
-            mid_point = len(scores) // 2
-            first_half_velocity = (scores[mid_point][1] - scores[0][1]) / max((scores[mid_point][0] - scores[0][0]).days, 1)
-            second_half_velocity = (scores[-1][1] - scores[mid_point][1]) / max((scores[-1][0] - scores[mid_point][0]).days, 1)
+        if len(sorted_scores) >= 3:
+            mid_point = len(sorted_scores) // 2
+            
+            # First half velocity
+            first_half_span = (sorted_scores[mid_point][0] - sorted_scores[0][0]).total_seconds() / 86400.0
+            if first_half_span > 0:
+                first_half_velocity = (sorted_scores[mid_point][1] - sorted_scores[0][1]) / first_half_span
+            else:
+                first_half_velocity = 0.0
+            
+            # Second half velocity
+            second_half_span = (sorted_scores[-1][0] - sorted_scores[mid_point][0]).total_seconds() / 86400.0
+            if second_half_span > 0:
+                second_half_velocity = (sorted_scores[-1][1] - sorted_scores[mid_point][1]) / second_half_span
+            else:
+                second_half_velocity = 0.0
+            
             acceleration = second_half_velocity - first_half_velocity
         
-        # Determine trend
-        if abs(change) < 1:
+        # Determine trend with configurable thresholds
+        if abs(change) < self.trend_stability_threshold:
             trend = "stable"
         elif change > 0:
-            if acceleration > 0:
+            if acceleration > self.acceleration_threshold:
                 trend = "improving_accelerating"
-            elif acceleration < -0.1:
+            elif acceleration < -self.acceleration_threshold:
                 trend = "improving_decelerating"
             else:
                 trend = "improving"
         else:
-            if acceleration < 0:
+            if acceleration < -self.acceleration_threshold:
                 trend = "declining_accelerating"
-            elif acceleration > 0.1:
+            elif acceleration > self.acceleration_threshold:
                 trend = "declining_decelerating"
             else:
                 trend = "declining"
         
+        # Calculate additional statistics
+        all_scores = [s[1] for s in sorted_scores]
+        average_score = sum(all_scores) / len(all_scores)
+        
+        # Variance and standard deviation
+        variance = sum((s - average_score) ** 2 for s in all_scores) / len(all_scores)
+        std_dev = math.sqrt(variance)
+        
         return {
             "trend": trend,
-            "change": change,
-            "velocity": velocity,
-            "acceleration": acceleration,
-            "first_score": first_score,
-            "last_score": last_score,
-            "average_score": sum(s[1] for s in scores) / len(scores)
+            "change": round(change, 2),
+            "velocity": round(velocity, 4),
+            "acceleration": round(acceleration, 4),
+            "span_days": round(span_days, 2),
+            "data_points": len(sorted_scores),
+            "first_score": round(first_score, 2),
+            "last_score": round(last_score, 2),
+            "average_score": round(average_score, 2),
+            "std_dev": round(std_dev, 2),
+            "min_score": round(min(all_scores), 2),
+            "max_score": round(max(all_scores), 2)
         }
     
     def calculate_competitive_score(
         self,
         brand_score: float,
-        competitor_scores: list[float]
+        competitor_scores: List[float]
     ) -> Dict:
         """
-        Calculate competitive GEO score.
+        Calculate competitive GEO score with robust ranking.
         
         Args:
             brand_score: Brand's GEO score
@@ -160,92 +299,228 @@ class GEOCalculator:
         Returns:
             Competitive analysis dictionary
         """
-        if not competitor_scores:
+        # Validate inputs
+        brand_score = max(0.0, min(100.0, brand_score)) if brand_score is not None else 0.0
+        
+        # Filter and validate competitor scores
+        valid_competitors = [
+            max(0.0, min(100.0, s)) 
+            for s in competitor_scores 
+            if s is not None
+        ]
+        
+        if not valid_competitors:
             return {
-                "relative_score": brand_score,
+                "relative_score": round(brand_score, 2),
                 "rank": 1,
+                "total_entities": 1,
+                "total_competitors": 0,
                 "percentile": 100.0,
                 "gap_to_leader": 0.0,
-                "competitive_index": 1.0
+                "competitive_index": 1.0,
+                "is_leader": True,
+                "delta_vs_average": 0.0
             }
         
-        all_scores = [brand_score] + competitor_scores
-        all_scores.sort(reverse=True)
+        # Calculate rank efficiently (handles ties)
+        scores_above = sum(1 for s in valid_competitors if s > brand_score)
+        rank = scores_above + 1
         
-        rank = all_scores.index(brand_score) + 1
-        percentile = (len(all_scores) - rank) / len(all_scores) * 100
-        gap_to_leader = all_scores[0] - brand_score
+        total_entities = len(valid_competitors) + 1
+        percentile = ((total_entities - rank) / total_entities) * 100
         
-        # Competitive index (1.0 = average, >1.0 = above average)
-        avg_competitor_score = sum(competitor_scores) / len(competitor_scores)
-        competitive_index = brand_score / max(avg_competitor_score, 1)
+        # Calculate gaps and indices
+        max_score = max(valid_competitors)
+        gap_to_leader = max(0.0, max_score - brand_score)
+        
+        avg_competitor_score = sum(valid_competitors) / len(valid_competitors)
+        delta_vs_average = brand_score - avg_competitor_score
+        
+        # Competitive index with division by zero protection
+        competitive_index = brand_score / max(avg_competitor_score, 0.01)
         
         return {
-            "relative_score": brand_score,
+            "relative_score": round(brand_score, 2),
             "rank": rank,
-            "total_competitors": len(competitor_scores),
-            "percentile": percentile,
-            "gap_to_leader": gap_to_leader,
-            "competitive_index": competitive_index,
-            "average_competitor_score": avg_competitor_score,
-            "max_competitor_score": max(competitor_scores),
-            "min_competitor_score": min(competitor_scores)
+            "total_entities": total_entities,
+            "total_competitors": len(valid_competitors),
+            "percentile": round(percentile, 1),
+            "gap_to_leader": round(gap_to_leader, 2),
+            "competitive_index": round(competitive_index, 3),
+            "is_leader": rank == 1,
+            "delta_vs_average": round(delta_vs_average, 2),
+            "average_competitor_score": round(avg_competitor_score, 2),
+            "max_competitor_score": round(max_score, 2),
+            "min_competitor_score": round(min(valid_competitors), 2)
         }
     
-    def recommend_improvements(self, component_scores: Dict[str, float]) -> list[Dict]:
+    def recommend_improvements(self, component_scores: Dict[str, float]) -> List[Dict]:
         """
         Recommend improvements based on component scores.
         
         Args:
-            component_scores: Dictionary of component scores
+            component_scores: Dictionary of component scores (normalized to 0-1)
         
         Returns:
-            List of improvement recommendations
+            List of improvement recommendations sorted by impact
         """
         recommendations = []
         
-        # Check each component
-        if component_scores.get("citation_frequency", 0) < 0.5:
+        # Validate and get scores with defaults
+        citation_freq = max(0.0, min(1.0, component_scores.get("citation_frequency", 0.0)))
+        sentiment = max(0.0, min(1.0, component_scores.get("sentiment", 0.5)))
+        relevance = max(0.0, min(1.0, component_scores.get("relevance", 0.0)))
+        authority = max(0.0, min(1.0, component_scores.get("authority", 0.0)))
+        position = max(0.0, min(1.0, component_scores.get("position", 0.0)))
+        
+        # Check citation frequency
+        if citation_freq < 0.5:
             recommendations.append({
                 "component": "citation_frequency",
+                "current_score": round(citation_freq, 2),
+                "target_score": 0.8,
                 "priority": "high",
                 "recommendation": "Increase brand mentions and citations in content",
-                "potential_impact": self.weights["citation_frequency"] * (1 - component_scores.get("citation_frequency", 0))
+                "specific_actions": [
+                    "Create more branded content",
+                    "Improve SEO for brand terms",
+                    "Increase content distribution"
+                ],
+                "potential_impact": round(self.weights["citation_frequency"] * (0.8 - citation_freq), 3)
             })
         
-        if component_scores.get("sentiment", 0.5) < 0.6:
+        # Check sentiment
+        if sentiment < 0.6:
             recommendations.append({
                 "component": "sentiment",
+                "current_score": round(sentiment, 2),
+                "target_score": 0.8,
                 "priority": "high",
                 "recommendation": "Improve brand sentiment through positive messaging",
-                "potential_impact": self.weights["sentiment"] * (1 - component_scores.get("sentiment", 0.5))
+                "specific_actions": [
+                    "Address negative feedback",
+                    "Highlight positive reviews",
+                    "Improve customer experience"
+                ],
+                "potential_impact": round(self.weights["sentiment"] * (0.8 - sentiment), 3)
             })
         
-        if component_scores.get("relevance", 0) < 0.7:
+        # Check relevance
+        if relevance < 0.7:
             recommendations.append({
                 "component": "relevance",
+                "current_score": round(relevance, 2),
+                "target_score": 0.85,
                 "priority": "medium",
                 "recommendation": "Ensure content directly addresses user queries",
-                "potential_impact": self.weights["relevance"] * (1 - component_scores.get("relevance", 0))
+                "specific_actions": [
+                    "Optimize for question-based queries",
+                    "Improve content comprehensiveness",
+                    "Use structured data markup"
+                ],
+                "potential_impact": round(self.weights["relevance"] * (0.85 - relevance), 3)
             })
         
-        if component_scores.get("authority", 0) < 0.6:
+        # Check authority
+        if authority < 0.6:
             recommendations.append({
                 "component": "authority",
+                "current_score": round(authority, 2),
+                "target_score": 0.75,
                 "priority": "medium",
                 "recommendation": "Get cited by more authoritative sources",
-                "potential_impact": self.weights["authority"] * (1 - component_scores.get("authority", 0))
+                "specific_actions": [
+                    "Build high-quality backlinks",
+                    "Partner with authoritative sites",
+                    "Create research-backed content"
+                ],
+                "potential_impact": round(self.weights["authority"] * (0.75 - authority), 3)
             })
         
-        if component_scores.get("position", 0) < 0.5:
+        # Check position
+        if position < 0.5:
             recommendations.append({
                 "component": "position",
+                "current_score": round(position, 2),
+                "target_score": 0.7,
                 "priority": "low",
                 "recommendation": "Optimize for featured snippets and top positions",
-                "potential_impact": self.weights["position"] * (1 - component_scores.get("position", 0))
+                "specific_actions": [
+                    "Format content for featured snippets",
+                    "Improve page load speed",
+                    "Enhance mobile experience"
+                ],
+                "potential_impact": round(self.weights["position"] * (0.7 - position), 3)
             })
         
-        # Sort by potential impact
+        # Sort by potential impact (descending)
         recommendations.sort(key=lambda x: x["potential_impact"], reverse=True)
         
+        # Add rank to recommendations
+        for i, rec in enumerate(recommendations, 1):
+            rec["rank"] = i
+        
         return recommendations
+    
+    def get_component_breakdown(
+        self,
+        citation_frequency: float,
+        sentiment_score: float,
+        relevance_score: float,
+        authority_score: float,
+        position_weight: float
+    ) -> Dict:
+        """
+        Get detailed breakdown of score components.
+        
+        Returns:
+            Dictionary with component contributions and percentages
+        """
+        # Validate and normalize inputs
+        citation_frequency = max(0.0, citation_frequency) if citation_frequency is not None else 0.0
+        sentiment_score = max(-1.0, min(1.0, sentiment_score)) if sentiment_score is not None else 0.0
+        relevance_score = max(0.0, min(1.0, relevance_score)) if relevance_score is not None else 0.0
+        authority_score = max(0.0, min(1.0, authority_score)) if authority_score is not None else 0.0
+        position_weight = max(0.0, min(1.0, position_weight)) if position_weight is not None else 0.0
+        
+        # Normalize components
+        citation_normalized = min(citation_frequency / self.citation_cap, 1.0)
+        sentiment_normalized = (sentiment_score + 1.0) / 2.0
+        
+        # Calculate contributions
+        contributions = {
+            "citation_frequency": citation_normalized * self.weights["citation_frequency"],
+            "sentiment": sentiment_normalized * self.weights["sentiment"],
+            "relevance": relevance_score * self.weights["relevance"],
+            "authority": authority_score * self.weights["authority"],
+            "position": position_weight * self.weights["position"]
+        }
+        
+        total_contribution = sum(contributions.values())
+        
+        # Calculate percentages
+        percentages = {
+            k: (v / total_contribution * 100) if total_contribution > 0 else 0.0
+            for k, v in contributions.items()
+        }
+        
+        return {
+            "raw_scores": {
+                "citation_frequency": round(citation_frequency, 2),
+                "sentiment": round(sentiment_score, 3),
+                "relevance": round(relevance_score, 3),
+                "authority": round(authority_score, 3),
+                "position": round(position_weight, 3)
+            },
+            "normalized_scores": {
+                "citation_frequency": round(citation_normalized, 3),
+                "sentiment": round(sentiment_normalized, 3),
+                "relevance": round(relevance_score, 3),
+                "authority": round(authority_score, 3),
+                "position": round(position_weight, 3)
+            },
+            "weights": {k: round(v, 3) for k, v in self.weights.items()},
+            "contributions": {k: round(v, 4) for k, v in contributions.items()},
+            "percentages": {k: round(v, 1) for k, v in percentages.items()},
+            "total_score": round(total_contribution * 100, 2)
+        }
