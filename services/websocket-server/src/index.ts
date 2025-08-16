@@ -10,6 +10,8 @@ import Redis from 'ioredis';
 import { v4 as uuidv4 } from 'uuid';
 import * as http from 'http';
 import dotenv from 'dotenv';
+import { ClientMessage, StreamData, BroadcastMessage } from './types';
+import { fetchLatestMetrics, fetchRecommendations, fetchCompetitors, closeDatabaseConnection } from './data-fetcher';
 
 dotenv.config();
 
@@ -86,7 +88,7 @@ async function initializeStreamConsumers() {
       // Create consumer group if it doesn't exist
       await redisClient.xgroup('CREATE', stream, CONSUMER_GROUP, '$', 'MKSTREAM');
       console.log(`Created consumer group for stream: ${stream}`);
-    } catch (error: any) {
+    } catch (error) {
       if (!error.message.includes('BUSYGROUP')) {
         console.error(`Error creating consumer group for ${stream}:`, error);
       }
@@ -137,7 +139,7 @@ async function consumeStreams() {
 async function processStreamMessage(stream: string, id: string, fields: string[]) {
   try {
     // Convert field array to object
-    const data: any = {};
+    const data: StreamData = {};
     for (let i = 0; i < fields.length; i += 2) {
       const key = fields[i];
       const value = fields[i + 1];
@@ -188,7 +190,7 @@ async function processStreamMessage(stream: string, id: string, fields: string[]
 /**
  * Broadcast message to all connected clients
  */
-function broadcastMessage(message: any) {
+function broadcastMessage(message: BroadcastMessage) {
   const messageStr = JSON.stringify(message);
   
   clients.forEach((client) => {
@@ -201,7 +203,7 @@ function broadcastMessage(message: any) {
 /**
  * Broadcast to specific clients based on subscription
  */
-function broadcastToSubscribers(stream: string, message: any) {
+function broadcastToSubscribers(stream: string, message: BroadcastMessage) {
   const messageStr = JSON.stringify(message);
   
   clients.forEach((client) => {
@@ -267,7 +269,7 @@ wss.on('connection', (ws: WebSocket, req) => {
 /**
  * Handle messages from WebSocket clients
  */
-async function handleClientMessage(client: Client, message: any) {
+async function handleClientMessage(client: Client, message: ClientMessage) {
   switch (message.type) {
     case 'ping':
       client.ws.send(JSON.stringify({ type: 'pong' }));
@@ -318,10 +320,13 @@ async function handleClientMessage(client: Client, message: any) {
  */
 async function handleDataRequest(client: Client, resource: string) {
   try {
+    // Get brand_id from client's subscription or message
+    const brandId = client.subscriptions.values().next().value || 'default';
+    
     switch (resource) {
       case 'metrics':
-        // Fetch latest metrics from Redis or database
-        const metrics = await fetchLatestMetrics();
+        // Fetch latest metrics from database
+        const metrics = await fetchLatestMetrics(brandId);
         client.ws.send(JSON.stringify({
           type: 'metrics',
           data: metrics,
@@ -330,8 +335,8 @@ async function handleDataRequest(client: Client, resource: string) {
         break;
 
       case 'recommendations':
-        // Fetch recent recommendations
-        const recommendations = await fetchRecommendations();
+        // Fetch recent recommendations from database
+        const recommendations = await fetchRecommendations(brandId);
         client.ws.send(JSON.stringify({
           type: 'recommendations',
           data: recommendations,
@@ -340,8 +345,8 @@ async function handleDataRequest(client: Client, resource: string) {
         break;
 
       case 'competitors':
-        // Fetch competitor data
-        const competitors = await fetchCompetitors();
+        // Fetch competitor data from database
+        const competitors = await fetchCompetitors(brandId);
         client.ws.send(JSON.stringify({
           type: 'competitors',
           data: competitors,
@@ -367,7 +372,7 @@ async function handleDataRequest(client: Client, resource: string) {
 /**
  * Handle actions from clients
  */
-async function handleAction(client: Client, message: any) {
+async function handleAction(client: Client, message: ClientMessage) {
   try {
     switch (message.action) {
       case 'approve-recommendation':
@@ -408,73 +413,7 @@ async function handleAction(client: Client, message: any) {
   }
 }
 
-/**
- * Fetch latest metrics (mock implementation - replace with actual DB query)
- */
-async function fetchLatestMetrics() {
-  // In production, query from PostgreSQL or Redis cache
-  return {
-    geoScore: 78,
-    shareOfVoice: 24.5,
-    sentiment: {
-      positive: 65,
-      neutral: 25,
-      negative: 10,
-    },
-    citationCount: 142,
-    platformScores: {
-      chatgpt: 82,
-      claude: 79,
-      perplexity: 75,
-      gemini: 71,
-    },
-  };
-}
-
-/**
- * Fetch recommendations (mock implementation - replace with actual DB query)
- */
-async function fetchRecommendations() {
-  // In production, query from PostgreSQL
-  return [
-    {
-      id: '1',
-      title: 'Add FAQ Schema to Product Pages',
-      description: 'Implement FAQ schema markup to improve visibility in AI responses',
-      priority: 'high',
-      impact: 35,
-      effort: 'low',
-      status: 'pending',
-      type: 'schema',
-      createdAt: new Date().toISOString(),
-    },
-  ];
-}
-
-/**
- * Fetch competitors (mock implementation - replace with actual DB query)
- */
-async function fetchCompetitors() {
-  // In production, query from PostgreSQL
-  return [
-    {
-      id: '1',
-      name: 'Competitor A',
-      geoScore: 72,
-      shareOfVoice: 18.3,
-      position: [3, 2, -1],
-      color: '#ef4444',
-    },
-    {
-      id: '2',
-      name: 'Competitor B',
-      geoScore: 68,
-      shareOfVoice: 15.7,
-      position: [-2, -1, 1],
-      color: '#f59e0b',
-    },
-  ];
-}
+// Data fetching functions are now imported from data-fetcher.ts
 
 /**
  * Heartbeat interval to check client connections

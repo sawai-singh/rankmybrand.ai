@@ -3,7 +3,7 @@
  * Handles JWT tokens, sessions, and authentication logic
  */
 
-import jwt from 'jsonwebtoken';
+import jwt, { SignOptions } from 'jsonwebtoken';
 import crypto from 'crypto';
 import { Request, Response, NextFunction } from 'express';
 import { userRepository } from '../database/repositories/user.repository';
@@ -40,6 +40,7 @@ interface JWTPayload {
   email: string;
   role: string;
   sessionId: number;
+  company?: string;
 }
 
 /**
@@ -57,11 +58,8 @@ export class AuthService {
       sessionId
     };
 
-    return jwt.sign(payload, JWT_SECRET, {
-      expiresIn: JWT_EXPIRES_IN,
-      issuer: 'rankmybrand.ai',
-      audience: 'rankmybrand-users'
-    });
+    const options: SignOptions = { expiresIn: JWT_EXPIRES_IN as any };
+    return jwt.sign(payload, JWT_SECRET, options);
   }
 
   /**
@@ -76,10 +74,7 @@ export class AuthService {
    */
   verifyToken(token: string): JWTPayload {
     try {
-      return jwt.verify(token, JWT_SECRET, {
-        issuer: 'rankmybrand.ai',
-        audience: 'rankmybrand-users'
-      }) as JWTPayload;
+      return jwt.verify(token, JWT_SECRET) as JWTPayload;
     } catch (error) {
       throw new Error('Invalid or expired token');
     }
@@ -184,7 +179,11 @@ export class AuthService {
 
     // Mark email as verified if not already
     if (!user.email_verified) {
-      await userRepository.update(user.id, { email_verified: true });
+      await db.query(
+        'UPDATE users SET email_verified = true WHERE id = $1',
+        [user.id]
+      );
+      user.email_verified = true;
     }
 
     // Clear magic link token
@@ -295,11 +294,13 @@ export class AuthService {
           first_name: payload.company?.split(' ')[0],
           last_name: '',
           company_id: 1,
-          role: payload.role || 'user',
+          role: (payload.role as 'user' | 'admin' | 'enterprise') || 'user',
           subscription_tier: 'free',
           onboarding_completed: true,
           settings: {},
           preferences: {},
+          timezone: 'UTC',
+          login_count: 1,
           created_at: new Date(),
           updated_at: new Date()
         };

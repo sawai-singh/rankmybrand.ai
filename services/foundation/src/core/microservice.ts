@@ -120,19 +120,20 @@ export abstract class Microservice {
       
       // Track response
       const originalSend = res.send;
+      const microservice = this;
       res.send = function(data: any) {
         const duration = Date.now() - (req.startTime || 0);
         
         // Update metrics
-        this.httpRequestDuration.observe(
-          { method: req.method, route: req.route?.path || req.path, status_code: res.statusCode },
+        microservice.httpRequestDuration.observe(
+          { method: req.method, route: req.route?.path || req.path, status_code: res.statusCode.toString() },
           duration
         );
         
-        this.httpRequestTotal.inc({
+        microservice.httpRequestTotal.inc({
           method: req.method,
           route: req.route?.path || req.path,
-          status_code: res.statusCode
+          status_code: res.statusCode.toString()
         });
         
         // Log response
@@ -143,7 +144,7 @@ export abstract class Microservice {
         });
         
         return originalSend.call(this, data);
-      }.bind(res);
+      };
       
       next();
     });

@@ -21,24 +21,52 @@ build/
 *.log
 *.pid
 
-# Environment files
+# Environment files - CRITICAL: Never commit these
 .env
 .env.*
 .env.local
+.env.development
 .env.development.local
+.env.test
 .env.test.local
+.env.production
 .env.production.local
 **/.env
 **/.env.*
-.env
+**/.env.production
+**/.env.development
+**/.env.test
 
-.env 
+# Production environment files - NEVER commit
+services/*/.env.production
+services/*/.env.staging
+services/*/.env.development
+*.env.production
+*.env.staging
+*.env.development
 
-.env.local 
+# Secrets and sensitive data
+secrets.env
+*.pem
+*.key
+*.crt
+*.p12
+*.pfx
+private-key.pem
+public-key.pem
+jwt-secret.txt
+api-keys.txt
+credentials.json
+service-account.json
 
-.env.example 
-
-.env.production.template 
+# Production configuration - contains sensitive data
+docker-compose.override.yml
+docker-compose.local.yml
+kubernetes/secrets.yaml
+k8s/secrets.yaml
+helm/values.production.yaml
+terraform.tfvars
+*.tfvars 
 # OS files
 .DS_Store
 Thumbs.db
@@ -92,3 +120,124 @@ eggs/
 
 # Archived services (if needed)
 archived-services/
+
+# Production data and volumes
+postgres_data/
+redis_data/
+prometheus_data/
+grafana_data/
+loki_data/
+data/
+volumes/
+
+# Monitoring data
+monitoring/grafana/datasources/*.yml
+monitoring/grafana/dashboards/*.json
+monitoring/prometheus/data/
+
+# SSL Certificates
+ssl/
+certs/
+certificates/
+*.crt
+*.key
+*.pem
+*.p12
+*.pfx
+
+# Backup files
+backups/
+*.backup
+*.dump
+*.sql.gz
+*.tar.gz
+
+# Generated deployment files
+.env.generated
+deploy.env
+production.env
+
+# CI/CD sensitive files
+.github/secrets/
+.gitlab/secrets/
+jenkins/credentials/
+
+# Cloud provider files
+.aws/
+.gcp/
+.azure/
+aws-credentials
+gcp-credentials.json
+azure-credentials.json
+
+# Docker build secrets
+docker/secrets/
+.dockerignore.local
+
+# Generated security files
+security-report/
+vulnerability-scan/
+audit-logs/
+
+# IDE and editor local configs with sensitive data
+.vscode/settings.json
+.idea/deployment.xml
+.idea/webServers.xml
+
+# Local development overrides
+docker-compose.override.yml
+*.override.yml
+*.local.yml
+
+# Production logs with sensitive data
+logs/
+*.log.gz
+access.log
+error.log
+
+# Cache directories that might contain sensitive data
+.cache/
+tmp/
+temp/
+
+# NPM/Yarn local configs
+.npmrc
+.yarnrc
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Python virtual environments and caches
+venv/
+env/
+ENV/
+.venv/
+**/__pycache__/
+*.pyc
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Generated API documentation with endpoints
+api-docs/generated/
+swagger-output.json
+
+# Session and token storage
+sessions/
+tokens/
+jwt-tokens/
+
+# Upload directories
+uploads/
+public/uploads/
+static/uploads/
+
+# Generated files from our deployment
+PRODUCTION_READINESS_AUDIT.md
+CRITICAL_ACTION_PLAN.md
+PRODUCTION_DEPLOYMENT_MASTER_PLAN.md
+
+# Validation and test results
+validation-results/
+test-results/
+coverage-reports/

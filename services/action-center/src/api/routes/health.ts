@@ -30,12 +30,8 @@ export function healthRouter(db: Database): Router {
       };
 
       // Check database
-      try {
-        await db.pool.query('SELECT 1');
-        checks.database = 'healthy';
-      } catch (error) {
-        checks.database = 'unhealthy';
-      }
+      const dbHealthy = await db.healthCheck();
+      checks.database = dbHealthy ? 'healthy' : 'unhealthy';
 
       // Check memory usage
       const memUsage = process.memoryUsage();
@@ -76,10 +72,10 @@ export function healthRouter(db: Database): Router {
   // Readiness probe (for k8s)
   router.get('/ready',
     asyncHandler(async (req, res) => {
-      try {
-        await db.pool.query('SELECT 1');
+      const isReady = await db.healthCheck();
+      if (isReady) {
         res.status(200).send('OK');
-      } catch (error) {
+      } else {
         res.status(503).send('Not Ready');
       }
     })

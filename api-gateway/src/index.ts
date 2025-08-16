@@ -6,98 +6,121 @@
 import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
-import morgan from 'morgan';
+import compression from 'compression';
 import { createProxyMiddleware } from 'http-proxy-middleware';
 import rateLimit from 'express-rate-limit';
 import { WebSocketServer } from 'ws';
 import Redis from 'ioredis';
 import http from 'http';
-import dotenv from 'dotenv';
+
+// Import configuration
+import { config, validateConfig } from './config';
+
+// Import routes
 import onboardingRoutes from './routes/onboarding.routes';
 import authRoutes from './routes/auth.routes';
+import healthRoutes from './routes/health.routes';
 
-dotenv.config();
+// Import middleware
+import { 
+  errorHandler, 
+  notFoundHandler, 
+  asyncHandler,
+  timeoutHandler 
+} from './middleware/error.middleware';
+import { 
+  requestIdMiddleware,
+  requestLogger,
+  performanceLogger,
+  errorLogger,
+  httpLogger 
+} from './middleware/logging.middleware';
+import { sanitizeRequest } from './middleware/validation.middleware';
+import { securityHeaders } from './middleware/security.middleware';
 
-// Configuration
-const PORT = process.env.GATEWAY_PORT || 4000;
-const REDIS_URL = process.env.REDIS_URL || 'redis://localhost:6379';
-
-// Backend service URLs
-const SERVICES = {
-  geo: process.env.GEO_SERVICE || 'http://localhost:8000',
-  crawler: process.env.CRAWLER_SERVICE || 'http://localhost:3002',
-  search: process.env.SEARCH_SERVICE || 'http://localhost:3002',
-  dashboard: process.env.DASHBOARD_SERVICE || 'http://localhost:3000',
-  websocket: process.env.WEBSOCKET_SERVICE || 'http://localhost:3001',
-  intelligence: process.env.INTELLIGENCE_SERVICE || 'http://localhost:8002',
-  action: process.env.ACTION_SERVICE || 'http://localhost:8082',
-};
+// Validate configuration on startup
+validateConfig();
 
 // Create Express app
 const app = express();
 const server = http.createServer(app);
 
-// Redis client for pub/sub
-const redis = new Redis(REDIS_URL);
-const redisPub = new Redis(REDIS_URL);
+// Redis clients for pub/sub
+const redis = new Redis(config.redis.url, config.redis.options);
+const redisPub = new Redis(config.redis.url, config.redis.options);
+
+// Handle Redis connection errors
+redis.on('error', (err) => {
+  console.error('Redis connection error:', err);
+});
+
+redis.on('connect', () => {
+  console.log('✅ Redis connected');
+});
 
 // WebSocket server for unified real-time updates
 const wss = new WebSocketServer({ 
   server,
-  path: '/ws'
+  path: '/ws',
+  perMessageDeflate: true,
 });
 
-// Middleware
-app.use(helmet({
-  contentSecurityPolicy: false, // Disable for API
+// ========================================
+// Global Middleware
+// ========================================
+
+// Security headers
+app.use(securityHeaders);
+
+// CORS configuration
+app.use(cors(config.cors));
+
+// Compression
+app.use(compression({
+  filter: (req: any, res: any) => {
+    if (req.headers['x-no-compression']) {
+      return false;
+    }
+    return (compression as any).filter(req, res);
+  },
+  level: 6,
 }));
-app.use(cors({
-  origin: process.env.CORS_ORIGIN?.split(',') || '*',
-  credentials: true,
-}));
-app.use(morgan('combined'));
-app.use(express.json());
+
+// Request ID tracking
+app.use(requestIdMiddleware);
+
+// HTTP logging
+app.use(httpLogger);
+
+// Request/Response logging
+if (config.isDevelopment) {
+  app.use(requestLogger);
+}
+
+// Performance monitoring
+app.use(performanceLogger);
+
+// Request timeout
+app.use(timeoutHandler(30000)); // 30 seconds
+
+// Body parsing
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+
+// Input sanitization
+app.use(sanitizeRequest);
 
 // Rate limiting
-const limiter = rateLimit({
-  windowMs: 1 * 60 * 1000, // 1 minute
-  max: 100, // 100 requests per minute
-  message: 'Too many requests, please try again later.',
-});
-
+const limiter = rateLimit(config.rateLimit);
 const strictLimiter = rateLimit({
-  windowMs: 1 * 60 * 1000,
-  max: 10, // 10 requests per minute for expensive operations
+  ...config.rateLimit,
+  max: config.rateLimit.strictMax,
 });
 
-// Health check endpoint
-app.get('/health', (req, res) => {
-  res.json({
-    status: 'healthy',
-    services: Object.keys(SERVICES),
-    timestamp: new Date().toISOString(),
-  });
-});
-
-// Service status endpoint
-app.get('/status', async (req, res) => {
-  const statuses: any = {};
-  
-  for (const [name, url] of Object.entries(SERVICES)) {
-    try {
-      const response = await fetch(`${url}/health`);
-      statuses[name] = response.ok ? 'healthy' : 'unhealthy';
-    } catch (error) {
-      statuses[name] = 'unreachable';
-    }
-  }
-  
-  res.json({
-    gateway: 'healthy',
-    services: statuses,
-    timestamp: new Date().toISOString(),
-  });
-});
+// ========================================
+// Health & Monitoring Routes
+// ========================================
+app.use('/health', healthRoutes);
 
 // ========================================
 // API Routes with Service Proxying
@@ -105,7 +128,7 @@ app.get('/status', async (req, res) => {
 
 // GEO Calculator routes
 app.use('/api/geo', limiter, createProxyMiddleware({
-  target: SERVICES.geo,
+  target: config.services.geo,
   changeOrigin: true,
   pathRewrite: {
     '^/api/geo': '/api/v1/geo',
@@ -123,7 +146,7 @@ app.use('/api/geo', limiter, createProxyMiddleware({
 
 // Web Crawler routes
 app.use('/api/crawler', limiter, createProxyMiddleware({
-  target: SERVICES.crawler,
+  target: config.services.crawler,
   changeOrigin: true,
   pathRewrite: {
     '^/api/crawler': '/api',
@@ -141,7 +164,7 @@ app.use('/api/crawler', limiter, createProxyMiddleware({
 
 // Search Intelligence routes
 app.use('/api/search', limiter, createProxyMiddleware({
-  target: SERVICES.search,
+  target: config.services.search,
   changeOrigin: true,
   pathRewrite: {
     '^/api/search': '/api/search-intelligence',
@@ -159,7 +182,7 @@ app.use('/api/search', limiter, createProxyMiddleware({
 
 // Intelligence Engine routes
 app.use('/api/intelligence', limiter, createProxyMiddleware({
-  target: SERVICES.intelligence,
+  target: config.services.intelligence,
   changeOrigin: true,
   pathRewrite: {
     '^/api/intelligence': '/api',
@@ -177,7 +200,7 @@ app.use('/api/intelligence', limiter, createProxyMiddleware({
 
 // Action Center routes
 app.use('/api/actions', limiter, createProxyMiddleware({
-  target: SERVICES.action,
+  target: config.services.action,
   changeOrigin: true,
   pathRewrite: {
     '^/api/actions': '/api',
@@ -208,7 +231,7 @@ app.use('/api/onboarding', limiter, onboardingRoutes);
 // ========================================
 
 // Complete analysis endpoint (combines multiple services)
-app.post('/api/analyze/complete', strictLimiter, async (req, res) => {
+app.post('/api/analyze/complete', strictLimiter, asyncHandler(async (req: any, res: any) => {
   const { domain, keywords } = req.body;
   
   if (!domain) {
@@ -218,12 +241,12 @@ app.post('/api/analyze/complete', strictLimiter, async (req, res) => {
   try {
     // Call multiple services in parallel
     const [geoResponse, crawlResponse] = await Promise.all([
-      fetch(`${SERVICES.geo}/api/v1/geo/analyze`, {
+      fetch(`${config.services.geo}/api/v1/geo/analyze`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ domain, keywords }),
       }),
-      fetch(`${SERVICES.crawler}/api/crawl`, {
+      fetch(`${config.services.crawler}/api/crawl`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ url: `https://${domain}`, depth: 2, limit: 20 }),
@@ -251,10 +274,10 @@ app.post('/api/analyze/complete', strictLimiter, async (req, res) => {
     console.error('Complete analysis error:', error);
     res.status(500).json({ error: 'Analysis failed', message: error.message });
   }
-});
+}));
 
 // Instant score endpoint (optimized for speed)
-app.post('/api/analyze/instant', limiter, async (req, res) => {
+app.post('/api/analyze/instant', limiter, asyncHandler(async (req: any, res: any) => {
   const { domain } = req.body;
   
   if (!domain) {
@@ -264,7 +287,7 @@ app.post('/api/analyze/instant', limiter, async (req, res) => {
   try {
     // First try to call the real GEO Calculator service
     try {
-      const geoResponse = await fetch(`${SERVICES.geo}/api/v1/geo/analyze`, {
+      const geoResponse = await fetch(`${config.services.geo}/api/v1/geo/analyze`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ domain }),
@@ -349,10 +372,10 @@ app.post('/api/analyze/instant', limiter, async (req, res) => {
     console.error('Instant score error:', error);
     res.status(500).json({ error: 'Score calculation failed', message: error.message });
   }
-});
+}));
 
 // Competitor comparison endpoint
-app.post('/api/analyze/competitors', limiter, async (req, res) => {
+app.post('/api/analyze/competitors', limiter, asyncHandler(async (req: any, res: any) => {
   const { domains } = req.body;
   
   if (!domains || !Array.isArray(domains) || domains.length < 2) {
@@ -360,7 +383,7 @@ app.post('/api/analyze/competitors', limiter, async (req, res) => {
   }
   
   try {
-    const response = await fetch(`${SERVICES.geo}/api/v1/geo/compare`, {
+    const response = await fetch(`${config.services.geo}/api/v1/geo/compare`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ domains }),
@@ -372,7 +395,7 @@ app.post('/api/analyze/competitors', limiter, async (req, res) => {
     console.error('Competitor comparison error:', error);
     res.status(500).json({ error: 'Comparison failed', message: error.message });
   }
-});
+}));
 
 // ========================================
 // WebSocket Handling
@@ -383,7 +406,7 @@ wss.on('connection', (ws, req) => {
   console.log('New WebSocket connection');
   
   // Subscribe to Redis channels
-  const subscriber = new Redis(REDIS_URL);
+  const subscriber = new Redis(config.redis.url, config.redis.options);
   
   subscriber.subscribe(
     'analysis:complete',
@@ -447,40 +470,115 @@ wss.on('connection', (ws, req) => {
 // ========================================
 
 // 404 handler
-app.use((req, res) => {
-  res.status(404).json({ error: 'Endpoint not found' });
-});
+app.use(notFoundHandler);
+
+// Error logging
+app.use(errorLogger);
 
 // Global error handler
-app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
-  console.error('Global error:', err);
-  res.status(err.status || 500).json({
-    error: 'Internal server error',
-    message: process.env.NODE_ENV === 'development' ? err.message : undefined,
-  });
-});
+app.use(errorHandler);
 
 // ========================================
 // Server Startup
 // ========================================
 
-server.listen(PORT, () => {
-  console.log(`🚀 API Gateway running on port ${PORT}`);
-  console.log(`📡 WebSocket endpoint: ws://localhost:${PORT}/ws`);
-  console.log('\nConnected services:');
-  Object.entries(SERVICES).forEach(([name, url]) => {
-    console.log(`  - ${name}: ${url}`);
+const startServer = async () => {
+  try {
+    // Initialize database connection
+    const { db } = await import('./database/connection');
+    const dbConnected = await db.connect();
+    
+    if (!dbConnected) {
+      console.error('❌ Failed to connect to database');
+      if (config.isProduction) {
+        process.exit(1);
+      }
+    }
+    
+    // Run migrations
+    if (config.isDevelopment) {
+      await db.runMigrations().catch(err => {
+        console.error('Migration error:', err);
+      });
+    }
+    
+    // Start server
+    server.listen(config.server.port, () => {
+      console.log('\n' + '='.repeat(50));
+      console.log(`🚀 API Gateway v${config.server.version}`);
+      console.log(`📍 Environment: ${config.env}`);
+      console.log(`🌐 Port: ${config.server.port}`);
+      console.log(`📡 WebSocket: ws://localhost:${config.server.port}/ws`);
+      console.log('='.repeat(50));
+      console.log('\n📦 Connected services:');
+      Object.entries(config.services).forEach(([name, url]) => {
+        console.log(`  - ${name}: ${url}`);
+      });
+      console.log('\n✅ Server is ready to handle requests');
+    });
+  } catch (error) {
+    console.error('❌ Failed to start server:', error);
+    process.exit(1);
+  }
+};
+
+// Start the server
+startServer();
+
+// ========================================
+// Graceful Shutdown
+// ========================================
+
+const gracefulShutdown = async (signal: string) => {
+  console.log(`\n${signal} received, starting graceful shutdown...`);
+  
+  // Stop accepting new connections
+  server.close(async () => {
+    console.log('✅ HTTP server closed');
+    
+    try {
+      // Close WebSocket connections
+      wss.clients.forEach(client => {
+        client.close(1000, 'Server shutting down');
+      });
+      console.log('✅ WebSocket connections closed');
+      
+      // Close Redis connections
+      await redis.quit();
+      await redisPub.quit();
+      console.log('✅ Redis connections closed');
+      
+      // Close database connection
+      const { db } = await import('./database/connection');
+      await db.close();
+      console.log('✅ Database connection closed');
+      
+      console.log('👋 Graceful shutdown complete');
+      process.exit(0);
+    } catch (error) {
+      console.error('❌ Error during shutdown:', error);
+      process.exit(1);
+    }
   });
+  
+  // Force shutdown after 30 seconds
+  setTimeout(() => {
+    console.error('❌ Forced shutdown after timeout');
+    process.exit(1);
+  }, 30000);
+};
+
+// Handle shutdown signals
+process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
+process.on('SIGINT', () => gracefulShutdown('SIGINT'));
+
+// Handle uncaught errors
+process.on('uncaughtException', (error) => {
+  console.error('❌ Uncaught Exception:', error);
+  gracefulShutdown('UNCAUGHT_EXCEPTION');
 });
 
-// Graceful shutdown
-process.on('SIGTERM', () => {
-  console.log('SIGTERM received, closing server...');
-  
-  server.close(() => {
-    console.log('Server closed');
-    redis.quit();
-    redisPub.quit();
-    process.exit(0);
-  });
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('❌ Unhandled Rejection at:', promise, 'reason:', reason);
+  gracefulShutdown('UNHANDLED_REJECTION');
 });

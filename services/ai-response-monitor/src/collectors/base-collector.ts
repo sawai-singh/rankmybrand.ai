@@ -11,8 +11,8 @@ const { RateLimiter } = require(path.join(foundationPath, 'core/rate-limiter'));
 export abstract class BaseCollector {
   protected name: string;
   protected redis: Redis;
-  protected rateLimiter: any;
-  protected eventBus: any;
+  protected rateLimiter: RateLimiter;
+  protected eventBus: EventBus;
   protected cacheEnabled: boolean;
   protected cacheTTL: number;
   
@@ -51,7 +51,7 @@ export abstract class BaseCollector {
   /**
    * Get the cost for a specific model/usage
    */
-  abstract calculateCost(usage: any): number;
+  abstract calculateCost(usage: unknown): number;
   
   /**
    * Execute function with rate limiting
@@ -71,7 +71,7 @@ export abstract class BaseCollector {
     
     if (!result.allowed) {
       const error = new Error(`Rate limit exceeded for ${this.name}. Retry after ${result.retryAfter}s`);
-      (error as any).retryAfter = result.retryAfter;
+      (error as Error & { retryAfter?: number }).retryAfter = result.retryAfter;
       throw error;
     }
     
@@ -239,7 +239,7 @@ export abstract class BaseCollector {
     for (let attempt = 0; attempt < maxRetries; attempt++) {
       try {
         return await fn();
-      } catch (error: any) {
+      } catch (error) {
         lastError = error;
         
         // Don't retry on certain errors

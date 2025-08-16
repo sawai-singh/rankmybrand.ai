@@ -4,18 +4,18 @@ import { logger } from '../utils/logger';
 
 export interface Event {
   type: string;
-  data: any;
+  data: unknown;
   correlationId?: string;
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
 }
 
 export interface StreamMessage {
   id: string;
   event_type: string;
-  data: any;
+  data: unknown;
   timestamp: string;
   correlation_id: string;
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
 }
 
 export class EventBus {
@@ -71,7 +71,7 @@ export class EventBus {
         correlationId: event.correlationId
       });
       
-      return messageId;
+      return messageId || '';
     } catch (error) {
       logger.error(`Failed to publish event to ${stream}:`, error);
       throw error;
@@ -110,8 +110,9 @@ export class EventBus {
     try {
       await this.redis.xgroup('CREATE', stream, group, '$', 'MKSTREAM');
       logger.info(`Created consumer group ${group} for stream ${stream}`);
-    } catch (err: any) {
-      if (err.message && err.message.includes('BUSYGROUP')) {
+    } catch (err) {
+      const error = err as Error;
+      if (error.message && error.message.includes('BUSYGROUP')) {
         logger.debug(`Consumer group ${group} already exists for stream ${stream}`);
       } else {
         logger.error(`Failed to create consumer group ${group}:`, err);
@@ -141,7 +142,7 @@ export class EventBus {
         );
 
         if (pendingMessages && pendingMessages.length > 0) {
-          await this.processMessages(pendingMessages, stream, group, handler);
+          await this.processMessages(pendingMessages as Array<[string, Array<[string, string[]]>]>, stream, group, handler);
         }
 
         // Read new messages
@@ -153,7 +154,7 @@ export class EventBus {
         );
 
         if (messages && messages.length > 0) {
-          await this.processMessages(messages, stream, group, handler);
+          await this.processMessages(messages as Array<[string, Array<[string, string[]]>]>, stream, group, handler);
         }
       } catch (error) {
         logger.error(`Error consuming messages from ${stream}:`, error);
@@ -163,12 +164,12 @@ export class EventBus {
   }
 
   private async processMessages(
-    messages: any[],
+    messages: Array<[string, Array<[string, string[]]>]>,
     stream: string,
     group: string,
     handler: (event: StreamMessage) => Promise<void>
   ): Promise<void> {
-    for (const [streamName, streamMessages] of messages) {
+    for (const [, streamMessages] of messages) {
       for (const message of streamMessages) {
         const [id, fields] = message;
         const event = this.parseMessage(id, fields);
@@ -196,7 +197,7 @@ export class EventBus {
   }
 
   private parseMessage(id: string, fields: string[]): StreamMessage {
-    const result: any = { id };
+    const result: Record<string, unknown> = { id };
     
     for (let i = 0; i < fields.length; i += 2) {
       const key = fields[i];
@@ -213,10 +214,10 @@ export class EventBus {
       }
     }
     
-    return result as StreamMessage;
+    return result as unknown as StreamMessage;
   }
 
-  async getStreamInfo(stream: string): Promise<any> {
+  async getStreamInfo(stream: string): Promise<Record<string, unknown> | null> {
     try {
       const info = await this.redis.xinfo('STREAM', stream);
       const groups = await this.redis.xinfo('GROUPS', stream);
@@ -231,7 +232,7 @@ export class EventBus {
     }
   }
 
-  async getMetrics(): Promise<Record<string, any>> {
+  async getMetrics(): Promise<Record<string, unknown>> {
     const published = await this.redis.hgetall('metrics:events:published');
     const consumed = await this.redis.hgetall('metrics:events:consumed');
     const errors = await this.redis.hgetall('metrics:events:errors');

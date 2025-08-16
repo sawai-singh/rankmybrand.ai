@@ -11,12 +11,19 @@ import {
   UserWithCompany,
   QueryResult,
   PaginationParams,
-  FilterParams
+  FilterParams,
+  isValidEmail
 } from '../models';
 import bcrypt from 'bcrypt';
 import crypto from 'crypto';
 
+// Constants
+const SALT_ROUNDS = 10;
+const MAGIC_LINK_EXPIRY_MINUTES = 30;
+const VERIFICATION_TOKEN_LENGTH = 32;
+
 export class UserRepository {
+  private readonly tableName = 'users';
   /**
    * Create a new user
    */
@@ -29,13 +36,18 @@ export class UserRepository {
       RETURNING *
     `;
 
+    // Validate email format
+    if (!isValidEmail(data.email)) {
+      throw new Error('Invalid email format');
+    }
+
     // Hash password if provided
     const passwordHash = data.password 
-      ? await bcrypt.hash(data.password, 10)
+      ? await bcrypt.hash(data.password, SALT_ROUNDS)
       : null;
 
     // Generate verification token
-    const verificationToken = crypto.randomBytes(32).toString('hex');
+    const verificationToken = crypto.randomBytes(VERIFICATION_TOKEN_LENGTH).toString('hex');
 
     const values = [
       data.email,
@@ -93,32 +105,16 @@ export class UserRepository {
    * Update user
    */
   async update(id: number, data: UpdateUserRequest): Promise<User> {
-    const fields: string[] = [];
-    const values: any[] = [];
-    let paramCount = 1;
+    // Use helper function for building update query
+    const updateData = { ...data, updated_at: new Date() };
+    const { text, values } = dbHelpers.buildUpdateQuery(
+      'users',
+      updateData,
+      { id },
+      '*'
+    );
 
-    // Build dynamic update query
-    for (const [key, value] of Object.entries(data)) {
-      if (value !== undefined) {
-        fields.push(`${key} = $${paramCount}`);
-        values.push(value);
-        paramCount++;
-      }
-    }
-
-    if (fields.length === 0) {
-      throw new Error('No fields to update');
-    }
-
-    values.push(id);
-    const query = `
-      UPDATE users 
-      SET ${fields.join(', ')}, updated_at = CURRENT_TIMESTAMP
-      WHERE id = $${paramCount}
-      RETURNING *
-    `;
-
-    const result = await db.queryOne<User>(query, values);
+    const result = await db.queryOne<User>(text, values);
     if (!result) throw new Error('User not found');
     
     return result;
@@ -147,8 +143,12 @@ export class UserRepository {
    * Generate magic link
    */
   async generateMagicLink(email: string): Promise<string> {
-    const token = crypto.randomBytes(32).toString('hex');
-    const expires = new Date(Date.now() + 30 * 60 * 1000); // 30 minutes
+    if (!isValidEmail(email)) {
+      throw new Error('Invalid email format');
+    }
+
+    const token = crypto.randomBytes(VERIFICATION_TOKEN_LENGTH).toString('hex');
+    const expires = new Date(Date.now() + MAGIC_LINK_EXPIRY_MINUTES * 60 * 1000);
 
     const query = `
       UPDATE users 
@@ -223,21 +223,31 @@ export class UserRepository {
       WHERE u.id = $1
     `;
     
-    const result = await db.queryOne<any>(query, [id]);
+    interface UserCompanyRow extends User {
+      company_id?: number;
+      company_name?: string;
+      company_domain?: string;
+      company_logo?: string;
+      company_industry?: string;
+    }
+
+    const result = await db.queryOne<UserCompanyRow>(query, [id]);
     if (!result) return null;
 
-    // Transform result
+    // Transform result with proper typing
     const user: UserWithCompany = {
       ...result,
       company: result.company_id ? {
         id: result.company_id,
-        name: result.company_name,
-        domain: result.company_domain,
+        name: result.company_name!,
+        domain: result.company_domain!,
         logo_url: result.company_logo,
         industry: result.company_industry,
         created_at: result.created_at,
-        updated_at: result.updated_at
-      } as any : undefined
+        updated_at: result.updated_at,
+        tags: [],
+        keywords: []
+      } : undefined
     };
 
     return user;
@@ -252,12 +262,13 @@ export class UserRepository {
     const { page = 1, limit = 20, sort_by = 'created_at', sort_order = 'desc' } = params;
     
     // Build WHERE clause
-    const filters: Record<string, any> = {};
-    if (params.search) {
-      // Search will be handled separately with ILIKE
-    }
+    const filters: Record<string, unknown> = {};
     if (params.status === 'verified') {
       filters.email_verified = true;
+    } else if (params.status === 'unverified') {
+      filters.email_verified = false;
+    } else if (params.status === 'onboarded') {
+      filters.onboarding_completed = true;
     }
     
     const { text: whereClause, values: whereValues } = dbHelpers.buildWhereClause(filters);
@@ -295,17 +306,67 @@ export class UserRepository {
   }
 
   /**
-   * Delete user
+   * Delete user (soft delete)
    */
-  async delete(id: number): Promise<void> {
-    const query = 'DELETE FROM users WHERE id = $1';
-    await db.query(query, [id]);
+  async delete(id: number, soft: boolean = true): Promise<void> {
+    if (soft) {
+      const query = `
+        UPDATE users 
+        SET deleted_at = CURRENT_TIMESTAMP,
+            updated_at = CURRENT_TIMESTAMP
+        WHERE id = $1
+      `;
+      await db.query(query, [id]);
+    } else {
+      const query = 'DELETE FROM users WHERE id = $1';
+      await db.query(query, [id]);
+    }
+  }
+
+  /**
+   * Check if email exists
+   */
+  async emailExists(email: string): Promise<boolean> {
+    const query = 'SELECT EXISTS(SELECT 1 FROM users WHERE email = $1 OR work_email = $1)';
+    const result = await db.queryOne<{ exists: boolean }>(query, [email]);
+    return result?.exists || false;
+  }
+
+  /**
+   * Batch update users
+   */
+  async batchUpdate(ids: number[], data: Partial<UpdateUserRequest>): Promise<number> {
+    if (ids.length === 0) return 0;
+
+    const updateFields = Object.entries(data)
+      .filter(([_, value]) => value !== undefined)
+      .map(([key], index) => `${key} = $${index + 2}`)
+      .join(', ');
+
+    if (!updateFields) return 0;
+
+    const query = `
+      UPDATE users 
+      SET ${updateFields}, updated_at = CURRENT_TIMESTAMP
+      WHERE id = ANY($1)
+    `;
+
+    const values = [ids, ...Object.values(data).filter(v => v !== undefined)];
+    const result = await db.query(query, values);
+    return result.rowCount || 0;
   }
 
   /**
    * Get user statistics
    */
-  async getStats(): Promise<any> {
+  async getStats(): Promise<{
+    total_users: number;
+    verified_users: number;
+    onboarded_users: number;
+    paid_users: number;
+    active_week: number;
+    active_month: number;
+  }> {
     const query = `
       SELECT 
         COUNT(*) as total_users,
@@ -317,7 +378,34 @@ export class UserRepository {
       FROM users
     `;
     
-    return db.queryOne(query);
+    const result = await db.queryOne<{
+      total_users: string;
+      verified_users: string;
+      onboarded_users: string;
+      paid_users: string;
+      active_week: string;
+      active_month: string;
+    }>(query);
+
+    if (!result) {
+      return {
+        total_users: 0,
+        verified_users: 0,
+        onboarded_users: 0,
+        paid_users: 0,
+        active_week: 0,
+        active_month: 0
+      };
+    }
+
+    return {
+      total_users: parseInt(result.total_users, 10),
+      verified_users: parseInt(result.verified_users, 10),
+      onboarded_users: parseInt(result.onboarded_users, 10),
+      paid_users: parseInt(result.paid_users, 10),
+      active_week: parseInt(result.active_week, 10),
+      active_month: parseInt(result.active_month, 10)
+    };
   }
 }
 

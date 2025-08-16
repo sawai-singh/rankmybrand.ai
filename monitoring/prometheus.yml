@@ -1,0 +1,79 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  external_labels:
+    monitor: 'rankmybrand-production'
+
+# Alertmanager configuration
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets: []
+
+# Load rules once and periodically evaluate them
+rule_files:
+  - "alerts.yml"
+
+# Scrape configurations
+scrape_configs:
+  # API Gateway metrics
+  - job_name: 'api-gateway'
+    static_configs:
+      - targets: ['api-gateway:4000']
+    metrics_path: '/metrics'
+    scrape_interval: 10s
+
+  # Intelligence Engine metrics
+  - job_name: 'intelligence-engine'
+    static_configs:
+      - targets: ['intelligence-engine:8002']
+    metrics_path: '/metrics'
+    scrape_interval: 10s
+
+  # Action Center metrics
+  - job_name: 'action-center'
+    static_configs:
+      - targets: ['action-center:8082']
+    metrics_path: '/health/metrics'
+    scrape_interval: 10s
+
+  # WebSocket Server metrics
+  - job_name: 'websocket-server'
+    static_configs:
+      - targets: ['websocket-server:3001']
+    metrics_path: '/metrics'
+    scrape_interval: 10s
+
+  # Web Crawler metrics
+  - job_name: 'web-crawler'
+    static_configs:
+      - targets: ['web-crawler:3002']
+    metrics_path: '/metrics'
+    scrape_interval: 10s
+
+  # Foundation Service metrics
+  - job_name: 'foundation'
+    static_configs:
+      - targets: ['foundation:3005']
+    metrics_path: '/metrics'
+    scrape_interval: 10s
+
+  # PostgreSQL Exporter
+  - job_name: 'postgres'
+    static_configs:
+      - targets: ['postgres-exporter:9187']
+
+  # Redis Exporter
+  - job_name: 'redis'
+    static_configs:
+      - targets: ['redis-exporter:9121']
+
+  # Node Exporter (for host metrics)
+  - job_name: 'node'
+    static_configs:
+      - targets: ['node-exporter:9100']
+
+  # Prometheus self-monitoring
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']

@@ -1,3 +1,5 @@
+const crypto = require('crypto');
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
@@ -120,5 +122,4 @@ const nextConfig = {
   },
 };
 
-const crypto = require('crypto');
 module.exports = nextConfig;

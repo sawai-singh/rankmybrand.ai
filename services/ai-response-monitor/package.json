@@ -20,7 +20,7 @@
     "@anthropic-ai/sdk": "^0.16.1",
     "playwright": "^1.40.1",
     "playwright-extra": "^4.3.6",
-    "playwright-extra-plugin-stealth": "^2.11.2",
+    "puppeteer-extra-plugin-stealth": "^2.11.2",
     "axios": "^1.6.2",
     "axios-retry": "^4.0.0",
     "bullmq": "^5.1.1",
@@ -59,8 +59,5 @@
     "supertest": "^6.3.3",
     "@types/supertest": "^2.0.16",
     "nock": "^13.4.0"
-  },
-  "peerDependencies": {
-    "@rankmybrand/foundation": "^1.0.0"
   }
 }

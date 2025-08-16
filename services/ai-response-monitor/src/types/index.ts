@@ -9,8 +9,19 @@ export interface AIResponse {
   processingTime: number;
   cost?: number; // in cents
   sessionId?: string;
-  metadata?: Record<string, any>;
+  metadata?: AIResponseMetadata;
   timestamp: Date;
+}
+
+export interface AIResponseMetadata {
+  brand_id?: string;
+  customer_id?: string;
+  session_id?: string;
+  platform?: string;
+  model?: string;
+  temperature?: number;
+  max_tokens?: number;
+  [key: string]: string | number | boolean | undefined;
 }
 
 export interface Citation {

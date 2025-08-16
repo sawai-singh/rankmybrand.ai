@@ -40,8 +40,8 @@ export interface User {
   onboarding_completed_at?: Date;
   
   // Settings
-  settings: Record<string, any>;
-  preferences: Record<string, any>;
+  settings: Record<string, unknown>;
+  preferences: Record<string, unknown>;
   
   // Tracking
   utm_source?: string;
@@ -90,8 +90,8 @@ export interface Company {
   tech_stack?: string[];
   
   // Enrichment metadata
-  enrichment_source?: 'clearbit' | 'hunter' | 'apollo' | 'manual' | 'crawler';
-  enrichment_data?: Record<string, any>;
+  enrichment_source?: 'clearbit' | 'hunter' | 'apollo' | 'manual' | 'crawler' | 'openai-llm';
+  enrichment_data?: Record<string, unknown>;
   enrichment_confidence?: number;
   enrichment_date?: Date;
   
@@ -127,7 +127,7 @@ export interface OnboardingSession {
   
   company_enriched: boolean;
   company_enriched_at?: Date;
-  company_data?: Record<string, any>;
+  company_data?: Record<string, unknown>;
   
   description_generated: boolean;
   description_generated_at?: Date;
@@ -236,7 +236,7 @@ export interface AnalysisHistory {
   bing_score?: number;
   
   // Data
-  raw_data?: Record<string, any>;
+  raw_data?: Record<string, unknown>;
   insights?: string[];
   recommendations?: string[];
   
@@ -263,7 +263,7 @@ export interface UserNotification {
   is_sent: boolean;
   sent_at?: Date;
   
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
   
   created_at: Date;
 }
@@ -280,8 +280,8 @@ export interface AuditLog {
   resource_type?: string;
   resource_id?: number;
   
-  old_value?: Record<string, any>;
-  new_value?: Record<string, any>;
+  old_value?: Record<string, unknown>;
+  new_value?: Record<string, unknown>;
   
   ip_address?: string;
   user_agent?: string;
@@ -308,8 +308,8 @@ export interface UpdateUserRequest {
   avatar_url?: string;
   phone?: string;
   timezone?: string;
-  settings?: Record<string, any>;
-  preferences?: Record<string, any>;
+  settings?: Record<string, unknown>;
+  preferences?: Record<string, unknown>;
 }
 
 export interface CreateCompanyRequest {
@@ -406,3 +406,74 @@ export type OnboardingSessionWithUser = OnboardingSession & {
 export type AnalysisWithCompany = AnalysisHistory & {
   company?: Company;
 };
+
+// =====================================================
+// CONSTANTS
+// =====================================================
+
+export const USER_ROLES = {
+  USER: 'user',
+  ADMIN: 'admin',
+  ENTERPRISE: 'enterprise'
+} as const;
+
+export const SUBSCRIPTION_TIERS = {
+  FREE: 'free',
+  PRO: 'pro',
+  ENTERPRISE: 'enterprise'
+} as const;
+
+export const ANALYSIS_TYPES = {
+  GEO: 'geo',
+  CRAWL: 'crawl',
+  SEARCH: 'search',
+  COMPLETE: 'complete'
+} as const;
+
+export const NOTIFICATION_TYPES = {
+  EMAIL: 'email',
+  IN_APP: 'in_app',
+  PUSH: 'push'
+} as const;
+
+// =====================================================
+// TYPE GUARDS
+// =====================================================
+
+export function isUser(obj: unknown): obj is User {
+  return (
+    typeof obj === 'object' &&
+    obj !== null &&
+    'id' in obj &&
+    'email' in obj &&
+    'role' in obj
+  );
+}
+
+export function isCompany(obj: unknown): obj is Company {
+  return (
+    typeof obj === 'object' &&
+    obj !== null &&
+    'id' in obj &&
+    'name' in obj &&
+    'domain' in obj
+  );
+}
+
+export function hasCompanyData(user: User): user is UserWithCompany {
+  return 'company' in user && user.company !== undefined;
+}
+
+// =====================================================
+// VALIDATION HELPERS
+// =====================================================
+
+export function isValidEmail(email: string): boolean {
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  return emailRegex.test(email);
+}
+
+export function isValidDomain(domain: string): boolean {
+  const domainRegex = /^[a-z0-9]+([\-\.]{1}[a-z0-9]+)*\.[a-z]{2,}$/i;
+  return domainRegex.test(domain);
+}

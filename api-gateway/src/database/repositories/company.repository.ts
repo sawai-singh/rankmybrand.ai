@@ -3,20 +3,76 @@
  * Handles all company-related database operations
  */
 
-import { db } from '../connection';
+import { db, dbHelpers } from '../connection';
 import { 
   Company,
   Competitor,
   CompanyWithCompetitors,
+  CreateCompanyRequest,
   QueryResult,
-  PaginationParams
+  PaginationParams,
+  FilterParams,
+  isValidDomain,
+  ANALYSIS_TYPES
 } from '../models';
 
+// Constants
+const DEFAULT_PAGE_SIZE = 20;
+const MAX_SEARCH_RESULTS = 100;
+const HIGH_PERFORMER_THRESHOLD = 80;
+const RECENT_ANALYSIS_DAYS = 7;
+
+interface CreateCompanyData extends CreateCompanyRequest {
+  logo_url?: string;
+  sub_industry?: string;
+  founded_year?: number;
+  headquarters_city?: string;
+  headquarters_state?: string;
+  headquarters_country?: string;
+  headquarters_address?: string;
+  linkedin_url?: string;
+  twitter_url?: string;
+  facebook_url?: string;
+  instagram_url?: string;
+  youtube_url?: string;
+  tech_stack?: string[];
+  tags?: string[];
+  keywords?: string[];
+  enrichment_source?: string;
+  enrichment_data?: Record<string, unknown>;
+  enrichment_confidence?: number;
+  enrichment_date?: Date;
+}
+
+interface CompanyStats {
+  total_companies: number;
+  unique_industries: number;
+  avg_geo_score: number;
+  high_performers: number;
+  analyzed_week: number;
+}
+
+interface SearchCriteria {
+  query?: string;
+  industry?: string;
+  minScore?: number;
+  maxScore?: number;
+  hasAnalysis?: boolean;
+  techStack?: string[];
+  companySize?: string;
+  country?: string;
+}
+
 export class CompanyRepository {
+  private readonly tableName = 'companies';
   /**
    * Create a new company
    */
-  async create(data: any): Promise<Company> {
+  async create(data: CreateCompanyData): Promise<Company> {
+    // Validate domain
+    if (!isValidDomain(data.domain)) {
+      throw new Error('Invalid domain format');
+    }
     const query = `
       INSERT INTO companies (
         name, domain, logo_url, description,
@@ -56,7 +112,7 @@ export class CompanyRepository {
       data.tags || [],
       data.keywords || [],
       data.enrichment_source || null,
-      data.enrichment_data ? JSON.stringify(data.enrichment_data) : null,
+      data.enrichment_data || null,
       data.enrichment_confidence || null,
       data.enrichment_date || null
     ];
@@ -79,40 +135,37 @@ export class CompanyRepository {
    * Find company by domain
    */
   async findByDomain(domain: string): Promise<Company | null> {
-    const query = 'SELECT * FROM companies WHERE domain = $1';
-    return db.queryOne<Company>(query, [domain]);
+    // Normalize domain for consistent lookups
+    const normalizedDomain = domain.toLowerCase().replace(/^https?:\/\//, '').replace(/^www\./, '').replace(/\/$/, '');
+    const query = 'SELECT * FROM companies WHERE LOWER(domain) = LOWER($1)';
+    return db.queryOne<Company>(query, [normalizedDomain]);
   }
 
   /**
    * Update company
    */
   async update(id: number, data: Partial<Company>): Promise<Company> {
-    const fields: string[] = [];
-    const values: any[] = [];
-    let paramCount = 1;
-
-    // Build dynamic update query
-    for (const [key, value] of Object.entries(data)) {
-      if (value !== undefined && key !== 'id' && key !== 'created_at') {
-        fields.push(`${key} = $${paramCount}`);
-        values.push(value);
-        paramCount++;
+    // Filter out undefined values and system fields
+    const updateData = Object.entries(data).reduce((acc, [key, value]) => {
+      if (value !== undefined && key !== 'id' && key !== 'created_at' && key !== 'updated_at') {
+        acc[key] = value;
       }
-    }
+      return acc;
+    }, {} as Record<string, unknown>);
 
-    if (fields.length === 0) {
+    if (Object.keys(updateData).length === 0) {
       throw new Error('No fields to update');
     }
 
-    values.push(id);
-    const query = `
-      UPDATE companies 
-      SET ${fields.join(', ')}, updated_at = CURRENT_TIMESTAMP
-      WHERE id = $${paramCount}
-      RETURNING *
-    `;
+    // Use helper function for building update query
+    const { text, values } = dbHelpers.buildUpdateQuery(
+      this.tableName,
+      { ...updateData, updated_at: new Date() },
+      { id },
+      '*'
+    );
 
-    const result = await db.queryOne<Company>(query, values);
+    const result = await db.queryOne<Company>(text, values);
     if (!result) throw new Error('Company not found');
     
     return result;
@@ -228,43 +281,52 @@ export class CompanyRepository {
    * List companies with pagination
    */
   async list(
-    params: PaginationParams & { search?: string; industry?: string }
+    params: PaginationParams & FilterParams & { industry?: string; techStack?: string[] }
   ): Promise<QueryResult<Company>> {
-    const { page = 1, limit = 20, sort_by = 'created_at', sort_order = 'desc' } = params;
+    const { 
+      page = 1, 
+      limit = DEFAULT_PAGE_SIZE, 
+      sort_by = 'created_at', 
+      sort_order = 'desc' 
+    } = params;
     
-    let whereClause = '';
-    const whereConditions: string[] = [];
-    const values: any[] = [];
-    let paramCount = 1;
+    // Build filter conditions
+    const filters: Record<string, unknown> = {};
+    if (params.industry) {
+      filters.industry = params.industry;
+    }
+    
+    const { text: whereClause, values: whereValues } = dbHelpers.buildWhereClause(filters);
+    
+    // Add search condition
+    let searchClause = '';
+    const values = [...whereValues];
+    let paramCount = whereValues.length + 1;
 
     if (params.search) {
-      whereConditions.push(`(name ILIKE $${paramCount} OR domain ILIKE $${paramCount})`);
+      searchClause = whereClause ? ' AND ' : ' WHERE ';
+      searchClause += `(name ILIKE $${paramCount} OR domain ILIKE $${paramCount} OR description ILIKE $${paramCount})`;
       values.push(`%${params.search}%`);
-      paramCount++;
     }
-
-    if (params.industry) {
-      whereConditions.push(`industry = $${paramCount}`);
-      values.push(params.industry);
-      paramCount++;
-    }
-
-    if (whereConditions.length > 0) {
-      whereClause = `WHERE ${whereConditions.join(' AND ')}`;
+    
+    // Add tech stack filter if provided
+    if (params.techStack && params.techStack.length > 0) {
+      const techClause = whereClause || searchClause ? ' AND ' : ' WHERE ';
+      searchClause += `${techClause}tech_stack && $${paramCount + 1}`;
+      values.push(params.techStack);
     }
 
     // Count total
-    const countQuery = `SELECT COUNT(*) FROM companies ${whereClause}`;
+    const countQuery = `SELECT COUNT(*) FROM ${this.tableName} ${whereClause}${searchClause}`;
     const countResult = await db.queryOne<{ count: string }>(countQuery, values);
     const total = parseInt(countResult?.count || '0');
 
     // Get paginated results
-    const offset = (page - 1) * limit;
     const query = `
-      SELECT * FROM companies 
-      ${whereClause}
-      ORDER BY ${sort_by} ${sort_order.toUpperCase()}
-      LIMIT ${limit} OFFSET ${offset}
+      SELECT * FROM ${this.tableName} 
+      ${whereClause}${searchClause}
+      ${dbHelpers.buildSortClause(sort_by, sort_order)}
+      ${dbHelpers.buildPaginationClause(page, limit)}
     `;
     
     const data = await db.queryMany<Company>(query, values);
@@ -281,30 +343,48 @@ export class CompanyRepository {
   /**
    * Get company statistics
    */
-  async getStats(): Promise<any> {
+  async getStats(): Promise<CompanyStats> {
     const query = `
       SELECT 
         COUNT(*) as total_companies,
         COUNT(DISTINCT industry) as unique_industries,
         AVG(latest_geo_score) as avg_geo_score,
-        COUNT(CASE WHEN latest_geo_score > 80 THEN 1 END) as high_performers,
-        COUNT(CASE WHEN latest_analysis_date > CURRENT_DATE - INTERVAL '7 days' THEN 1 END) as analyzed_week
-      FROM companies
+        COUNT(CASE WHEN latest_geo_score > $1 THEN 1 END) as high_performers,
+        COUNT(CASE WHEN latest_analysis_date > CURRENT_DATE - INTERVAL '${RECENT_ANALYSIS_DAYS} days' THEN 1 END) as analyzed_week
+      FROM ${this.tableName}
     `;
     
-    return db.queryOne(query);
+    const result = await db.queryOne<{
+      total_companies: string;
+      unique_industries: string;
+      avg_geo_score: string;
+      high_performers: string;
+      analyzed_week: string;
+    }>(query, [HIGH_PERFORMER_THRESHOLD]);
+
+    if (!result) {
+      return {
+        total_companies: 0,
+        unique_industries: 0,
+        avg_geo_score: 0,
+        high_performers: 0,
+        analyzed_week: 0
+      };
+    }
+
+    return {
+      total_companies: parseInt(result.total_companies, 10),
+      unique_industries: parseInt(result.unique_industries, 10),
+      avg_geo_score: parseFloat(result.avg_geo_score) || 0,
+      high_performers: parseInt(result.high_performers, 10),
+      analyzed_week: parseInt(result.analyzed_week, 10)
+    };
   }
 
   /**
    * Search companies by various criteria
    */
-  async search(criteria: {
-    query?: string;
-    industry?: string;
-    minScore?: number;
-    maxScore?: number;
-    hasAnalysis?: boolean;
-  }): Promise<Company[]> {
+  async search(criteria: SearchCriteria): Promise<Company[]> {
     const conditions: string[] = [];
     const values: any[] = [];
     let paramCount = 1;
@@ -341,18 +421,146 @@ export class CompanyRepository {
       conditions.push('latest_geo_score IS NOT NULL');
     }
 
+    if (criteria.companySize) {
+      conditions.push(`company_size = $${paramCount}`);
+      values.push(criteria.companySize);
+      paramCount++;
+    }
+
+    if (criteria.country) {
+      conditions.push(`headquarters_country = $${paramCount}`);
+      values.push(criteria.country);
+      paramCount++;
+    }
+
+    if (criteria.techStack && criteria.techStack.length > 0) {
+      conditions.push(`tech_stack && $${paramCount}`);
+      values.push(criteria.techStack);
+      paramCount++;
+    }
+
     const whereClause = conditions.length > 0 
       ? `WHERE ${conditions.join(' AND ')}` 
       : '';
 
     const query = `
-      SELECT * FROM companies 
+      SELECT * FROM ${this.tableName} 
       ${whereClause}
       ORDER BY latest_geo_score DESC NULLS LAST
-      LIMIT 100
+      LIMIT $${paramCount}
     `;
     
+    values.push(MAX_SEARCH_RESULTS);
     return db.queryMany<Company>(query, values);
+  }
+
+  /**
+   * Check if company exists by domain
+   */
+  async domainExists(domain: string): Promise<boolean> {
+    const normalizedDomain = domain.toLowerCase().replace(/^https?:\/\//, '').replace(/^www\./, '').replace(/\/$/, '');
+    const query = 'SELECT EXISTS(SELECT 1 FROM companies WHERE LOWER(domain) = LOWER($1))';
+    const result = await db.queryOne<{ exists: boolean }>(query, [normalizedDomain]);
+    return result?.exists || false;
+  }
+
+  /**
+   * Batch create companies
+   */
+  async batchCreate(companies: CreateCompanyData[]): Promise<Company[]> {
+    if (companies.length === 0) return [];
+
+    const results: Company[] = [];
+    
+    // Use transaction for batch insert
+    await db.transaction(async (client) => {
+      for (const company of companies) {
+        // Skip if domain already exists
+        if (await this.domainExists(company.domain)) {
+          continue;
+        }
+        
+        const result = await this.create(company);
+        results.push(result);
+      }
+    });
+    
+    return results;
+  }
+
+  /**
+   * Update competitor scores
+   */
+  async updateCompetitorScore(
+    companyId: number,
+    competitorDomain: string,
+    score: number,
+    analysisDate: Date
+  ): Promise<void> {
+    const query = `
+      UPDATE competitors 
+      SET latest_geo_score = $1,
+          latest_analysis_date = $2,
+          score_difference = (
+            SELECT c.latest_geo_score - $1 
+            FROM companies c 
+            WHERE c.id = $3
+          ),
+          updated_at = CURRENT_TIMESTAMP
+      WHERE company_id = $3 AND competitor_domain = $4
+    `;
+    
+    await db.query(query, [score, analysisDate, companyId, competitorDomain]);
+  }
+
+  /**
+   * Get top performing companies
+   */
+  async getTopPerformers(limit: number = 10): Promise<Company[]> {
+    const query = `
+      SELECT * FROM ${this.tableName}
+      WHERE latest_geo_score IS NOT NULL
+      ORDER BY latest_geo_score DESC
+      LIMIT $1
+    `;
+    
+    return db.queryMany<Company>(query, [limit]);
+  }
+
+  /**
+   * Get companies needing analysis
+   */
+  async getCompaniesNeedingAnalysis(daysSinceLastAnalysis: number = 30): Promise<Company[]> {
+    const query = `
+      SELECT * FROM ${this.tableName}
+      WHERE latest_analysis_date IS NULL 
+         OR latest_analysis_date < CURRENT_DATE - INTERVAL '${daysSinceLastAnalysis} days'
+      ORDER BY latest_analysis_date ASC NULLS FIRST
+      LIMIT 50
+    `;
+    
+    return db.queryMany<Company>(query);
+  }
+
+  /**
+   * Delete company (soft delete)
+   */
+  async delete(id: number, soft: boolean = true): Promise<void> {
+    if (soft) {
+      const query = `
+        UPDATE ${this.tableName} 
+        SET deleted_at = CURRENT_TIMESTAMP,
+            updated_at = CURRENT_TIMESTAMP
+        WHERE id = $1
+      `;
+      await db.query(query, [id]);
+    } else {
+      // Hard delete - also removes competitors
+      await db.transaction(async (client) => {
+        await client.query('DELETE FROM competitors WHERE company_id = $1', [id]);
+        await client.query('DELETE FROM companies WHERE id = $1', [id]);
+      });
+    }
   }
 }
 

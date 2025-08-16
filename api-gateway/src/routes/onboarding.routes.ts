@@ -7,6 +7,7 @@ import { Router, Request, Response } from 'express';
 import { enrichmentService } from '../services/enrichment.service';
 import Redis from 'ioredis';
 import axios from 'axios';
+import { WebSocket } from 'ws';
 
 const router = Router();
 const redis = new Redis(process.env.REDIS_URL || 'redis://localhost:6379');

@@ -1,4 +1,6 @@
-import path from 'path';
+import express from 'express';
+import cors from 'cors';
+import helmet from 'helmet';
 import { Pool } from 'pg';
 import Redis from 'ioredis';
 import { Queue, Worker } from 'bullmq';
@@ -6,12 +8,10 @@ import * as promClient from 'prom-client';
 import { CollectorOrchestrator } from '../collectors/orchestrator';
 import { SessionManager } from '../session/session-manager';
 import { AIResponse, CollectionJob, CollectionOptions } from '../types';
+import { logger } from '../utils/logger';
 
-// Import Foundation components
-const foundationPath = path.resolve(__dirname, '../../../foundation/src');
-const { Microservice } = require(path.join(foundationPath, 'core/microservice'));
-
-export class AIMonitorService extends Microservice {
+export class AIMonitorService {
+  private app: express.Application;
   private dbPool: Pool;
   private redis: Redis;
   private orchestrator: CollectorOrchestrator;
@@ -26,20 +26,17 @@ export class AIMonitorService extends Microservice {
   private cacheHitRate: promClient.Gauge<string>;
   
   constructor() {
-    super({
-      serviceName: 'ai-response-monitor',
-      version: '1.0.0',
-      port: parseInt(process.env.SERVICE_PORT || '3001'),
-      corsOptions: {
-        origin: process.env.CORS_ORIGIN?.split(',') || '*',
-        credentials: true
-      },
-      rateLimitConfig: {
-        enabled: true,
-        maxTokens: 1000,
-        refillRate: 100
-      }
-    });
+    // Initialize Express app
+    this.app = express();
+    
+    // Setup middleware
+    this.app.use(helmet());
+    this.app.use(cors({
+      origin: process.env.CORS_ORIGIN?.split(',') || '*',
+      credentials: true
+    }));
+    this.app.use(express.json({ limit: '10mb' }));
+    this.app.use(express.urlencoded({ extended: true }));
     
     // Initialize database connection
     this.dbPool = new Pool({
@@ -96,8 +93,17 @@ export class AIMonitorService extends Microservice {
     // Setup routes
     this.setupRoutes();
   }
+
+  async start(): Promise<void> {
+    await this.initialize();
+    
+    const port = parseInt(process.env.SERVICE_PORT || '3001');
+    this.app.listen(port, () => {
+      logger.info(`AI Response Monitor Service started on port ${port}`);
+    });
+  }
   
-  protected async initialize(): Promise<void> {
+  private async initialize(): Promise<void> {
     // Test database connection
     const client = await this.dbPool.connect();
     await client.query('SELECT 1');
@@ -118,11 +124,11 @@ export class AIMonitorService extends Microservice {
     // Subscribe to events
     await this.subscribeToEvents();
     
-    // Register custom metrics
-    this.getMetrics().registerMetric(this.responsesCollected);
-    this.getMetrics().registerMetric(this.collectionDuration);
-    this.getMetrics().registerMetric(this.apiCosts);
-    this.getMetrics().registerMetric(this.cacheHitRate);
+    // Register custom metrics with default registry
+    promClient.register.registerMetric(this.responsesCollected);
+    promClient.register.registerMetric(this.collectionDuration);
+    promClient.register.registerMetric(this.apiCosts);
+    promClient.register.registerMetric(this.cacheHitRate);
   }
   
   private async initializeDatabase(): Promise<void> {
@@ -195,25 +201,88 @@ export class AIMonitorService extends Microservice {
   }
   
   private async subscribeToEvents(): Promise<void> {
-    // Subscribe to collection requests from other services
-    await this.getEventBus().subscribe(
-      'ai.collection.requests',
-      'ai-monitor-group',
-      'ai-monitor-1',
-      async (event) => {
-        const { brandId, platforms, prompts, options } = event.data;
+    // Subscribe to collection requests via Redis streams
+    const stream = 'ai.collection.requests';
+    const group = 'ai-monitor-group';
+    const consumer = 'ai-monitor-1';
+    
+    try {
+      await this.redis.xgroup('CREATE', stream, group, '$', 'MKSTREAM');
+    } catch (error) {
+      // Group may already exist
+    }
+    
+    // Start consuming events
+    setInterval(async () => {
+      try {
+        const results = await this.redis.xreadgroup(
+          'GROUP', group, consumer,
+          'COUNT', 1,
+          'BLOCK', 1000,
+          'STREAMS', stream, '>'
+        );
         
-        // Create collection job
-        await this.createCollectionJob(brandId, platforms, prompts, options);
+        if (results && results.length > 0) {
+          for (const [streamName, entries] of results) {
+            for (const [id, fields] of entries) {
+              try {
+                const data = this.parseRedisFields(fields);
+                await this.createCollectionJob(
+                  data.brandId,
+                  data.platforms,
+                  data.prompts,
+                  data.options
+                );
+                
+                // Acknowledge the message
+                await this.redis.xack(stream, group, id);
+              } catch (error) {
+                logger.error('Error processing event:', error);
+              }
+            }
+          }
+        }
+      } catch (error) {
+        // Ignore timeout errors
+        if (!error.message.includes('timeout')) {
+          logger.error('Error reading from stream:', error);
+        }
       }
-    );
+    }, 5000);
+  }
+  
+  private parseRedisFields(fields: string[]): any {
+    const data: any = {};
+    for (let i = 0; i < fields.length; i += 2) {
+      const key = fields[i];
+      const value = fields[i + 1];
+      try {
+        data[key] = JSON.parse(value);
+      } catch {
+        data[key] = value;
+      }
+    }
+    return data;
   }
   
   private setupRoutes(): void {
-    const app = this.getApp();
+    // Health check endpoint
+    this.app.get('/health', (req, res) => {
+      res.json({
+        status: 'healthy',
+        service: 'ai-response-monitor',
+        timestamp: new Date().toISOString()
+      });
+    });
+    
+    // Metrics endpoint
+    this.app.get('/metrics', async (req, res) => {
+      res.set('Content-Type', promClient.register.contentType);
+      res.end(await promClient.register.metrics());
+    });
     
     // Collection endpoints
-    app.post('/api/ai-monitor/collect', async (req, res, next) => {
+    this.app.post('/api/ai-monitor/collect', async (req, res, next) => {
       try {
         const { brandId, platforms, prompts, options } = req.body;
         
@@ -230,7 +299,7 @@ export class AIMonitorService extends Microservice {
       }
     });
     
-    app.get('/api/ai-monitor/collect/:jobId', async (req, res, next) => {
+    this.app.get('/api/ai-monitor/collect/:jobId', async (req, res, next) => {
       try {
         const { jobId } = req.params;
         
@@ -249,7 +318,7 @@ export class AIMonitorService extends Microservice {
       }
     });
     
-    app.post('/api/ai-monitor/collect/batch', async (req, res, next) => {
+    this.app.post('/api/ai-monitor/collect/batch', async (req, res, next) => {
       try {
         const { jobs } = req.body;
         
@@ -271,7 +340,7 @@ export class AIMonitorService extends Microservice {
     });
     
     // Platform management
-    app.get('/api/ai-monitor/platforms', async (req, res, next) => {
+    this.app.get('/api/ai-monitor/platforms', async (req, res, next) => {
       try {
         const result = await this.dbPool.query(
           'SELECT * FROM ai_monitor.platforms WHERE is_active = true ORDER BY name'
@@ -283,7 +352,7 @@ export class AIMonitorService extends Microservice {
       }
     });
     
-    app.get('/api/ai-monitor/platforms/:id', async (req, res, next) => {
+    this.app.get('/api/ai-monitor/platforms/:id', async (req, res, next) => {
       try {
         const { id } = req.params;
         
@@ -303,7 +372,7 @@ export class AIMonitorService extends Microservice {
     });
     
     // Session management
-    app.get('/api/ai-monitor/sessions', async (req, res, next) => {
+    this.app.get('/api/ai-monitor/sessions', async (req, res, next) => {
       try {
         const sessions = await this.sessionManager.getActiveSessions();
         res.json(sessions);
@@ -312,7 +381,7 @@ export class AIMonitorService extends Microservice {
       }
     });
     
-    app.post('/api/ai-monitor/sessions/rotate', async (req, res, next) => {
+    this.app.post('/api/ai-monitor/sessions/rotate', async (req, res, next) => {
       try {
         const { platform } = req.body;
         await this.sessionManager.rotateSession(platform);
@@ -323,7 +392,7 @@ export class AIMonitorService extends Microservice {
     });
     
     // Response history
-    app.get('/api/ai-monitor/responses', async (req, res, next) => {
+    this.app.get('/api/ai-monitor/responses', async (req, res, next) => {
       try {
         const { limit = 100, offset = 0, platform, brandId } = req.query;
         
@@ -354,7 +423,7 @@ export class AIMonitorService extends Microservice {
       }
     });
     
-    app.get('/api/ai-monitor/responses/stats', async (req, res, next) => {
+    this.app.get('/api/ai-monitor/responses/stats', async (req, res, next) => {
       try {
         const stats = await this.orchestrator.getStatistics();
         res.json(stats);
@@ -364,7 +433,7 @@ export class AIMonitorService extends Microservice {
     });
     
     // Metrics endpoint
-    app.get('/api/ai-monitor/metrics', async (req, res, next) => {
+    this.app.get('/api/ai-monitor/metrics', async (req, res, next) => {
       try {
         const metrics = await this.orchestrator.getMetrics();
         res.json(metrics);
@@ -445,7 +514,7 @@ export class AIMonitorService extends Microservice {
     );
   }
   
-  protected async shutdown(): Promise<void> {
+  async shutdown(): Promise<void> {
     // Stop worker
     if (this.collectionWorker) {
       await this.collectionWorker.close();
@@ -459,7 +528,7 @@ export class AIMonitorService extends Microservice {
     this.redis.disconnect();
   }
   
-  protected async performReadinessChecks(): Promise<Record<string, string>> {
+  async healthCheck(): Promise<Record<string, string>> {
     const checks: Record<string, string> = {};
     
     // Check database
@@ -489,22 +558,5 @@ export class AIMonitorService extends Microservice {
     }
     
     return checks;
-  }
-  
-  protected getServiceFeatures(): string[] {
-    return [
-      'ai-response-collection',
-      'multi-platform-support',
-      'session-management',
-      'anti-detection',
-      'response-caching',
-      'job-queue-processing',
-      'cost-tracking',
-      'real-time-monitoring'
-    ];
-  }
-  
-  protected setupCustomMetrics(): void {
-    // Metrics are registered in initialize()
   }
 }

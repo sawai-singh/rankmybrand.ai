@@ -70,8 +70,8 @@ class Settings(BaseSettings):
     
     # OpenAI Configuration for LLM Entity Detection
     openai_api_key: str = Field(default="", env="OPENAI_API_KEY")
-    openai_model: str = Field(default="gpt-5-nano-2025-08-07", env="OPENAI_MODEL")
-    openai_timeout: int = Field(default=3, env="OPENAI_TIMEOUT")
+    openai_model: str = Field(default="gpt-4o-mini", env="OPENAI_MODEL")
+    openai_timeout: int = Field(default=30, env="OPENAI_TIMEOUT")
     openai_max_calls_per_minute: int = Field(default=60, env="OPENAI_MAX_CALLS_PER_MINUTE")
     openai_max_calls_per_customer: int = Field(default=10, env="OPENAI_MAX_CALLS_PER_CUSTOMER")
     

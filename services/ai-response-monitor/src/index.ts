@@ -5,10 +5,7 @@ import path from 'path';
 dotenv.config({ path: path.resolve(__dirname, '../.env') });
 
 import { AIMonitorService } from './services/ai-monitor.service';
-
-// Import Foundation logger
-const foundationPath = path.resolve(__dirname, '../../foundation/src');
-const { logger } = require(path.join(foundationPath, 'utils/logger'));
+import { logger } from './utils/logger';
 
 // Handle uncaught exceptions
 process.on('uncaughtException', (error: Error) => {

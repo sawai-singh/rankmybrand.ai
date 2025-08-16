@@ -3,21 +3,41 @@
  * Handles PostgreSQL connections and query execution
  */
 
-import { Pool, PoolClient, QueryResult } from 'pg';
+import { Pool, PoolClient, QueryResult, QueryResultRow } from 'pg';
 import dotenv from 'dotenv';
 
 dotenv.config();
 
-// Database configuration
-const dbConfig = {
+// Type definitions
+export interface DatabaseConfig {
+  host: string;
+  port: number;
+  database: string;
+  user: string;
+  password: string;
+  max: number;
+  idleTimeoutMillis: number;
+  connectionTimeoutMillis: number;
+  ssl?: boolean | { rejectUnauthorized: boolean };
+}
+
+export interface QueryOptions {
+  logSlow?: boolean;
+  slowThreshold?: number;
+  timeout?: number;
+}
+
+// Database configuration with validation
+const dbConfig: DatabaseConfig = {
   host: process.env.DB_HOST || 'localhost',
-  port: parseInt(process.env.DB_PORT || '5433'),
+  port: parseInt(process.env.DB_PORT || '5433', 10),
   database: process.env.DB_NAME || 'rankmybrand',
   user: process.env.DB_USER || 'postgres',
   password: process.env.DB_PASSWORD || 'postgres',
-  max: parseInt(process.env.DB_POOL_SIZE || '20'),
-  idleTimeoutMillis: 30000,
-  connectionTimeoutMillis: 2000,
+  max: parseInt(process.env.DB_POOL_SIZE || '20', 10),
+  idleTimeoutMillis: parseInt(process.env.DB_IDLE_TIMEOUT || '30000', 10),
+  connectionTimeoutMillis: parseInt(process.env.DB_CONNECTION_TIMEOUT || '2000', 10),
+  ssl: process.env.DB_SSL === 'true' ? { rejectUnauthorized: false } : undefined
 };
 
 // Create connection pool
@@ -34,6 +54,9 @@ pool.on('error', (err) => {
 export class DatabaseService {
   private static instance: DatabaseService;
   private isConnected: boolean = false;
+  private retryCount: number = 0;
+  private readonly maxRetries: number = 3;
+  private readonly retryDelay: number = 1000;
 
   private constructor() {}
 
@@ -48,40 +71,62 @@ export class DatabaseService {
   }
 
   /**
-   * Test database connection
+   * Test database connection with retry logic
    */
   async connect(): Promise<boolean> {
-    try {
-      const client = await pool.connect();
-      await client.query('SELECT 1');
-      client.release();
-      this.isConnected = true;
-      console.log('✅ Database connected successfully');
-      return true;
-    } catch (error) {
-      console.error('❌ Database connection failed:', error);
-      this.isConnected = false;
-      return false;
+    while (this.retryCount < this.maxRetries) {
+      try {
+        const client = await pool.connect();
+        await client.query('SELECT 1');
+        client.release();
+        this.isConnected = true;
+        this.retryCount = 0; // Reset retry count on success
+        console.log('✅ Database connected successfully');
+        return true;
+      } catch (error: any) {
+        this.retryCount++;
+        console.error(`❌ Database connection attempt ${this.retryCount}/${this.maxRetries} failed:`, error.message);
+        
+        if (this.retryCount < this.maxRetries) {
+          console.log(`🔄 Retrying in ${this.retryDelay}ms...`);
+          await new Promise(resolve => setTimeout(resolve, this.retryDelay * this.retryCount));
+        } else {
+          console.error('❌ Database connection failed after all retries');
+          this.isConnected = false;
+          return false;
+        }
+      }
     }
+    return false;
   }
 
   /**
    * Execute a query
    */
-  async query<T = any>(text: string, params?: any[]): Promise<QueryResult<T>> {
+  async query<T extends QueryResultRow = any>(
+    text: string, 
+    params?: any[], 
+    options: QueryOptions = {}
+  ): Promise<QueryResult<T>> {
     const start = Date.now();
+    const { logSlow = true, slowThreshold = 1000 } = options;
+    
     try {
       const result = await pool.query<T>(text, params);
       const duration = Date.now() - start;
       
       // Log slow queries
-      if (duration > 1000) {
+      if (logSlow && duration > slowThreshold) {
         console.warn(`⚠️ Slow query (${duration}ms):`, text.substring(0, 100));
       }
       
       return result;
-    } catch (error) {
-      console.error('Query error:', error);
+    } catch (error: any) {
+      console.error('Query error:', {
+        query: text.substring(0, 100),
+        params: params?.slice(0, 3),
+        error: error.message
+      });
       throw error;
     }
   }
@@ -89,7 +134,10 @@ export class DatabaseService {
   /**
    * Execute a query and return first row
    */
-  async queryOne<T = any>(text: string, params?: any[]): Promise<T | null> {
+  async queryOne<T extends QueryResultRow = any>(
+    text: string, 
+    params?: any[]
+  ): Promise<T | null> {
     const result = await this.query<T>(text, params);
     return result.rows[0] || null;
   }
@@ -97,7 +145,10 @@ export class DatabaseService {
   /**
    * Execute a query and return all rows
    */
-  async queryMany<T = any>(text: string, params?: any[]): Promise<T[]> {
+  async queryMany<T extends QueryResultRow = any>(
+    text: string, 
+    params?: any[]
+  ): Promise<T[]> {
     const result = await this.query<T>(text, params);
     return result.rows;
   }
@@ -183,7 +234,7 @@ export class DatabaseService {
   /**
    * Get connection status
    */
-  getStatus(): { connected: boolean; stats: any } {
+  getStatus(): { connected: boolean; stats: { total: number; idle: number; waiting: number } } {
     return {
       connected: this.isConnected,
       stats: {
@@ -203,9 +254,9 @@ export const dbHelpers = {
   /**
    * Build WHERE clause from filters
    */
-  buildWhereClause(filters: Record<string, any>): { text: string; values: any[] } {
+  buildWhereClause(filters: Record<string, unknown>): { text: string; values: unknown[] } {
     const conditions: string[] = [];
-    const values: any[] = [];
+    const values: unknown[] = [];
     let paramCount = 1;
 
     for (const [key, value] of Object.entries(filters)) {
@@ -213,13 +264,19 @@ export const dbHelpers = {
         if (Array.isArray(value)) {
           conditions.push(`${key} = ANY($${paramCount})`);
           values.push(value);
-        } else if (typeof value === 'object' && value.min !== undefined) {
+        } else if (
+          typeof value === 'object' && 
+          'min' in value && 
+          (value as any).min !== undefined
+        ) {
+          // Handle range queries
+          const rangeValue = value as { min?: unknown; max?: unknown };
           conditions.push(`${key} >= $${paramCount}`);
-          values.push(value.min);
+          values.push(rangeValue.min);
           paramCount++;
-          if (value.max !== undefined) {
+          if (rangeValue.max !== undefined) {
             conditions.push(`${key} <= $${paramCount}`);
-            values.push(value.max);
+            values.push(rangeValue.max);
           }
         } else {
           conditions.push(`${key} = $${paramCount}`);
@@ -264,6 +321,61 @@ export const dbHelpers = {
    * Generate unique ID
    */
   generateId(): string {
-    return `${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    return `${Date.now()}_${Math.random().toString(36).substring(2, 11)}`;
+  },
+  
+  /**
+   * Escape SQL identifier
+   */
+  escapeIdentifier(identifier: string): string {
+    return `"${identifier.replace(/"/g, '""')}"`;
+  },
+  
+  /**
+   * Build INSERT query with returning clause
+   */
+  buildInsertQuery(
+    table: string, 
+    data: Record<string, unknown>, 
+    returning: string = '*'
+  ): { text: string; values: unknown[] } {
+    const keys = Object.keys(data);
+    const values = Object.values(data);
+    const placeholders = keys.map((_, i) => `$${i + 1}`).join(', ');
+    
+    const text = `
+      INSERT INTO ${table} (${keys.join(', ')})
+      VALUES (${placeholders})
+      RETURNING ${returning}
+    `;
+    
+    return { text, values };
+  },
+  
+  /**
+   * Build UPDATE query
+   */
+  buildUpdateQuery(
+    table: string,
+    data: Record<string, unknown>,
+    conditions: Record<string, unknown>,
+    returning: string = '*'
+  ): { text: string; values: unknown[] } {
+    const dataKeys = Object.keys(data);
+    const dataValues = Object.values(data);
+    const conditionKeys = Object.keys(conditions);
+    const conditionValues = Object.values(conditions);
+    
+    const setClause = dataKeys.map((key, i) => `${key} = $${i + 1}`).join(', ');
+    const whereClause = conditionKeys.map((key, i) => `${key} = $${dataKeys.length + i + 1}`).join(' AND ');
+    
+    const text = `
+      UPDATE ${table}
+      SET ${setClause}
+      WHERE ${whereClause}
+      RETURNING ${returning}
+    `;
+    
+    return { text, values: [...dataValues, ...conditionValues] };
   },
 };

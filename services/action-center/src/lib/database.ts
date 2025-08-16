@@ -406,6 +406,28 @@ export class Database {
     };
   }
 
+  async healthCheck(): Promise<boolean> {
+    try {
+      await this.pool.query('SELECT 1');
+      return true;
+    } catch (error) {
+      logger.error('Database health check failed:', error);
+      return false;
+    }
+  }
+
+  getConnectionInfo(): { 
+    totalConnections: number; 
+    idleConnections: number; 
+    waitingConnections: number; 
+  } {
+    return {
+      totalConnections: this.pool.totalCount,
+      idleConnections: this.pool.idleCount,
+      waitingConnections: this.pool.waitingCount
+    };
+  }
+
   async close(): Promise<void> {
     await this.pool.end();
   }
