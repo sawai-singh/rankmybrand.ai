@@ -8,6 +8,7 @@ import { enrichmentService } from '../services/enrichment.service';
 import Redis from 'ioredis';
 import axios from 'axios';
 import { WebSocket } from 'ws';
+import { db } from '../database/connection';
 
 const router = Router();
 const redis = new Redis(process.env.REDIS_URL || 'redis://localhost:6379');
@@ -32,12 +33,76 @@ router.get('/test', (req: Request, res: Response) => {
 router.post('/validate-email', async (req: Request, res: Response) => {
   try {
     const { email } = req.body;
+    const ipAddress = req.ip || req.headers['x-forwarded-for'] || 'unknown';
+    const userAgent = req.headers['user-agent'] || 'unknown';
     
     if (!email) {
       return res.status(400).json({ error: 'Email is required' });
     }
 
+    // Track user immediately when they enter email
+    if (db) {
+      try {
+        await db.query(
+          `INSERT INTO user_tracking (email, first_seen, last_activity, ip_address, user_agent)
+           VALUES ($1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, $2, $3)
+           ON CONFLICT (email) 
+           DO UPDATE SET last_activity = CURRENT_TIMESTAMP, ip_address = $2, user_agent = $3`,
+          [email, ipAddress, userAgent]
+        );
+        
+        // First, mark as 'email_entered' when they submit email
+        const sessionId = `session_${Date.now()}_${email}`;
+        await db.query(
+          `INSERT INTO onboarding_sessions (session_id, email, status, created_at)
+           VALUES ($1, $2, 'email_entered', CURRENT_TIMESTAMP)
+           ON CONFLICT (email) 
+           DO UPDATE SET status = CASE 
+             WHEN onboarding_sessions.status = 'email_entered' THEN 'email_entered'
+             ELSE onboarding_sessions.status 
+           END, 
+           last_activity = CURRENT_TIMESTAMP`,
+          [sessionId, email]
+        );
+        
+        // Log activity
+        await db.query(
+          `INSERT INTO activity_log (user_email, action_type, action_details, ip_address, user_agent, page_url, created_at)
+           VALUES ($1, $2, $3, $4, $5, $6, CURRENT_TIMESTAMP)`,
+          [email, 'email_entered', JSON.stringify({ email }), ipAddress, userAgent, req.headers.referer || '/onboarding']
+        );
+      } catch (dbError) {
+        console.error('Failed to track user:', dbError);
+      }
+    }
+
     const validation = await enrichmentService.validateCorporateEmail(email);
+    
+    // Store email validation result and update status
+    if (db) {
+      try {
+        await db.query(
+          `INSERT INTO email_validations (email, domain, is_valid, is_business_email, validation_method, created_at)
+           VALUES ($1, $2, $3, $4, 'corporate_check', CURRENT_TIMESTAMP)`,
+          [email, validation.domain || email.split('@')[1], validation.valid, validation.valid]
+        );
+        
+        // If validation successful, update status to 'email_validated'
+        if (validation.valid) {
+          await db.query(
+            `UPDATE onboarding_sessions 
+             SET status = 'email_validated', 
+                 steps_completed = COALESCE(steps_completed, '[]'::jsonb) || 
+                   jsonb_build_array(jsonb_build_object('step', 'email_validation', 'timestamp', CURRENT_TIMESTAMP::text)),
+                 last_activity = CURRENT_TIMESTAMP
+             WHERE email = $1`,
+            [email]
+          );
+        }
+      } catch (dbError) {
+        console.error('Failed to store email validation:', dbError);
+      }
+    }
     
     if (!validation.valid) {
       return res.status(400).json({
@@ -62,9 +127,23 @@ router.post('/validate-email', async (req: Request, res: Response) => {
 router.post('/enrich', async (req: Request, res: Response) => {
   try {
     const { email } = req.body;
+    const ipAddress = req.ip || req.headers['x-forwarded-for'] || 'unknown';
+    const userAgent = req.headers['user-agent'] || 'unknown';
     
     if (!email) {
       return res.status(400).json({ error: 'Email is required' });
+    }
+
+    // Update user tracking
+    if (db) {
+      try {
+        await db.query(
+          `UPDATE user_tracking SET last_activity = CURRENT_TIMESTAMP WHERE email = $1`,
+          [email]
+        );
+      } catch (dbError) {
+        console.error('Failed to update user tracking:', dbError);
+      }
     }
 
     // Validate email first
@@ -86,6 +165,44 @@ router.post('/enrich', async (req: Request, res: Response) => {
       step: 'company_details'
     }));
 
+    // Store company data and onboarding session in database
+    if (db) {
+      try {
+        // Store company
+        const companyResult = await db.query(
+          `INSERT INTO companies (name, domain, description, industry, website_url, enrichment_data, created_at)
+           VALUES ($1, $2, $3, $4, $5, $6, CURRENT_TIMESTAMP)
+           ON CONFLICT (domain) 
+           DO UPDATE SET name = $1, description = $3, industry = $4, enrichment_data = $6, updated_at = CURRENT_TIMESTAMP
+           RETURNING id`,
+          [enrichmentData.name, enrichmentData.domain, enrichmentData.description, 
+           enrichmentData.industry, `https://${enrichmentData.domain}`, JSON.stringify(enrichmentData)]
+        );
+        
+        // Update onboarding session status to 'company_enriched'
+        await db.query(
+          `UPDATE onboarding_sessions 
+           SET status = 'company_enriched',
+               session_id = COALESCE(session_id, $1),
+               steps_completed = COALESCE(steps_completed, '[]'::jsonb) || 
+                 jsonb_build_array(jsonb_build_object('step', 'company_enrichment', 'timestamp', CURRENT_TIMESTAMP::text)),
+               metadata = COALESCE(metadata, '{}'::jsonb) || $2::jsonb,
+               last_activity = CURRENT_TIMESTAMP
+           WHERE email = $3`,
+          [sessionId, JSON.stringify({ company_id: companyResult.rows[0].id, enrichmentData }), email]
+        );
+        
+        // Log activity
+        await db.query(
+          `INSERT INTO activity_log (user_email, session_id, action_type, action_details, ip_address, user_agent, created_at)
+           VALUES ($1, $2, $3, $4, $5, $6, CURRENT_TIMESTAMP)`,
+          [email, sessionId, 'company_enrichment', JSON.stringify(enrichmentData), ipAddress, userAgent]
+        );
+      } catch (dbError) {
+        console.error('Failed to store enrichment data:', dbError);
+      }
+    }
+
     // Start background crawl
     startBackgroundCrawl(enrichmentData.domain, sessionId);
 
@@ -106,6 +223,8 @@ router.post('/enrich', async (req: Request, res: Response) => {
 router.post('/generate-description', async (req: Request, res: Response) => {
   try {
     const { sessionId, company, crawledPages } = req.body;
+    const ipAddress = req.ip || req.headers['x-forwarded-for'] || 'unknown';
+    const userAgent = req.headers['user-agent'] || 'unknown';
     
     if (!sessionId || !company) {
       return res.status(400).json({ error: 'Session ID and company data are required' });
@@ -117,14 +236,61 @@ router.post('/generate-description', async (req: Request, res: Response) => {
       return res.status(400).json({ error: 'Invalid or expired session' });
     }
 
+    const session = JSON.parse(sessionData);
+    const email = session.email;
+
+    // Update user tracking
+    if (db && email) {
+      try {
+        await db.query(
+          `UPDATE user_tracking SET last_activity = CURRENT_TIMESTAMP WHERE email = $1`,
+          [email]
+        );
+      } catch (dbError) {
+        console.error('Failed to update user tracking:', dbError);
+      }
+    }
+
     // Generate description using real content
     const description = await enrichmentService.generateDescription(company, crawledPages);
     
     // Update session
-    const session = JSON.parse(sessionData);
     session.description = description;
     session.step = 'description';
     await redis.setex(sessionId, 3600, JSON.stringify(session));
+
+    // Update database
+    if (db) {
+      try {
+        // Update onboarding session status to 'description_generated'
+        await db.query(
+          `UPDATE onboarding_sessions 
+           SET status = 'description_generated', 
+               steps_completed = COALESCE(steps_completed, '[]'::jsonb) || 
+                 jsonb_build_array(jsonb_build_object('step', 'description_generation', 'timestamp', CURRENT_TIMESTAMP::text)),
+               metadata = COALESCE(metadata, '{}'::jsonb) || $1::jsonb,
+               last_activity = CURRENT_TIMESTAMP
+           WHERE email = $2 OR session_id = $3`,
+          [JSON.stringify({ description, wordCount: description.split(' ').length }), email, sessionId]
+        );
+        
+        // Log activity
+        await db.query(
+          `INSERT INTO activity_log (user_email, session_id, action_type, action_details, ip_address, user_agent, created_at)
+           VALUES ($1, $2, $3, $4, $5, $6, CURRENT_TIMESTAMP)`,
+          [email, sessionId, 'description_generation', JSON.stringify({ description, wordCount: description.split(' ').length }), ipAddress, userAgent]
+        );
+        
+        // Track API usage if using OpenAI
+        await db.query(
+          `INSERT INTO api_usage (user_email, api_provider, endpoint, tokens_used, success, created_at)
+           VALUES ($1, 'openai', 'generate_description', $2, true, CURRENT_TIMESTAMP)`,
+          [email, description.length * 0.75] // Rough token estimate
+        );
+      } catch (dbError) {
+        console.error('Failed to update database:', dbError);
+      }
+    }
 
     res.json({
       description,
@@ -143,6 +309,8 @@ router.post('/generate-description', async (req: Request, res: Response) => {
 router.post('/find-competitors', async (req: Request, res: Response) => {
   try {
     const { sessionId, company } = req.body;
+    const ipAddress = req.ip || req.headers['x-forwarded-for'] || 'unknown';
+    const userAgent = req.headers['user-agent'] || 'unknown';
     
     if (!sessionId || !company) {
       return res.status(400).json({ error: 'Session ID and company data are required' });
@@ -154,14 +322,74 @@ router.post('/find-competitors', async (req: Request, res: Response) => {
       return res.status(400).json({ error: 'Invalid or expired session' });
     }
 
+    const session = JSON.parse(sessionData);
+    const email = session.email;
+
+    // Update user tracking
+    if (db && email) {
+      try {
+        await db.query(
+          `UPDATE user_tracking SET last_activity = CURRENT_TIMESTAMP WHERE email = $1`,
+          [email]
+        );
+      } catch (dbError) {
+        console.error('Failed to update user tracking:', dbError);
+      }
+    }
+
     // Find competitors using Search Intelligence
     const competitors = await enrichmentService.findCompetitors(company);
     
     // Update session
-    const session = JSON.parse(sessionData);
     session.competitors = competitors;
     session.step = 'competitors';
     await redis.setex(sessionId, 3600, JSON.stringify(session));
+
+    // Store competitors in database
+    if (db && company.domain) {
+      try {
+        // Get company ID
+        const companyResult = await db.query(
+          `SELECT id FROM companies WHERE domain = $1`,
+          [company.domain]
+        );
+        
+        if (companyResult.rows[0]) {
+          const companyId = companyResult.rows[0].id;
+          
+          // Store each competitor
+          for (const competitor of competitors) {
+            await db.query(
+              `INSERT INTO competitors (company_id, competitor_name, competitor_domain, discovered_method, created_at)
+               VALUES ($1, $2, $3, 'ai_suggested', CURRENT_TIMESTAMP)
+               ON CONFLICT (company_id, competitor_domain) DO NOTHING`,
+              [companyId, competitor.name, competitor.domain]
+            );
+          }
+        }
+        
+        // Update onboarding session status to 'competitors_selected'
+        await db.query(
+          `UPDATE onboarding_sessions 
+           SET status = 'competitors_selected', 
+               steps_completed = COALESCE(steps_completed, '[]'::jsonb) || 
+                 jsonb_build_array(jsonb_build_object('step', 'competitor_discovery', 'timestamp', CURRENT_TIMESTAMP::text)),
+               metadata = COALESCE(metadata, '{}'::jsonb) || $1::jsonb,
+               last_activity = CURRENT_TIMESTAMP
+           WHERE email = $2 OR session_id = $3`,
+          [JSON.stringify({ competitors, count: competitors.length }), email, sessionId]
+        );
+        
+        // Log activity
+        await db.query(
+          `INSERT INTO activity_log (user_email, session_id, action_type, action_details, ip_address, user_agent, created_at)
+           VALUES ($1, $2, $3, $4, $5, $6, CURRENT_TIMESTAMP)`,
+          [email, sessionId, 'competitor_discovery', JSON.stringify({ competitors, count: competitors.length }), ipAddress, userAgent]
+        );
+      } catch (dbError) {
+        console.error('Failed to store competitors:', dbError);
+      }
+    }
 
     res.json({
       competitors,
@@ -340,6 +568,30 @@ router.post('/complete', async (req: Request, res: Response) => {
     console.error('Database operation failed, using fallback:', dbError.message);
       
       // Fallback response without database
+      // Still try to update onboarding status to completed
+      if (db) {
+        try {
+          await db.query(
+            `UPDATE onboarding_sessions 
+             SET status = 'completed', 
+                 completed_at = CURRENT_TIMESTAMP,
+                 steps_completed = COALESCE(steps_completed, '[]'::jsonb) || 
+                   jsonb_build_array(jsonb_build_object('step', 'onboarding_completed', 'timestamp', CURRENT_TIMESTAMP::text)),
+                 last_activity = CURRENT_TIMESTAMP
+             WHERE email = $1`,
+            [email]
+          );
+          
+          // Also update users table if exists
+          await db.query(
+            `UPDATE users SET onboarding_completed = true WHERE email = $1`,
+            [email]
+          );
+        } catch (e) {
+          console.log('Failed to update completion status:', e);
+        }
+      }
+      
       // Generate a simple JWT token for development
       const jwt = require('jsonwebtoken');
       const token = jwt.sign(

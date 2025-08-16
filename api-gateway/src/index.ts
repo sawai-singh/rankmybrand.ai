@@ -401,6 +401,111 @@ app.post('/api/analyze/competitors', limiter, asyncHandler(async (req: any, res:
   }
 }));
 
+// Admin API endpoints
+app.get('/api/admin/users', limiter, asyncHandler(async (req: any, res: any) => {
+  try {
+    // Query all user data from database
+    if (db) {
+      const result = await db.query(`
+        SELECT 
+          ut.email,
+          ut.first_seen,
+          ut.last_activity,
+          ut.ip_address,
+          ut.user_agent,
+          os.status as onboarding_status,
+          os.steps_completed,
+          u.onboarding_completed,
+          c.name as company_name,
+          c.domain as company_domain,
+          ga.overall_score as latest_geo_score,
+          (SELECT COUNT(*) FROM activity_log WHERE user_email = ut.email) as total_actions,
+          (SELECT COUNT(*) FROM email_validations WHERE email = ut.email) as email_validation_attempts
+        FROM user_tracking ut
+        LEFT JOIN onboarding_sessions os ON ut.email = os.email
+        LEFT JOIN users u ON ut.email = u.email
+        LEFT JOIN companies c ON u.company_id = c.id
+        LEFT JOIN geo_analyses ga ON c.id = ga.company_id
+        ORDER BY ut.last_activity DESC
+      `);
+      
+      const stats = {
+        totalUsers: result.rows.length,
+        completedOnboarding: result.rows.filter((r: any) => r.onboarding_completed).length,
+        activeToday: result.rows.filter((r: any) => {
+          const lastActivity = new Date(r.last_activity);
+          const today = new Date();
+          return lastActivity.toDateString() === today.toDateString();
+        }).length,
+        totalCompanies: new Set(result.rows.map((r: any) => r.company_domain).filter(Boolean)).size
+      };
+      
+      res.json({
+        users: result.rows,
+        stats
+      });
+    } else {
+      // Fallback demo data
+      res.json({
+        users: [],
+        stats: {
+          totalUsers: 0,
+          completedOnboarding: 0,
+          activeToday: 0,
+          totalCompanies: 0
+        }
+      });
+    }
+  } catch (error: any) {
+    console.error('Admin users error:', error);
+    res.status(500).json({ error: 'Failed to fetch user data' });
+  }
+}));
+
+app.get('/api/admin/user/:email', limiter, asyncHandler(async (req: any, res: any) => {
+  const { email } = req.params;
+  
+  try {
+    if (db) {
+      // Get user details
+      const userResult = await db.query(`
+        SELECT * FROM user_tracking WHERE email = $1
+      `, [email]);
+      
+      // Get activity log
+      const activitiesResult = await db.query(`
+        SELECT * FROM activity_log 
+        WHERE user_email = $1 
+        ORDER BY created_at DESC 
+        LIMIT 50
+      `, [email]);
+      
+      // Get API usage
+      const apiUsageResult = await db.query(`
+        SELECT * FROM api_usage 
+        WHERE user_email = $1 
+        ORDER BY created_at DESC 
+        LIMIT 20
+      `, [email]);
+      
+      res.json({
+        user: userResult.rows[0],
+        activities: activitiesResult.rows,
+        apiUsage: apiUsageResult.rows
+      });
+    } else {
+      res.json({
+        user: null,
+        activities: [],
+        apiUsage: []
+      });
+    }
+  } catch (error: any) {
+    console.error('User details error:', error);
+    res.status(500).json({ error: 'Failed to fetch user details' });
+  }
+}));
+
 // Dashboard API endpoints
 app.get('/api/activities', limiter, asyncHandler(async (req: any, res: any) => {
   // Return demo activities with real-time data
@@ -413,32 +518,108 @@ app.get('/api/activities', limiter, asyncHandler(async (req: any, res: any) => {
 }));
 
 app.get('/api/ai/visibility', limiter, asyncHandler(async (req: any, res: any) => {
-  // Get real AI visibility data from Intelligence Engine
+  // Get user token to fetch their actual analysis
+  const token = req.headers.authorization?.replace('Bearer ', '');
+  let userCompany = 'Turing';
+  
+  if (token) {
+    try {
+      const decoded = jwt.verify(token, config.jwt.secret) as any;
+      const userId = decoded.userId;
+      
+      // Check cached GEO data first
+      if (redis) {
+        const cached = await redis.get(`geo:${userId}`);
+        if (cached) {
+          const geoData = JSON.parse(cached);
+          if (geoData.analysis?.platforms) {
+            return res.json({ 
+              platforms: geoData.analysis.platforms,
+              metrics: {
+                brandMentions: 85,
+                productReviews: 72,
+                industryAnalysis: 68
+              }
+            });
+          }
+        }
+      }
+    } catch (e) {
+      console.log('Error fetching cached visibility:', e);
+    }
+  }
+  
+  // Get real AI visibility data from Intelligence Engine for Turing
   try {
     const response = await fetch(`${config.services.intelligence}/api/v1/geo/analyze`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ content: 'Demo company content', brand_terms: ['demo'] })
+      body: JSON.stringify({ 
+        content: 'Turing is a platform for hiring remote software developers. AI-powered talent cloud for engineering teams.',
+        brand_terms: ['Turing', 'turing.com'] 
+      })
     });
     
     if (response.ok) {
       const data = await response.json();
-      res.json({ platforms: data.analysis?.platforms || {} });
+      res.json({ 
+        platforms: data.analysis?.platforms || { chatgpt: 70, claude: 65, perplexity: 60, gemini: 55 },
+        metrics: {
+          brandMentions: 85,
+          productReviews: 72,
+          industryAnalysis: 68
+        }
+      });
     } else {
       // Fallback to default scores
-      res.json({ platforms: { chatgpt: 70, claude: 65, perplexity: 60, gemini: 55 } });
+      res.json({ 
+        platforms: { chatgpt: 70, claude: 65, perplexity: 60, gemini: 55 },
+        metrics: {
+          brandMentions: 85,
+          productReviews: 72,
+          industryAnalysis: 68
+        }
+      });
     }
   } catch (error) {
-    res.json({ platforms: { chatgpt: 70, claude: 65, perplexity: 60, gemini: 55 } });
+    res.json({ 
+      platforms: { chatgpt: 70, claude: 65, perplexity: 60, gemini: 55 },
+      metrics: {
+        brandMentions: 85,
+        productReviews: 72,
+        industryAnalysis: 68
+      }
+    });
   }
 }));
 
 app.get('/api/competitors', limiter, asyncHandler(async (req: any, res: any) => {
-  // Return demo competitors
+  // Get user token to fetch their actual competitors
+  const token = req.headers.authorization?.replace('Bearer ', '');
+  
+  if (token) {
+    try {
+      const decoded = jwt.verify(token, config.jwt.secret) as any;
+      const userId = decoded.userId;
+      
+      // Check if we have cached competitor data
+      if (redis) {
+        const cached = await redis.get(`competitors:${userId}`);
+        if (cached) {
+          return res.json(JSON.parse(cached));
+        }
+      }
+    } catch (e) {
+      console.log('Error fetching user competitors:', e);
+    }
+  }
+  
+  // Return Turing's actual competitors as fallback
   res.json([
-    { id: 1, name: 'Competitor A', domain: 'competitor-a.com', geoScore: 75, shareOfVoice: 25 },
-    { id: 2, name: 'Competitor B', domain: 'competitor-b.com', geoScore: 68, shareOfVoice: 20 },
-    { id: 3, name: 'Competitor C', domain: 'competitor-c.com', geoScore: 62, shareOfVoice: 15 }
+    { id: 1, name: 'Andela', domain: 'andela.com', geoScore: 72, shareOfVoice: 28 },
+    { id: 2, name: 'Toptal', domain: 'toptal.com', geoScore: 78, shareOfVoice: 32 },
+    { id: 3, name: 'Upwork', domain: 'upwork.com', geoScore: 65, shareOfVoice: 22 },
+    { id: 4, name: 'Fiverr', domain: 'fiverr.com', geoScore: 58, shareOfVoice: 18 }
   ]);
 }));
 
@@ -577,6 +758,24 @@ app.post('/api/onboarding/complete', limiter, asyncHandler(async (req: any, res:
             'EX',
             3600 // Cache for 1 hour
           );
+          
+          // Also store competitors if provided
+          if (competitors && competitors.length > 0) {
+            const competitorData = competitors.map((c: any, idx: number) => ({
+              id: idx + 1,
+              name: c.name,
+              domain: c.domain,
+              geoScore: Math.round(50 + Math.random() * 40), // Will be replaced with real analysis
+              shareOfVoice: Math.round(15 + Math.random() * 30)
+            }));
+            
+            await redis.set(
+              `competitors:${userId}`,
+              JSON.stringify(competitorData),
+              'EX',
+              3600 // Cache for 1 hour
+            );
+          }
         }
       }
     } catch (geoError) {
