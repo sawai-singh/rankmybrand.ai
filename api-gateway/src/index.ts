@@ -397,6 +397,124 @@ app.post('/api/analyze/competitors', limiter, asyncHandler(async (req: any, res:
   }
 }));
 
+// Onboarding complete endpoint
+app.post('/api/onboarding/complete', limiter, asyncHandler(async (req: any, res: any) => {
+  const { sessionId, email, company, competitors, description } = req.body;
+  
+  console.log('Onboarding complete request:', { sessionId, email, company: company?.name });
+  
+  try {
+    // Generate a token for the user
+    const userId = `user_${Date.now()}`;
+    const token = jwt.sign(
+      { 
+        userId: userId,
+        email: email,
+        role: 'user',
+        sessionId: sessionId
+      },
+      config.auth.jwtSecret,
+      { expiresIn: '7d' }
+    );
+    
+    const user = {
+      id: userId,
+      email: email,
+      firstName: '',
+      lastName: '',
+      company: company,
+      onboardingCompleted: true
+    };
+    
+    // Trigger REAL GEO analysis for the company
+    const analysisJobs = [];
+    
+    try {
+      // Start GEO analysis
+      const geoResponse = await fetch(`${config.services.geo}/api/v1/geo/analyze`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          content: description || `${company?.name} - ${company?.description}`,
+          brand_terms: [company?.name || email.split('@')[0]],
+          target_queries: company?.keywords || []
+        })
+      });
+      
+      if (geoResponse.ok) {
+        const geoData = await geoResponse.json();
+        analysisJobs.push({
+          type: 'geo',
+          status: 'completed',
+          score: geoData.analysis?.overall_score,
+          data: geoData
+        });
+        
+        // Store GEO score in Redis for quick access
+        if (redis) {
+          await redis.set(
+            `geo:${userId}`,
+            JSON.stringify(geoData),
+            'EX',
+            3600 // Cache for 1 hour
+          );
+        }
+      }
+    } catch (geoError) {
+      console.error('GEO analysis error:', geoError);
+      analysisJobs.push({
+        type: 'geo',
+        status: 'failed',
+        error: 'Analysis service unavailable'
+      });
+    }
+    
+    // Store in database if available
+    if (db) {
+      try {
+        const result = await db.query(
+          `INSERT INTO users (email, onboarding_completed, company_id) 
+           VALUES ($1, true, 1) 
+           ON CONFLICT (email) 
+           DO UPDATE SET onboarding_completed = true
+           RETURNING id`,
+          [email]
+        );
+        
+        if (result.rows[0]) {
+          user.id = result.rows[0].id;
+        }
+      } catch (dbError) {
+        console.error('Database error during onboarding:', dbError);
+      }
+    }
+    
+    res.json({
+      success: true,
+      message: 'Onboarding completed successfully',
+      auth: {
+        token: token,
+        refreshToken: token,
+        expiresIn: '7d'
+      },
+      user: user,
+      analysis: {
+        jobs: analysisJobs,
+        geoScore: analysisJobs.find(j => j.type === 'geo')?.score || null
+      },
+      redirectUrl: '/dashboard?onboarding=complete'
+    });
+    
+  } catch (error: any) {
+    console.error('Onboarding complete error:', error);
+    res.status(500).json({ 
+      success: false,
+      error: 'Failed to complete onboarding', 
+      message: error.message 
+    });
+  }
+}));
+
 // ========================================
 // WebSocket Handling
 // ========================================

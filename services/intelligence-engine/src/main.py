@@ -98,6 +98,10 @@ app.mount("/metrics", metrics_app)
 # Include analysis routes
 app.include_router(analysis_routes.router)
 
+# Include GEO routes
+from src.api import geo_routes
+app.include_router(geo_routes.router)
+
 
 @app.get("/")
 async def root():

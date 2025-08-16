@@ -36,7 +36,7 @@ const envSchema = z.object({
   JWT_REFRESH_EXPIRES_IN: z.string().default('30d'),
   
   // Services
-  GEO_SERVICE: z.string().url().default('http://localhost:8000'),
+  GEO_SERVICE: z.string().url().default('http://localhost:8002'),
   CRAWLER_SERVICE: z.string().url().default('http://localhost:3002'),
   SEARCH_SERVICE: z.string().url().default('http://localhost:3002'),
   DASHBOARD_SERVICE: z.string().url().default('http://localhost:3000'),

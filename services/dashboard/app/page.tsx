@@ -48,6 +48,26 @@ export default function Dashboard() {
       const authToken = localStorage.getItem('auth_token');
       
       if (!authToken) {
+        // Check if this is a new user from onboarding
+        if (isNewUser) {
+          console.log('New user from onboarding - using demo mode');
+          // Set demo user data
+          const demoUser = {
+            id: 1,
+            email: 'demo@rankmybrand.ai',
+            firstName: 'Demo',
+            lastName: 'User',
+            company: {
+              name: 'Your Company',
+              domain: 'yourcompany.com'
+            },
+            onboardingCompleted: true
+          };
+          setUser(demoUser);
+          localStorage.setItem('user', JSON.stringify(demoUser));
+          setIsLoading(false);
+          return;
+        }
         // Skip redirect for demo - remove this in production
         console.log('Auth token not found - demo mode');
         // router.push('/login');
@@ -73,10 +93,20 @@ export default function Dashboard() {
         // Load dashboard data
         await loadDashboardData(data.user.company?.domain);
       } else if (response.status === 401) {
-        // Token expired, redirect to login
-        localStorage.removeItem('auth_token');
-        localStorage.removeItem('user');
-        router.push('/login');
+        // Token expired or invalid
+        if (isNewUser) {
+          // New user from onboarding, don't redirect
+          console.log('New user with invalid token - continuing with stored data');
+          if (storedUser) {
+            const userData = JSON.parse(storedUser);
+            await loadDashboardData(userData.company?.domain);
+          }
+        } else {
+          // Regular user with expired token, redirect to login
+          localStorage.removeItem('auth_token');
+          localStorage.removeItem('user');
+          router.push('/login');
+        }
       } else if (response.status === 404) {
         // Endpoint doesn't exist yet, continue with stored user
         console.log('Auth endpoint not found, using stored user data');

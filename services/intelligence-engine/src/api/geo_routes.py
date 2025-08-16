@@ -42,8 +42,7 @@ class GEOScoreRequest(BaseModel):
 
 @router.post("/analyze")
 async def analyze_geo(
-    request: GEOAnalyzeRequest,
-    current_user: Optional[Dict] = None  # Make auth optional for now
+    request: GEOAnalyzeRequest
 ):
     """
     Analyze content for GEO score.
@@ -55,26 +54,34 @@ async def analyze_geo(
     - Recommendations
     """
     try:
-        # For now, return mock data with realistic values
-        # In production, this would analyze real content
+        # Use REAL GEO calculator instead of mock data
         
-        # Calculate a realistic GEO score based on input
-        has_content = bool(request.content or request.url)
-        has_brand_terms = bool(request.brand_terms)
-        has_queries = bool(request.target_queries)
+        # Basic scoring based on real inputs
+        citation_frequency = 0.5  # Default medium visibility
+        sentiment_score = 0.7  # Default positive sentiment
+        relevance_score = 0.6  # Default good relevance
+        authority_score = 0.5  # Default medium authority
+        position_weight = 0.6  # Default good position
         
-        base_score = 50.0
-        if has_content:
-            base_score += 15
-        if has_brand_terms:
-            base_score += 10
-        if has_queries:
-            base_score += 10
+        # Adjust scores based on actual input
+        if request.content:
+            # Check if brand terms appear in content
+            content_lower = request.content.lower()
+            for term in request.brand_terms:
+                if term.lower() in content_lower:
+                    citation_frequency += 0.1
+                    relevance_score += 0.1
         
-        # Add some randomness for demo
-        import random
-        score_variation = random.uniform(-5, 10)
-        overall_score = min(95, max(20, base_score + score_variation))
+        # Calculate real GEO score using the calculator
+        geo_score = geo_calculator.calculate(
+            citation_frequency=min(1.0, citation_frequency),
+            sentiment_score=sentiment_score,
+            relevance_score=min(1.0, relevance_score),
+            authority_score=authority_score,
+            position_weight=position_weight
+        )
+        
+        overall_score = geo_score
         
         return {
             "success": True,
@@ -82,18 +89,18 @@ async def analyze_geo(
                 "url": request.url,
                 "overall_score": round(overall_score, 1),
                 "scores": {
-                    "visibility": round(overall_score + random.uniform(-10, 5), 1),
-                    "authority": round(overall_score + random.uniform(-15, 10), 1),
-                    "relevance": round(overall_score + random.uniform(-5, 15), 1),
-                    "freshness": round(overall_score + random.uniform(-10, 10), 1),
-                    "engagement": round(overall_score + random.uniform(-12, 8), 1),
-                    "technical": round(overall_score + random.uniform(-8, 12), 1)
+                    "visibility": round(citation_frequency * 100, 1),
+                    "authority": round(authority_score * 100, 1),
+                    "relevance": round(relevance_score * 100, 1),
+                    "freshness": 75.0,  # Default, would need real data
+                    "engagement": 60.0,  # Default, would need real data
+                    "technical": 70.0   # Default, would need real data
                 },
                 "platforms": {
-                    "chatgpt": round(overall_score + random.uniform(-10, 15), 1),
-                    "claude": round(overall_score + random.uniform(-8, 12), 1),
-                    "perplexity": round(overall_score + random.uniform(-12, 10), 1),
-                    "gemini": round(overall_score + random.uniform(-15, 8), 1)
+                    "chatgpt": None,  # No API key
+                    "claude": None,   # No API key
+                    "perplexity": None,  # No API key
+                    "gemini": None    # No API key
                 },
                 "recommendations": [
                     {

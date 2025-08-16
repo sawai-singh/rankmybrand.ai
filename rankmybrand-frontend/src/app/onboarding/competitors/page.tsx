@@ -214,10 +214,10 @@ export default function CompetitorsPage() {
         // Clear session storage
         sessionStorage.removeItem('onboarding_session');
         
-        // Redirect to demo dashboard with onboarding complete flag
+        // Redirect to real dashboard with onboarding complete flag
         setTimeout(() => {
-          // Dashboard is on port 3000, redirect to demo page
-          const redirectUrl = 'http://localhost:3000/demo?onboarding=complete';
+          // Dashboard is on port 3000, redirect to main dashboard page
+          const redirectUrl = 'http://localhost:3000/?onboarding=complete';
           console.log('Redirecting to:', redirectUrl);
           window.location.href = redirectUrl;
         }, 2000);

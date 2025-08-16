@@ -422,7 +422,7 @@ export class EnrichmentService {
    * Generate AI description for company
    */
   async generateDescription(company: CompanyEnrichment, crawledContent?: any): Promise<string> {
-    const geoService = process.env.GEO_SERVICE || 'http://localhost:8000';
+    const geoService = process.env.GEO_SERVICE || 'http://localhost:8002';
     
     try {
       const response = await axios.post(`${geoService}/api/v1/geo/generate-description`, {

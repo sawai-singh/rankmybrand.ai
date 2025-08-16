@@ -423,7 +423,7 @@ async function startFullAnalysis(company: any, competitors: any[]) {
   
   // GEO analysis
   try {
-    const geoService = process.env.GEO_SERVICE || 'http://localhost:8000';
+    const geoService = process.env.GEO_SERVICE || 'http://localhost:8002';
     const geoResponse = await axios.post(`${geoService}/api/v1/geo/analyze/batch`, {
       urls: [company.domain, ...competitors.map((c: any) => c.domain)]
     });

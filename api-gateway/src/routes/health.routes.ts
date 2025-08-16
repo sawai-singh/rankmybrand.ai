@@ -15,7 +15,7 @@ const redis = new Redis(process.env.REDIS_URL || 'redis://localhost:6379');
 
 // Service URLs
 const SERVICES = {
-  geo: process.env.GEO_SERVICE || 'http://localhost:8000',
+  geo: process.env.GEO_SERVICE || 'http://localhost:8002',
   crawler: process.env.CRAWLER_SERVICE || 'http://localhost:3002',
   search: process.env.SEARCH_SERVICE || 'http://localhost:3002',
   intelligence: process.env.INTELLIGENCE_SERVICE || 'http://localhost:8002',
