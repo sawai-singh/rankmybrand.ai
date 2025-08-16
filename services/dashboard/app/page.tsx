@@ -30,6 +30,34 @@ export default function Dashboard() {
     // Set dark mode by default
     document.documentElement.classList.add("dark");
     
+    // Check if token and user data are passed in URL (from onboarding)
+    const tokenFromUrl = searchParams.get('token');
+    const userFromUrl = searchParams.get('user');
+    
+    if (tokenFromUrl) {
+      // Store the token in localStorage for the dashboard domain
+      localStorage.setItem('token', decodeURIComponent(tokenFromUrl));
+      localStorage.setItem('auth_token', decodeURIComponent(tokenFromUrl));
+      console.log('Token stored from URL');
+      
+      // Store user data if provided
+      if (userFromUrl) {
+        try {
+          const userData = JSON.parse(decodeURIComponent(userFromUrl));
+          localStorage.setItem('user', JSON.stringify(userData));
+          console.log('User data stored from URL');
+        } catch (e) {
+          console.error('Failed to parse user data from URL', e);
+        }
+      }
+      
+      // Clean up URL
+      const newUrl = new URL(window.location.href);
+      newUrl.searchParams.delete('token');
+      newUrl.searchParams.delete('user');
+      window.history.replaceState({}, '', newUrl.toString());
+    }
+    
     // Load user data from localStorage or API
     loadUserData();
     
@@ -39,39 +67,31 @@ export default function Dashboard() {
       // Remove query param
       window.history.replaceState({}, '', '/dashboard');
     }
-  }, [isNewUser]);
+  }, [isNewUser, searchParams]);
 
   const loadUserData = async () => {
     try {
       // Get user from localStorage first
       const storedUser = localStorage.getItem('user');
-      const authToken = localStorage.getItem('auth_token');
+      const authToken = localStorage.getItem('auth_token') || localStorage.getItem('token');
       
       if (!authToken) {
-        // Check if this is a new user from onboarding
-        if (isNewUser) {
-          console.log('New user from onboarding - using demo mode');
-          // Set demo user data
-          const demoUser = {
-            id: 1,
-            email: 'demo@rankmybrand.ai',
-            firstName: 'Demo',
-            lastName: 'User',
-            company: {
-              name: 'Your Company',
-              domain: 'yourcompany.com'
-            },
-            onboardingCompleted: true
-          };
-          setUser(demoUser);
-          localStorage.setItem('user', JSON.stringify(demoUser));
-          setIsLoading(false);
-          return;
-        }
-        // Skip redirect for demo - remove this in production
-        console.log('Auth token not found - demo mode');
-        // router.push('/login');
-        // return;
+        // Only use demo mode if no token at all
+        console.log('No auth token found - using demo mode');
+        const demoUser = {
+          id: 1,
+          email: 'demo@rankmybrand.ai',
+          firstName: 'Demo',
+          lastName: 'User',
+          company: {
+            name: 'Your Company',
+            domain: 'yourcompany.com'
+          },
+          onboardingCompleted: true
+        };
+        setUser(demoUser);
+        setIsLoading(false);
+        return;
       }
       
       if (storedUser) {

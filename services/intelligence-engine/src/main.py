@@ -102,6 +102,13 @@ app.include_router(analysis_routes.router)
 from src.api import geo_routes
 app.include_router(geo_routes.router)
 
+# Include LLM health routes
+try:
+    from src.api import llm_health_routes
+    app.include_router(llm_health_routes.router)
+except ImportError:
+    print("LLM health routes not available")
+
 
 @app.get("/")
 async def root():

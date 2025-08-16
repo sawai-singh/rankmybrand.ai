@@ -1,11 +1,12 @@
 "use client";
 
-import { useRef, useState, useMemo } from "react";
+import { useRef, useState, useMemo, useEffect } from "react";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { OrbitControls, Text, Billboard, Sphere, Line } from "@react-three/drei";
 import { motion } from "framer-motion";
 import * as THREE from "three";
-import { Maximize2, Info, TrendingUp, Users, Target } from "lucide-react";
+import { Maximize2, Info, TrendingUp, Users, Target, RefreshCw, Loader2 } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 interface Competitor {
   id: string;
@@ -16,56 +17,12 @@ interface Competitor {
   growth: number;
   color: string;
   isYou?: boolean;
+  domain?: string;
 }
 
-const competitors: Competitor[] = [
-  {
-    id: "you",
-    name: "Your Brand",
-    position: [2, 3, 1],
-    geoScore: 87,
-    sov: 32.4,
-    growth: 12.5,
-    color: "#8b5cf6",
-    isYou: true,
-  },
-  {
-    id: "comp1",
-    name: "TechCorp",
-    position: [3, 2.5, -1],
-    geoScore: 92,
-    sov: 38.2,
-    growth: 8.3,
-    color: "#ef4444",
-  },
-  {
-    id: "comp2",
-    name: "InnovateCo",
-    position: [-2, 2, 0],
-    geoScore: 78,
-    sov: 18.5,
-    growth: 15.2,
-    color: "#3b82f6",
-  },
-  {
-    id: "comp3",
-    name: "FutureTech",
-    position: [-1, -1, 2],
-    geoScore: 65,
-    sov: 10.9,
-    growth: -2.1,
-    color: "#f59e0b",
-  },
-  {
-    id: "comp4",
-    name: "NextGen",
-    position: [0, 0, -2],
-    geoScore: 45,
-    sov: 5.2,
-    growth: -5.8,
-    color: "#6b7280",
-  },
-];
+interface CompetitorLandscape3DProps {
+  companyId?: string;
+}
 
 function CompetitorNode({ competitor, onSelect }: { competitor: Competitor; onSelect: (c: Competitor) => void }) {
   const meshRef = useRef<THREE.Mesh>(null);
@@ -135,7 +92,7 @@ function CompetitorNode({ competitor, onSelect }: { competitor: Competitor; onSe
   );
 }
 
-function ConnectionLines() {
+function ConnectionLines({ competitors }: { competitors: Competitor[] }) {
   const points = useMemo(() => {
     const lines = [];
     for (let i = 0; i < competitors.length; i++) {
@@ -151,7 +108,7 @@ function ConnectionLines() {
       }
     }
     return lines;
-  }, []);
+  }, [competitors]);
 
   return (
     <>
@@ -169,7 +126,7 @@ function ConnectionLines() {
   );
 }
 
-function Scene({ onSelectCompetitor }: { onSelectCompetitor: (c: Competitor) => void }) {
+function Scene({ competitors, onSelectCompetitor }: { competitors: Competitor[], onSelectCompetitor: (c: Competitor) => void }) {
   const { camera } = useThree();
   
   useFrame((state) => {
@@ -185,7 +142,7 @@ function Scene({ onSelectCompetitor }: { onSelectCompetitor: (c: Competitor) => 
       <pointLight position={[10, 10, 10]} intensity={0.5} />
       <pointLight position={[-10, -10, -10]} intensity={0.3} />
       
-      <ConnectionLines />
+      <ConnectionLines competitors={competitors} />
       
       {competitors.map((competitor) => (
         <CompetitorNode
@@ -206,9 +163,172 @@ function Scene({ onSelectCompetitor }: { onSelectCompetitor: (c: Competitor) => 
   );
 }
 
-export function CompetitorLandscape3D() {
+export function CompetitorLandscape3D({ companyId }: CompetitorLandscape3DProps) {
+  const [competitors, setCompetitors] = useState<Competitor[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const [selectedCompetitor, setSelectedCompetitor] = useState<Competitor | null>(null);
   const [isFullscreen, setIsFullscreen] = useState(false);
+
+  // Fetch competitor data from API
+  const fetchCompetitorData = async () => {
+    try {
+      const token = localStorage.getItem('auth_token');
+      const apiUrl = process.env.NEXT_PUBLIC_API_GATEWAY || 'http://localhost:4000';
+      
+      const response = await fetch(`${apiUrl}/api/competitors${companyId ? `?companyId=${companyId}` : ''}`, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setCompetitors(transformToCompetitors(data));
+        setError(null);
+      } else if (response.status === 404) {
+        // No data yet - show empty state
+        setCompetitors(getEmptyCompetitors());
+        setError(null);
+      } else {
+        throw new Error('Failed to fetch competitor data');
+      }
+    } catch (err) {
+      console.error('Failed to fetch competitors:', err);
+      setError('Unable to load competitor data');
+      // Show empty state instead of fake data
+      setCompetitors(getEmptyCompetitors());
+    } finally {
+      setLoading(false);
+      setIsRefreshing(false);
+    }
+  };
+
+  // Transform API response to Competitor format
+  const transformToCompetitors = (data: any): Competitor[] => {
+    if (!data || !Array.isArray(data) || data.length === 0) {
+      return getEmptyCompetitors();
+    }
+
+    const colors = ["#8b5cf6", "#ef4444", "#3b82f6", "#f59e0b", "#6b7280", "#10b981", "#ec4899"];
+    
+    return data.map((comp: any, index: number) => {
+      // Calculate 3D position based on metrics
+      const x = ((comp.geoScore || 50) - 50) / 10; // GEO score affects X position
+      const y = ((comp.sov || 0) / 20) - 1; // Share of voice affects Y position
+      const z = ((comp.growth || 0) / 10); // Growth affects Z position
+      
+      return {
+        id: comp.id || `comp-${index}`,
+        name: comp.name || comp.domain || `Competitor ${index + 1}`,
+        position: [x, y, z] as [number, number, number],
+        geoScore: comp.geoScore || 0,
+        sov: comp.sov || comp.shareOfVoice || 0,
+        growth: comp.growth || comp.growthRate || 0,
+        color: comp.isYou ? "#8b5cf6" : colors[index % colors.length],
+        isYou: comp.isYou || false,
+        domain: comp.domain
+      };
+    });
+  };
+
+  // Get empty competitors for no data state
+  const getEmptyCompetitors = (): Competitor[] => {
+    return [{
+      id: "placeholder",
+      name: "No Data",
+      position: [0, 0, 0],
+      geoScore: 0,
+      sov: 0,
+      growth: 0,
+      color: "#6b7280",
+      isYou: false
+    }];
+  };
+
+  // Set up WebSocket for real-time updates
+  useEffect(() => {
+    let ws: WebSocket | null = null;
+    
+    const connectWebSocket = () => {
+      const wsUrl = process.env.NEXT_PUBLIC_WS_URL || 'ws://localhost:4000/ws';
+      const token = localStorage.getItem('auth_token');
+      
+      try {
+        ws = new WebSocket(`${wsUrl}?token=${token}`);
+        
+        ws.onopen = () => {
+          console.log('Competitor landscape WebSocket connected');
+          // Subscribe to competitor updates
+          ws?.send(JSON.stringify({ 
+            type: 'subscribe', 
+            channel: 'competitors',
+            companyId: companyId 
+          }));
+        };
+
+        ws.onmessage = (event) => {
+          try {
+            const data = JSON.parse(event.data);
+            if (data.type === 'competitor_update' && data.payload) {
+              setCompetitors(transformToCompetitors(data.payload));
+            }
+          } catch (err) {
+            console.error('Failed to parse WebSocket message:', err);
+          }
+        };
+
+        ws.onerror = (error) => {
+          console.error('WebSocket error:', error);
+        };
+
+        ws.onclose = () => {
+          console.log('WebSocket disconnected, attempting reconnect...');
+          // Reconnect after 5 seconds
+          setTimeout(connectWebSocket, 5000);
+        };
+      } catch (err) {
+        console.error('Failed to connect WebSocket:', err);
+      }
+    };
+
+    // Initial fetch
+    fetchCompetitorData();
+    
+    // Connect WebSocket for real-time updates
+    connectWebSocket();
+
+    // Cleanup
+    return () => {
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        ws.close();
+      }
+    };
+  }, [companyId]);
+
+  const handleRefresh = async () => {
+    setIsRefreshing(true);
+    await fetchCompetitorData();
+  };
+
+  if (loading) {
+    return (
+      <div className="glassmorphism rounded-xl p-6">
+        <div className="flex items-center justify-between mb-4">
+          <div>
+            <h2 className="text-xl font-bold mb-1">Competitive Landscape</h2>
+            <p className="text-sm text-muted-foreground">Loading competitor data...</p>
+          </div>
+        </div>
+        <div className="h-[400px] rounded-lg bg-black/20 flex items-center justify-center">
+          <Loader2 className="w-8 h-8 animate-spin text-gray-400" />
+        </div>
+      </div>
+    );
+  }
+
+  const hasRealData = competitors.length > 0 && competitors[0].id !== "placeholder";
 
   return (
     <motion.div
@@ -223,20 +343,47 @@ export function CompetitorLandscape3D() {
       <div className="flex items-center justify-between mb-4">
         <div>
           <h2 className="text-xl font-bold mb-1">Competitive Landscape</h2>
-          <p className="text-sm text-muted-foreground">3D visualization of market positioning</p>
+          <p className="text-sm text-muted-foreground">
+            {hasRealData ? "3D visualization of market positioning" : "No competitor data available"}
+          </p>
         </div>
-        <button
-          onClick={() => setIsFullscreen(!isFullscreen)}
-          className="p-2 rounded-lg glassmorphism glassmorphism-hover"
-        >
-          <Maximize2 className="w-4 h-4" />
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={handleRefresh}
+            disabled={isRefreshing}
+            className="p-2 rounded-lg glassmorphism glassmorphism-hover"
+          >
+            <RefreshCw className={cn("w-4 h-4", isRefreshing && "animate-spin")} />
+          </button>
+          <button
+            onClick={() => setIsFullscreen(!isFullscreen)}
+            className="p-2 rounded-lg glassmorphism glassmorphism-hover"
+          >
+            <Maximize2 className="w-4 h-4" />
+          </button>
+        </div>
       </div>
 
+      {error && (
+        <div className="p-3 bg-red-500/10 border border-red-500/20 rounded-lg text-red-400 text-sm mb-4">
+          {error}
+        </div>
+      )}
+
       <div className={cn("rounded-lg bg-black/20", isFullscreen ? "h-[calc(100vh-200px)]" : "h-[400px]")}>
-        <Canvas camera={{ position: [5, 3, 5], fov: 60 }}>
-          <Scene onSelectCompetitor={setSelectedCompetitor} />
-        </Canvas>
+        {hasRealData ? (
+          <Canvas camera={{ position: [5, 3, 5], fov: 60 }}>
+            <Scene competitors={competitors} onSelectCompetitor={setSelectedCompetitor} />
+          </Canvas>
+        ) : (
+          <div className="h-full flex items-center justify-center text-gray-400">
+            <div className="text-center">
+              <Users className="w-12 h-12 mx-auto mb-3 opacity-50" />
+              <p>No competitor data available</p>
+              <p className="text-sm mt-1">Add competitors to see the landscape visualization</p>
+            </div>
+          </div>
+        )}
       </div>
 
       <div className="mt-4 grid grid-cols-3 gap-4">
@@ -263,7 +410,7 @@ export function CompetitorLandscape3D() {
         </div>
       </div>
 
-      {selectedCompetitor && (
+      {selectedCompetitor && selectedCompetitor.id !== "placeholder" && (
         <motion.div
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
@@ -276,26 +423,34 @@ export function CompetitorLandscape3D() {
               <div className="grid grid-cols-3 gap-4 mt-2">
                 <div>
                   <p className="text-xs text-muted-foreground">GEO Score</p>
-                  <p className="text-lg font-bold">{selectedCompetitor.geoScore}</p>
+                  <p className="text-lg font-bold">{selectedCompetitor.geoScore || '--'}</p>
                 </div>
                 <div>
                   <p className="text-xs text-muted-foreground">Share of Voice</p>
-                  <p className="text-lg font-bold">{selectedCompetitor.sov}%</p>
+                  <p className="text-lg font-bold">{selectedCompetitor.sov ? `${selectedCompetitor.sov}%` : '--'}</p>
                 </div>
                 <div>
                   <p className="text-xs text-muted-foreground">Growth</p>
                   <p className={cn(
                     "text-lg font-bold",
-                    selectedCompetitor.growth > 0 ? "text-green-500" : "text-red-500"
+                    selectedCompetitor.growth > 0 ? "text-green-500" : selectedCompetitor.growth < 0 ? "text-red-500" : "text-gray-400"
                   )}>
-                    {selectedCompetitor.growth > 0 ? "+" : ""}{selectedCompetitor.growth}%
+                    {selectedCompetitor.growth !== 0 ? `${selectedCompetitor.growth > 0 ? "+" : ""}${selectedCompetitor.growth}%` : '--'}
                   </p>
                 </div>
               </div>
-              {selectedCompetitor.isYou && (
+              {selectedCompetitor.isYou && selectedCompetitor.geoScore > 0 && (
                 <div className="mt-2">
                   <p className="text-xs text-purple-400">
-                    💡 You're outperforming 60% of competitors. Focus on content gaps to overtake TechCorp.
+                    💡 {
+                      selectedCompetitor.geoScore > 80 
+                        ? "Excellent position! Maintain your competitive advantage."
+                        : selectedCompetitor.geoScore > 60
+                        ? "Good position. Focus on content gaps to improve further."
+                        : selectedCompetitor.geoScore > 40
+                        ? "Average position. Significant improvement opportunities available."
+                        : "Below average. Immediate action needed to improve visibility."
+                    }
                   </p>
                 </div>
               )}
@@ -306,6 +461,3 @@ export function CompetitorLandscape3D() {
     </motion.div>
   );
 }
-
-// Add missing import
-import { cn } from "@/lib/utils";

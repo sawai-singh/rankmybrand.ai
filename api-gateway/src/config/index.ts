@@ -36,7 +36,7 @@ const envSchema = z.object({
   JWT_REFRESH_EXPIRES_IN: z.string().default('30d'),
   
   // Services
-  GEO_SERVICE: z.string().url().default('http://localhost:8002'),
+  GEO_SERVICE: z.string().url().default('http://localhost:8000'),
   CRAWLER_SERVICE: z.string().url().default('http://localhost:3002'),
   SEARCH_SERVICE: z.string().url().default('http://localhost:3002'),
   DASHBOARD_SERVICE: z.string().url().default('http://localhost:3000'),
@@ -50,8 +50,8 @@ const envSchema = z.object({
   
   // Rate Limiting
   RATE_LIMIT_WINDOW_MS: z.coerce.number().default(60000),
-  RATE_LIMIT_MAX_REQUESTS: z.coerce.number().default(100),
-  RATE_LIMIT_STRICT_MAX: z.coerce.number().default(10),
+  RATE_LIMIT_MAX_REQUESTS: z.coerce.number().default(1000),
+  RATE_LIMIT_STRICT_MAX: z.coerce.number().default(100),
   
   // Logging
   LOG_LEVEL: z.enum(['error', 'warn', 'info', 'debug']).default('info'),

@@ -1,7 +1,7 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { 
   Zap, 
   TrendingUp, 
@@ -13,7 +13,10 @@ import {
   PlayCircle,
   AlertTriangle,
   ChevronRight,
-  Sparkles
+  Sparkles,
+  RefreshCw,
+  Loader2,
+  AlertCircle
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -32,74 +35,10 @@ interface Recommendation {
   preview?: string;
 }
 
-const recommendations: Recommendation[] = [
-  {
-    id: "1",
-    title: "Create comparison page for top competitors",
-    description: "AI analysis shows 78% of queries ask for comparisons. Creating this page will capture high-intent traffic.",
-    type: "content",
-    priority: "high",
-    impact: 85,
-    effort: "low",
-    timeToImplement: "2 hours",
-    successProbability: 92,
-    status: "pending",
-    autoExecutable: true,
-    preview: "## TechCorp vs Your Brand: Complete Comparison Guide\n\nDiscover why leading companies choose..."
-  },
-  {
-    id: "2",
-    title: "Optimize meta descriptions for AI snippets",
-    description: "Current descriptions are too long for AI platforms. Shortening to 155 chars will improve visibility.",
-    type: "technical",
-    priority: "high",
-    impact: 72,
-    effort: "low",
-    timeToImplement: "30 mins",
-    successProbability: 88,
-    status: "pending",
-    autoExecutable: true
-  },
-  {
-    id: "3",
-    title: "Respond to trending industry discussion",
-    description: "Major discussion on Reddit about your product category. Quick response could gain 10K+ impressions.",
-    type: "social",
-    priority: "high",
-    impact: 68,
-    effort: "low",
-    timeToImplement: "15 mins",
-    successProbability: 75,
-    status: "pending",
-    autoExecutable: false
-  },
-  {
-    id: "4",
-    title: "Add structured data for product reviews",
-    description: "Missing schema markup is hurting AI understanding. Adding review schema will improve citations.",
-    type: "technical",
-    priority: "medium",
-    impact: 65,
-    effort: "medium",
-    timeToImplement: "3 hours",
-    successProbability: 95,
-    status: "in-progress",
-    autoExecutable: true
-  },
-  {
-    id: "5",
-    title: "Create FAQ section for common queries",
-    description: "Analysis shows 40+ repeated questions across AI platforms. FAQ page will capture this traffic.",
-    type: "content",
-    priority: "medium",
-    impact: 58,
-    effort: "medium",
-    timeToImplement: "4 hours",
-    successProbability: 82,
-    status: "pending",
-    autoExecutable: true
-  }
-];
+interface SmartRecommendationsProps {
+  companyId?: string;
+  limit?: number;
+}
 
 function getPriorityColor(priority: string) {
   switch (priority) {
@@ -120,15 +59,14 @@ function getTypeIcon(type: string) {
   }
 }
 
-function RecommendationCard({ rec, index }: { rec: Recommendation; index: number }) {
+function RecommendationCard({ rec, index, onExecute }: { rec: Recommendation; index: number; onExecute: (id: string) => void }) {
   const [expanded, setExpanded] = useState(false);
   const [executing, setExecuting] = useState(false);
 
-  const handleExecute = () => {
+  const handleExecute = async () => {
     setExecuting(true);
-    setTimeout(() => {
-      setExecuting(false);
-    }, 2000);
+    await onExecute(rec.id);
+    setExecuting(false);
   };
 
   return (
@@ -266,14 +204,211 @@ function RecommendationCard({ rec, index }: { rec: Recommendation; index: number
   );
 }
 
-export function SmartRecommendations() {
+export function SmartRecommendations({ companyId, limit = 20 }: SmartRecommendationsProps) {
+  const [recommendations, setRecommendations] = useState<Recommendation[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const [filter, setFilter] = useState<"all" | "high" | "auto">("all");
-  
+
+  // Fetch recommendations from API
+  const fetchRecommendations = async () => {
+    try {
+      const token = localStorage.getItem('auth_token');
+      const apiUrl = process.env.NEXT_PUBLIC_API_GATEWAY || 'http://localhost:4000';
+      
+      const queryParams = new URLSearchParams();
+      if (companyId) queryParams.append('companyId', companyId);
+      queryParams.append('limit', limit.toString());
+      
+      const response = await fetch(`${apiUrl}/api/recommendations?${queryParams}`, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setRecommendations(transformRecommendations(data));
+        setError(null);
+      } else if (response.status === 404) {
+        // No recommendations yet
+        setRecommendations([]);
+        setError(null);
+      } else {
+        throw new Error('Failed to fetch recommendations');
+      }
+    } catch (err) {
+      console.error('Failed to fetch recommendations:', err);
+      setError('Unable to load recommendations');
+      // Show empty state instead of fake data
+      setRecommendations([]);
+    } finally {
+      setLoading(false);
+      setIsRefreshing(false);
+    }
+  };
+
+  // Transform API data to Recommendation format
+  const transformRecommendations = (data: any[]): Recommendation[] => {
+    if (!Array.isArray(data)) return [];
+    
+    return data.map(item => ({
+      id: item.id || `rec-${Date.now()}-${Math.random()}`,
+      title: item.title || item.name || 'Recommendation',
+      description: item.description || item.detail || '',
+      type: item.type || 'content',
+      priority: item.priority || 'medium',
+      impact: item.impact || item.score || 0,
+      effort: item.effort || 'medium',
+      timeToImplement: item.timeToImplement || item.estimatedTime || 'Unknown',
+      successProbability: item.successProbability || item.confidence || 0,
+      status: item.status || 'pending',
+      autoExecutable: item.autoExecutable || false,
+      preview: item.preview || item.example
+    }));
+  };
+
+  // Execute recommendation
+  const executeRecommendation = async (id: string) => {
+    try {
+      const token = localStorage.getItem('auth_token');
+      const apiUrl = process.env.NEXT_PUBLIC_API_GATEWAY || 'http://localhost:4000';
+      
+      const response = await fetch(`${apiUrl}/api/recommendations/${id}/execute`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (response.ok) {
+        // Update recommendation status
+        setRecommendations(prev => 
+          prev.map(rec => 
+            rec.id === id 
+              ? { ...rec, status: 'in-progress' as const }
+              : rec
+          )
+        );
+        
+        // Refresh after a delay to get updated status
+        setTimeout(() => fetchRecommendations(), 3000);
+      }
+    } catch (err) {
+      console.error('Failed to execute recommendation:', err);
+    }
+  };
+
+  // Set up WebSocket for real-time updates
+  useEffect(() => {
+    let ws: WebSocket | null = null;
+    
+    const connectWebSocket = () => {
+      const wsUrl = process.env.NEXT_PUBLIC_WS_URL || 'ws://localhost:4000/ws';
+      const token = localStorage.getItem('auth_token');
+      
+      try {
+        ws = new WebSocket(`${wsUrl}?token=${token}`);
+        
+        ws.onopen = () => {
+          console.log('Recommendations WebSocket connected');
+          // Subscribe to recommendation updates
+          ws?.send(JSON.stringify({ 
+            type: 'subscribe', 
+            channel: 'recommendations',
+            companyId: companyId 
+          }));
+        };
+
+        ws.onmessage = (event) => {
+          try {
+            const data = JSON.parse(event.data);
+            if (data.type === 'recommendation_update' && data.payload) {
+              // Update or add new recommendation
+              const newRec = transformRecommendations([data.payload])[0];
+              setRecommendations(prev => {
+                const existing = prev.findIndex(r => r.id === newRec.id);
+                if (existing >= 0) {
+                  const updated = [...prev];
+                  updated[existing] = newRec;
+                  return updated;
+                }
+                return [newRec, ...prev].slice(0, limit);
+              });
+            }
+          } catch (err) {
+            console.error('Failed to parse WebSocket message:', err);
+          }
+        };
+
+        ws.onerror = (error) => {
+          console.error('WebSocket error:', error);
+        };
+
+        ws.onclose = () => {
+          console.log('WebSocket disconnected, attempting reconnect...');
+          // Reconnect after 5 seconds
+          setTimeout(connectWebSocket, 5000);
+        };
+      } catch (err) {
+        console.error('Failed to connect WebSocket:', err);
+      }
+    };
+
+    // Initial fetch
+    fetchRecommendations();
+    
+    // Connect WebSocket for real-time updates
+    connectWebSocket();
+
+    // Cleanup
+    return () => {
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        ws.close();
+      }
+    };
+  }, [companyId, limit]);
+
+  const handleRefresh = async () => {
+    setIsRefreshing(true);
+    await fetchRecommendations();
+  };
+
   const filteredRecs = recommendations.filter(rec => {
     if (filter === "high") return rec.priority === "high";
     if (filter === "auto") return rec.autoExecutable;
     return true;
   });
+
+  if (loading) {
+    return (
+      <div className="glassmorphism rounded-xl p-6">
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center gap-2">
+            <Sparkles className="w-5 h-5 text-purple-500" />
+            <h2 className="text-xl font-bold">Smart Recommendations</h2>
+          </div>
+        </div>
+        <div className="space-y-4">
+          {[1, 2, 3].map(i => (
+            <div key={i} className="animate-pulse">
+              <div className="glassmorphism rounded-xl p-4">
+                <div className="flex items-start gap-4">
+                  <div className="w-10 h-10 bg-gray-700 rounded-lg" />
+                  <div className="flex-1">
+                    <div className="h-4 bg-gray-700 rounded w-3/4 mb-2" />
+                    <div className="h-3 bg-gray-700 rounded w-1/2" />
+                  </div>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <motion.div
@@ -288,6 +423,13 @@ export function SmartRecommendations() {
         </div>
         
         <div className="flex items-center gap-2">
+          <button
+            onClick={handleRefresh}
+            disabled={isRefreshing}
+            className="p-2 rounded-lg glassmorphism glassmorphism-hover"
+          >
+            <RefreshCw className={cn("w-4 h-4", isRefreshing && "animate-spin")} />
+          </button>
           <button
             onClick={() => setFilter("all")}
             className={cn(
@@ -318,10 +460,33 @@ export function SmartRecommendations() {
         </div>
       </div>
 
+      {error && (
+        <div className="p-3 bg-red-500/10 border border-red-500/20 rounded-lg text-red-400 text-sm mb-4">
+          {error}
+        </div>
+      )}
+
       <div className="max-h-[600px] overflow-y-auto custom-scrollbar">
-        {filteredRecs.map((rec, index) => (
-          <RecommendationCard key={rec.id} rec={rec} index={index} />
-        ))}
+        {filteredRecs.length === 0 ? (
+          <div className="text-center py-8 text-gray-400">
+            <AlertCircle className="w-12 h-12 mx-auto mb-3 opacity-50" />
+            <p>No recommendations available</p>
+            <p className="text-sm mt-1">
+              {filter !== "all" 
+                ? "Try changing your filter or run an analysis"
+                : "Run an analysis to generate recommendations"}
+            </p>
+          </div>
+        ) : (
+          filteredRecs.map((rec, index) => (
+            <RecommendationCard 
+              key={rec.id} 
+              rec={rec} 
+              index={index} 
+              onExecute={executeRecommendation}
+            />
+          ))
+        )}
       </div>
     </motion.div>
   );
