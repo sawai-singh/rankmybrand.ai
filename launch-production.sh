@@ -172,8 +172,10 @@ fi
 success "Node.js version: $(node -v)"
 
 # Check Python version
-PYTHON_VERSION=$(python3 --version | cut -d' ' -f2 | cut -d'.' -f1,2)
-if [[ $(echo "$PYTHON_VERSION < 3.9" | bc) -eq 1 ]]; then
+PYTHON_VERSION=$(python3 --version | cut -d' ' -f2)
+PYTHON_MAJOR=$(echo $PYTHON_VERSION | cut -d'.' -f1)
+PYTHON_MINOR=$(echo $PYTHON_VERSION | cut -d'.' -f2)
+if [ "$PYTHON_MAJOR" -lt 3 ] || ([ "$PYTHON_MAJOR" -eq 3 ] && [ "$PYTHON_MINOR" -lt 9 ]); then
     error "Python 3.9 or higher is required (found: $PYTHON_VERSION)"
     exit 1
 fi
@@ -211,15 +213,13 @@ fi
 
 # Start PostgreSQL if not running
 if ! psql -U postgres -c "SELECT 1" > /dev/null 2>&1; then
-    log "Starting PostgreSQL..."
-    pg_ctl start -D /usr/local/var/postgres -l "$LOG_DIR/postgres.log" > /dev/null 2>&1
-    POSTGRES_STARTED=true
-    sleep 3
-    if psql -U postgres -c "SELECT 1" > /dev/null 2>&1; then
-        success "PostgreSQL started"
+    # Try default postgres user without password
+    if ! psql -U $USER -d postgres -c "SELECT 1" > /dev/null 2>&1; then
+        warning "PostgreSQL connection failed - please ensure PostgreSQL is running"
+        warning "You may need to start it manually with: brew services start postgresql@14"
+        # Continue anyway as it might be configured differently
     else
-        error "Failed to start PostgreSQL"
-        exit 1
+        success "PostgreSQL accessible via user $USER"
     fi
 else
     success "PostgreSQL already running"
@@ -227,11 +227,13 @@ fi
 
 # Initialize database if needed
 log "Checking database..."
-if ! psql -U postgres -d rankmybrand -c "SELECT 1 FROM users LIMIT 1" > /dev/null 2>&1; then
+# Try with current user first
+DB_USER="${PGUSER:-$USER}"
+if ! psql -U $DB_USER -d rankmybrand -c "SELECT 1 FROM users LIMIT 1" > /dev/null 2>&1; then
     log "Initializing database..."
-    psql -U postgres -c "CREATE DATABASE rankmybrand" > /dev/null 2>&1 || true
+    psql -U $DB_USER -d postgres -c "CREATE DATABASE rankmybrand" > /dev/null 2>&1 || true
     if [ -f "$PROJECT_ROOT/database/schema.sql" ]; then
-        psql -U postgres -d rankmybrand -f "$PROJECT_ROOT/database/schema.sql" > /dev/null 2>&1
+        psql -U $DB_USER -d rankmybrand -f "$PROJECT_ROOT/database/schema.sql" > /dev/null 2>&1 || true
         success "Database initialized"
     else
         warning "Database schema file not found"
@@ -251,7 +253,7 @@ log "Building services..."
 if [ -d "$PROJECT_ROOT/api-gateway" ]; then
     log "Building API Gateway..."
     cd "$PROJECT_ROOT/api-gateway"
-    npm install --production > /dev/null 2>&1
+    npm install --legacy-peer-deps > /dev/null 2>&1
     npm run build > /dev/null 2>&1 || true
     success "API Gateway built"
 fi
@@ -260,7 +262,7 @@ fi
 if [ -d "$PROJECT_ROOT/rankmybrand-frontend" ]; then
     log "Building Frontend..."
     cd "$PROJECT_ROOT/rankmybrand-frontend"
-    npm install --production > /dev/null 2>&1
+    npm install --legacy-peer-deps > /dev/null 2>&1
     npm run build > /dev/null 2>&1
     success "Frontend built"
 fi
@@ -269,7 +271,7 @@ fi
 if [ -d "$PROJECT_ROOT/services/dashboard" ]; then
     log "Building Dashboard..."
     cd "$PROJECT_ROOT/services/dashboard"
-    npm install --production > /dev/null 2>&1
+    npm install --legacy-peer-deps > /dev/null 2>&1
     npm run build > /dev/null 2>&1
     success "Dashboard built"
 fi

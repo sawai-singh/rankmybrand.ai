@@ -566,7 +566,7 @@ app.get('/api/ai/visibility', limiter, asyncHandler(async (req: any, res: any) =
     });
     
     if (response.ok) {
-      const data = await response.json();
+      const data: any = await response.json();
       res.json({ 
         platforms: data.analysis?.platforms || { chatgpt: 70, claude: 65, perplexity: 60, gemini: 55 },
         metrics: {
@@ -674,7 +674,7 @@ app.get('/api/metrics/current', limiter, asyncHandler(async (req: any, res: any)
         });
         
         if (geoResponse.ok) {
-          const geoData = await geoResponse.json();
+          const geoData: any = await geoResponse.json();
           geoScore = geoData.analysis?.overall_score || 81.9;
           visibility = geoData.analysis?.scores?.visibility || 75;
         }
@@ -747,7 +747,7 @@ app.post('/api/onboarding/complete', limiter, asyncHandler(async (req: any, res:
       });
       
       if (geoResponse.ok) {
-        const geoData = await geoResponse.json();
+        const geoData: any = await geoResponse.json();
         analysisJobs.push({
           type: 'geo',
           status: 'completed',

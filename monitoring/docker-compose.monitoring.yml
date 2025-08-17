@@ -99,7 +99,7 @@ services:
     image: prom/blackbox-exporter:latest
     container_name: rankmybrand-blackbox-exporter
     volumes:
-      - ./blackbox.yml:/config/blackbox.yml:ro
+      - ./blackbox.yaml:/config/blackbox.yml:ro
     command:
       - '--config.file=/config/blackbox.yml'
     ports:
