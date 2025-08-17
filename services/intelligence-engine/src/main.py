@@ -9,6 +9,7 @@ from src.config import settings
 from src.consumer import StreamConsumer
 from src.storage import PostgresClient, RedisClient, CacheManager
 from src.monitoring import HealthChecker
+from src.monitoring.middleware import setup_metrics_middleware
 from src.processors import ResponseProcessor
 from src.models.schemas import AIResponse, ProcessedResponse
 from src.api import analysis_routes
@@ -90,6 +91,9 @@ app = FastAPI(
     version="1.0.0",
     lifespan=lifespan
 )
+
+# Setup Prometheus metrics middleware
+setup_metrics_middleware(app)
 
 # Mount Prometheus metrics endpoint
 metrics_app = make_asgi_app()

@@ -1,8 +1,9 @@
-"""Health check implementation."""
+"""Health check implementation with metrics integration."""
 
 from typing import Dict, List
 from datetime import datetime, timedelta
 from src.storage import PostgresClient, RedisClient
+from .metrics import metrics_collector
 
 
 class HealthChecker:
@@ -76,11 +77,14 @@ class HealthChecker:
             }
             health_status["status"] = "degraded"
         
-        # Check processing lag
+        # Check processing lag and update metrics
         try:
             pending = await self.redis.get_pending_messages()
             if pending and isinstance(pending, dict):
                 total_pending = pending.get("pending", 0)
+                
+                # Update stream lag metrics
+                metrics_collector.set_stream_lag("input_stream", total_pending)
                 
                 health_status["checks"]["processing"] = {
                     "status": "healthy" if total_pending < 100 else "degraded",
@@ -94,6 +98,19 @@ class HealthChecker:
                 "status": "unknown",
                 "error": str(e)
             }
+        
+        # Update database connection metrics
+        try:
+            pool_stats = await self.postgres.get_pool_stats()
+            if pool_stats:
+                metrics_collector.set_database_connections(
+                    pool_name="main",
+                    active=pool_stats.get("active", 0),
+                    idle=pool_stats.get("idle", 0),
+                    total=pool_stats.get("total", 0)
+                )
+        except Exception:
+            pass
         
         self.last_check = datetime.utcnow()
         self.last_status = health_status

@@ -1,0 +1,114 @@
+{
+  "overall_status": "NEEDS_ATTENTION",
+  "implementation": {
+    "status": "FAIL",
+    "dashboard_metrics": [
+      "rankmybrand_active_connections",
+      "rankmybrand_api_errors_total",
+      "rankmybrand_cache_hit_rate",
+      "rankmybrand_geo_score_value",
+      "rankmybrand_http_request_duration_seconds_bucket",
+      "rankmybrand_http_requests_total",
+      "rankmybrand_llm_api_calls_total",
+      "rankmybrand_onboarding_funnel"
+    ],
+    "implemented_metrics": [
+      "rankmybrand_active_connections",
+      "rankmybrand_ai_processing_duration_seconds",
+      "rankmybrand_ai_responses_processed_total",
+      "rankmybrand_api_errors_total",
+      "rankmybrand_authority_score_distribution",
+      "rankmybrand_cache_hit_rate",
+      "rankmybrand_cache_operations_total",
+      "rankmybrand_content_gaps_detected_total",
+      "rankmybrand_cpu_usage_percent",
+      "rankmybrand_current_processing_count",
+      "rankmybrand_database_connections",
+      "rankmybrand_geo_score_distribution",
+      "rankmybrand_geo_score_value",
+      "rankmybrand_http_request_duration_seconds",
+      "rankmybrand_http_requests_total",
+      "rankmybrand_llm_api_calls_total",
+      "rankmybrand_memory_usage_bytes",
+      "rankmybrand_monthly_recurring_revenue",
+      "rankmybrand_nlp_model_inference_duration_seconds",
+      "rankmybrand_onboarding_funnel",
+      "rankmybrand_postgres_write_errors_total",
+      "rankmybrand_processing_errors_total",
+      "rankmybrand_redis_stream_lag",
+      "rankmybrand_relevance_score_distribution",
+      "rankmybrand_sentiment_score_distribution",
+      "rankmybrand_service_info",
+      "rankmybrand_share_of_voice_distribution",
+      "rankmybrand_subscription_conversions_total",
+      "rankmybrand_user_registrations_total"
+    ],
+    "matching_metrics": [
+      "rankmybrand_active_connections",
+      "rankmybrand_api_errors_total",
+      "rankmybrand_cache_hit_rate",
+      "rankmybrand_geo_score_value",
+      "rankmybrand_http_requests_total",
+      "rankmybrand_llm_api_calls_total",
+      "rankmybrand_onboarding_funnel"
+    ],
+    "missing_metrics": [
+      "rankmybrand_http_request_duration_seconds_bucket"
+    ],
+    "extra_metrics": [
+      "rankmybrand_ai_processing_duration_seconds",
+      "rankmybrand_ai_responses_processed_total",
+      "rankmybrand_authority_score_distribution",
+      "rankmybrand_cache_operations_total",
+      "rankmybrand_content_gaps_detected_total",
+      "rankmybrand_cpu_usage_percent",
+      "rankmybrand_current_processing_count",
+      "rankmybrand_database_connections",
+      "rankmybrand_geo_score_distribution",
+      "rankmybrand_http_request_duration_seconds",
+      "rankmybrand_memory_usage_bytes",
+      "rankmybrand_monthly_recurring_revenue",
+      "rankmybrand_nlp_model_inference_duration_seconds",
+      "rankmybrand_postgres_write_errors_total",
+      "rankmybrand_processing_errors_total",
+      "rankmybrand_redis_stream_lag",
+      "rankmybrand_relevance_score_distribution",
+      "rankmybrand_sentiment_score_distribution",
+      "rankmybrand_service_info",
+      "rankmybrand_share_of_voice_distribution",
+      "rankmybrand_subscription_conversions_total",
+      "rankmybrand_user_registrations_total"
+    ],
+    "summary": {
+      "total_dashboard_metrics": 8,
+      "total_implemented_metrics": 29,
+      "matching_count": 7,
+      "missing_count": 1,
+      "extra_count": 22
+    }
+  },
+  "types": {
+    "rankmybrand_http_requests_total": "CORRECT",
+    "rankmybrand_geo_score_value": "CORRECT",
+    "rankmybrand_active_connections": "CORRECT",
+    "rankmybrand_http_request_duration_seconds": "CORRECT",
+    "rankmybrand_onboarding_funnel": "CORRECT",
+    "rankmybrand_cache_hit_rate": "CORRECT",
+    "rankmybrand_api_errors_total": "CORRECT",
+    "rankmybrand_llm_api_calls_total": "CORRECT"
+  },
+  "labels": {
+    "rankmybrand_http_requests_total": "NOT_FOUND",
+    "rankmybrand_geo_score_value": "NOT_FOUND",
+    "rankmybrand_active_connections": "NOT_FOUND",
+    "rankmybrand_http_request_duration_seconds": "NOT_FOUND",
+    "rankmybrand_onboarding_funnel": "NOT_FOUND",
+    "rankmybrand_cache_hit_rate": "NOT_FOUND",
+    "rankmybrand_api_errors_total": "NOT_FOUND",
+    "rankmybrand_llm_api_calls_total": "NOT_FOUND"
+  },
+  "recommendations": [
+    "Implement missing metrics: rankmybrand_http_request_duration_seconds_bucket",
+    "Update metric labels to match dashboard queries"
+  ]
+}

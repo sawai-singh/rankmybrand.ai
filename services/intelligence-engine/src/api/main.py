@@ -7,6 +7,7 @@ import logging
 from src.api.analysis_routes import router as analysis_router
 from src.api.geo_routes import router as geo_router
 from src.config import settings
+from src.monitoring.middleware import setup_metrics_middleware
 
 # Configure logging
 logging.basicConfig(
@@ -31,6 +32,9 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Setup Prometheus metrics middleware
+setup_metrics_middleware(app)
 
 # Mount Prometheus metrics endpoint
 if settings.enable_metrics:
