@@ -37,6 +37,7 @@ export default function CompanyDetailsPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [sessionId, setSessionId] = useState<string>('');
+  const [stepStartTime] = useState(Date.now());
 
   useEffect(() => {
     // Load session data
@@ -48,11 +49,34 @@ export default function CompanyDetailsPage() {
 
     const session = JSON.parse(sessionData);
     setSessionId(session.sessionId);
-    setCompany(session.enrichmentData);
+    
+    // Check if we have edited company data or use enrichment data
+    const companyData = session.company || session.enrichmentData;
+    
+    // Store original values for tracking
+    if (!companyData.originalName) {
+      companyData.originalName = companyData.name;
+    }
+    if (!companyData.originalDescription) {
+      companyData.originalDescription = companyData.description;
+    }
+    if (!companyData.originalIndustry) {
+      companyData.originalIndustry = companyData.industry;
+    }
+    
+    setCompany(companyData);
     setLoading(false);
 
     // Start background crawl progress monitoring
     startCrawlMonitoring(session.sessionId);
+    
+    // Track time spent on this step
+    const startTime = Date.now();
+    return () => {
+      const timeSpent = Math.round((Date.now() - startTime) / 1000);
+      // You could send this to backend here
+      console.log(`Time spent on company step: ${timeSpent}s`);
+    };
   }, []);
 
   const startCrawlMonitoring = (sessionId: string) => {
@@ -70,8 +94,12 @@ export default function CompanyDetailsPage() {
     return () => ws.close();
   };
 
-  const handleFieldEdit = (field: string, value: any) => {
+  const handleFieldEdit = async (field: string, value: any) => {
     if (!company) return;
+    
+    const oldValue = field.includes('.') 
+      ? (company as any)[field.split('.')[0]]?.[field.split('.')[1]]
+      : (company as any)[field];
     
     const updatedCompany = { ...company };
     
@@ -86,25 +114,93 @@ export default function CompanyDetailsPage() {
       (updatedCompany as any)[field] = value;
     }
     
+    // Track the edit in backend
+    try {
+      await fetch(`${process.env.NEXT_PUBLIC_API_GATEWAY || 'http://localhost:4000'}/api/onboarding/track-field-edit`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          sessionId,
+          field,
+          oldValue,
+          newValue: value,
+          step: 'company_details'
+        })
+      });
+    } catch (error) {
+      console.error('Failed to track edit:', error);
+    }
+    
+    // Mark company as user-edited
+    updatedCompany.userEdited = true;
+    
+    // Store original values if not already stored
+    if (!updatedCompany.originalName && field === 'name') {
+      updatedCompany.originalName = oldValue;
+    }
+    if (!updatedCompany.originalDescription && field === 'description') {
+      updatedCompany.originalDescription = oldValue;
+    }
+    if (!updatedCompany.originalIndustry && field === 'industry') {
+      updatedCompany.originalIndustry = oldValue;
+    }
+    
     setCompany(updatedCompany);
   };
 
   const handleContinue = async () => {
     setSaving(true);
     
+    // Track time spent on this step
+    const timeSpent = Date.now() - stepStartTime;
     try {
+      await fetch(`${process.env.NEXT_PUBLIC_API_GATEWAY || 'http://localhost:4000'}/api/onboarding/track-step`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          sessionId,
+          fromStep: 'company',
+          toStep: 'description',
+          timeSpent
+        })
+      });
+    } catch (error) {
+      console.error('Failed to track step time:', error);
+    }
+    
+    try {
+      // Generate description with the edited company data
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_GATEWAY || 'http://localhost:4000'}/api/onboarding/generate-description`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          sessionId,
+          company,
+          userEditedCompany: company.userEdited ? company : null,
+          crawledPages: [] // This would come from the crawl monitoring
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to generate description');
+      }
+
+      const data = await response.json();
+      
       // Save company data to session
       const sessionData = JSON.parse(sessionStorage.getItem('onboarding_session') || '{}');
       sessionData.company = company;
-      // Also preserve enrichmentData to keep competitors
+      sessionData.description = data.description;
+      sessionData.userEditedCompany = company.userEdited;
+      // Also preserve enrichmentData
       sessionData.enrichmentData = company;
       sessionStorage.setItem('onboarding_session', JSON.stringify(sessionData));
       
-      // Navigate to description generation
+      // Navigate to description page
       router.push('/onboarding/description');
     } catch (error) {
-      console.error('Failed to save company data:', error);
-      toast.error('Failed to save changes');
+      console.error('Failed to continue:', error);
+      toast.error('Failed to generate description');
     } finally {
       setSaving(false);
     }

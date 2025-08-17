@@ -9,12 +9,15 @@ import { toast } from 'sonner';
 export default function DescriptionPage() {
   const router = useRouter();
   const [description, setDescription] = useState('');
+  const [originalDescription, setOriginalDescription] = useState('');
   const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
   const [wordCount, setWordCount] = useState(0);
   const [sessionId, setSessionId] = useState('');
   const [company, setCompany] = useState<any>(null);
   const [crawlProgress, setCrawlProgress] = useState(0);
+  const [editCount, setEditCount] = useState(0);
+  const [pageStartTime] = useState(Date.now());
 
   useEffect(() => {
     // Load session data
@@ -55,6 +58,7 @@ export default function DescriptionPage() {
       }
 
       setDescription(data.description);
+      setOriginalDescription(data.description);  // Store original for tracking
       setWordCount(data.wordCount);
       setLoading(false);
     } catch (error: any) {
@@ -71,9 +75,30 @@ export default function DescriptionPage() {
     }
   };
 
-  const handleDescriptionChange = (value: string) => {
+  const handleDescriptionChange = async (value: string) => {
+    const oldValue = description;
     setDescription(value);
     setWordCount(value.split(' ').filter(word => word.length > 0).length);
+    setEditCount(prev => prev + 1);
+    
+    // Track the edit if it's different from original
+    if (value !== originalDescription && sessionId) {
+      try {
+        await fetch(`${process.env.NEXT_PUBLIC_API_GATEWAY || 'http://localhost:4000'}/api/onboarding/track-edit`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            sessionId,
+            field: 'description',
+            oldValue: oldValue,
+            newValue: value,
+            step: 'description_editing'
+          })
+        });
+      } catch (error) {
+        console.error('Failed to track description edit:', error);
+      }
+    }
   };
 
   const handleRegenerate = () => {
@@ -86,9 +111,40 @@ export default function DescriptionPage() {
       return;
     }
 
+    // Calculate time spent on this step
+    const timeSpent = Math.round((Date.now() - pageStartTime) / 1000);
+    
+    // Track final description if edited
+    if (description !== originalDescription && sessionId) {
+      try {
+        await fetch(`${process.env.NEXT_PUBLIC_API_GATEWAY || 'http://localhost:4000'}/api/onboarding/track-edit`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            sessionId,
+            field: 'final_description',
+            oldValue: originalDescription,
+            newValue: description,
+            step: 'description_final',
+            metadata: {
+              editCount,
+              timeSpent,
+              wordCount
+            }
+          })
+        });
+      } catch (error) {
+        console.error('Failed to track final description:', error);
+      }
+    }
+
     // Save description to session
     const sessionData = JSON.parse(sessionStorage.getItem('onboarding_session') || '{}');
     sessionData.description = description;
+    sessionData.originalDescription = originalDescription;
+    sessionData.editedDescription = description !== originalDescription ? description : null;
+    sessionData.descriptionEditCount = editCount;
+    sessionData.timeOnDescriptionStep = timeSpent;
     sessionStorage.setItem('onboarding_session', JSON.stringify(sessionData));
     
     // Navigate to competitor selection

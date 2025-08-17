@@ -11,63 +11,48 @@ import {
 } from "lucide-react";
 
 interface CompanyJourneyData {
-  // Session information
-  session_id: string;
+  // Basic info
   email: string;
-  session_status: string;
-  session_started: string;
-  session_completed: string;
-  last_activity: string;
-  
-  // Company basic info
   company_id: number;
   domain: string;
-  company_name: string;
-  company_description: string;
-  industry: string;
-  latest_geo_score: number;
   
-  // Original vs Final tracking
+  // Name journey
+  current_name: string;
   original_name: string;
-  original_description: string;
-  original_industry: string;
   final_name: string;
+  
+  // Description journey
+  current_description: string;
+  original_description: string;
   final_description: string;
-  final_industry: string;
   
   // Edit tracking
   user_edited: boolean;
   edit_count: number;
-  description_edit_count: number;
-  total_edits: number;
+  last_edited_at: string;
   
-  // Data quality
+  // Quality metrics
   data_completeness: number;
-  confidence_score: number;
   data_quality_score: number;
-  completeness_score: number;
+  latest_geo_score: number;
   
   // Journey tracking
+  onboarding_completed: boolean;
+  total_edits: number;
   time_on_company_step: number;
   time_on_description_step: number;
   time_on_competitor_step: number;
+  total_journey_time: number;
   
-  // Enrichment and activity data
+  // Enrichment data
   enrichment_attempts: number;
-  activity_count: number;
-  activities: any;
-  edit_history: any;
+  best_enrichment_quality: number;
   
   // User info
-  user_id: number;
   user_email: string;
   user_created_at: string;
-  
-  // Journey-specific data
-  original_company_data: any;
-  edited_company_data: any;
-  final_company_data: any;
-  metadata: any;
+  session_id: string;
+  current_step: string;
 }
 
 interface EditHistory {
@@ -149,14 +134,14 @@ export default function EnhancedAdminPage() {
   const filteredCompanies = companies.filter(company => {
     const matchesSearch = 
       company.user_email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      company.company_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      company.current_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       company.domain?.toLowerCase().includes(searchTerm.toLowerCase());
     
     const matchesFilter = 
       filterStatus === "all" ||
-      (filterStatus === "completed" && (company.session_status === 'completed')) ||
+      (filterStatus === "completed" && company.onboarding_completed) ||
       (filterStatus === "edited" && company.user_edited) ||
-      (filterStatus === "incomplete" && !(company.session_status === 'completed'));
+      (filterStatus === "incomplete" && !company.onboarding_completed);
     
     return matchesSearch && matchesFilter;
   });
@@ -172,16 +157,16 @@ export default function EnhancedAdminPage() {
       company.user_email,
       company.domain,
       company.original_name || "",
-      company.company_name || "",
+      company.current_name || "",
       company.final_name || "",
       (company.original_description || "").substring(0, 100),
       (company.final_description || "").substring(0, 100),
       company.user_edited ? "Yes" : "No",
       company.edit_count?.toString() || "0",
-      Number(company.data_completeness || 0).toFixed(2),
+      company.data_completeness?.toFixed(2) || "0",
       company.latest_geo_score?.toString() || "0",
-      (((company.time_on_company_step || 0) + (company.time_on_description_step || 0) + (company.time_on_competitor_step || 0)) / 60).toFixed(2),
-      (company.session_status === 'completed') ? "Completed" : "In Progress"
+      ((company.total_journey_time || 0) / 60).toFixed(2),
+      company.onboarding_completed ? "Completed" : "In Progress"
     ]);
     
     const csv = [headers, ...rows].map(row => row.join(",")).join("\n");
@@ -386,8 +371,8 @@ export default function EnhancedAdminPage() {
             <table className="w-full">
               <thead className="border-b border-white/10">
                 <tr>
-                  <th className="text-left p-4 font-medium">Session / Email</th>
                   <th className="text-left p-4 font-medium">Company</th>
+                  <th className="text-left p-4 font-medium">Name Journey</th>
                   <th className="text-left p-4 font-medium">Description</th>
                   <th className="text-left p-4 font-medium">Edits</th>
                   <th className="text-left p-4 font-medium">Quality</th>
@@ -399,49 +384,35 @@ export default function EnhancedAdminPage() {
               <tbody>
                 {filteredCompanies.map((company, index) => (
                   <motion.tr
-                    key={company.session_id || `${company.email}-${index}`}
+                    key={company.company_id}
                     initial={{ opacity: 0, x: -20 }}
                     animate={{ opacity: 1, x: 0 }}
                     transition={{ delay: index * 0.05 }}
                     className="border-b border-white/5 hover:bg-white/5 transition-colors cursor-pointer"
                     onClick={() => {
                       setSelectedCompany(company);
-                      setEditHistory(company.edit_history || []);
+                      fetchCompanyDetails(company.company_id);
                     }}
                   >
                     <td className="p-4">
                       <div>
-                        <div className="flex items-center gap-2">
-                          <Mail className="w-4 h-4 text-blue-400" />
-                          <span className="font-medium">{company.email}</span>
-                        </div>
-                        <div className="text-xs text-gray-400 mt-1">
-                          {new Date(company.session_started).toLocaleString()}
-                        </div>
-                        <div className="text-xs text-gray-500 mt-1">
-                          Status: <span className={company.session_status === 'completed' ? 'text-green-400' : 'text-yellow-400'}>
-                            {company.session_status || 'in_progress'}
-                          </span>
-                        </div>
+                        <div className="font-medium">{company.domain}</div>
+                        <div className="text-xs text-muted-foreground">{company.user_email}</div>
                       </div>
                     </td>
                     <td className="p-4">
                       <div className="space-y-1">
-                        <div className="flex items-center gap-2">
-                          <Building className="w-4 h-4 text-purple-400" />
-                          <span className="font-medium">{company.company_name || company.domain}</span>
-                        </div>
                         {company.original_name !== company.final_name ? (
                           <>
                             <div className="text-xs text-gray-400">
                               Original: {company.original_name || "—"}
                             </div>
                             <div className="text-sm font-medium text-green-400">
-                              Final: {company.final_name || company.company_name}
+                              Final: {company.final_name || company.current_name}
                             </div>
                           </>
                         ) : (
-                          <div className="text-sm">{company.company_name || company.original_name || "—"}</div>
+                          <div className="text-sm">{company.current_name || "—"}</div>
                         )}
                       </div>
                     </td>
@@ -454,7 +425,7 @@ export default function EnhancedAdminPage() {
                           </div>
                         ) : (
                           <span className="text-xs text-gray-400 truncate">
-                            {(company.company_description || "No description").substring(0, 50)}...
+                            {(company.current_description || "No description").substring(0, 50)}...
                           </span>
                         )}
                       </div>
@@ -477,10 +448,10 @@ export default function EnhancedAdminPage() {
                           <div className="w-20 bg-gray-700 rounded-full h-2">
                             <div 
                               className="bg-gradient-to-r from-purple-500 to-blue-500 h-2 rounded-full"
-                              style={{ width: `${Number(company.data_completeness || 0)}%` }}
+                              style={{ width: `${company.data_completeness || 0}%` }}
                             />
                           </div>
-                          <span className="text-xs">{Number(company.data_completeness || 0).toFixed(0)}%</span>
+                          <span className="text-xs">{company.data_completeness?.toFixed(0) || 0}%</span>
                         </div>
                         {company.latest_geo_score && (
                           <div className="flex items-center gap-1">
@@ -491,11 +462,11 @@ export default function EnhancedAdminPage() {
                       </div>
                     </td>
                     <td className="p-4">
-                      {(company.time_on_company_step || company.time_on_description_step || company.time_on_competitor_step) ? (
+                      {company.total_journey_time ? (
                         <div className="flex items-center gap-1">
                           <Clock className="w-3 h-3 text-blue-400" />
                           <span className="text-xs">
-                            {Math.round(((company.time_on_company_step || 0) + (company.time_on_description_step || 0) + (company.time_on_competitor_step || 0)) / 60)}m
+                            {Math.round((company.total_journey_time || 0) / 60)}m
                           </span>
                         </div>
                       ) : (
@@ -504,11 +475,11 @@ export default function EnhancedAdminPage() {
                     </td>
                     <td className="p-4">
                       <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                        (company.session_status === 'completed')
+                        company.onboarding_completed
                           ? "bg-green-500/20 text-green-400 border border-green-500/30"
                           : "bg-orange-500/20 text-orange-400 border border-orange-500/30"
                       }`}>
-                        {(company.session_status === 'completed') ? '✓ Complete' : '◐ In Progress'}
+                        {company.onboarding_completed ? '✓ Complete' : '◐ In Progress'}
                       </span>
                     </td>
                     <td className="p-4">
@@ -597,7 +568,7 @@ export default function EnhancedAdminPage() {
                         <div className="flex justify-between">
                           <span>Data Completeness:</span>
                           <span className="font-medium">
-                            {Number(selectedCompany.data_completeness || 0).toFixed(0)}%
+                            {selectedCompany.data_completeness?.toFixed(0) || 0}%
                           </span>
                         </div>
                         <div className="flex justify-between">
@@ -609,7 +580,7 @@ export default function EnhancedAdminPage() {
                         <div className="flex justify-between">
                           <span>Quality Score:</span>
                           <span className="font-medium">
-                            {Number(selectedCompany.data_quality_score || 0).toFixed(0)}%
+                            {selectedCompany.data_quality_score?.toFixed(0) || 0}%
                           </span>
                         </div>
                       </div>
@@ -661,7 +632,7 @@ export default function EnhancedAdminPage() {
                           <div className="flex items-center gap-3">
                             <Zap className="w-4 h-4 text-yellow-400" />
                             <span className="text-sm font-medium">
-                              Total Journey: {Math.round(((selectedCompany.time_on_company_step || 0) + (selectedCompany.time_on_description_step || 0) + (selectedCompany.time_on_competitor_step || 0)) / 60)} minutes
+                              Total Journey: {Math.round((selectedCompany.total_journey_time || 0) / 60)} minutes
                             </span>
                           </div>
                         </div>
@@ -673,41 +644,29 @@ export default function EnhancedAdminPage() {
                 {activeTab === "edits" && (
                   <div className="space-y-4">
                     <div className="glassmorphism p-4 rounded-lg">
-                      <h4 className="font-medium mb-3">Edit History ({(selectedCompany?.edit_history || []).length} changes)</h4>
+                      <h4 className="font-medium mb-3">Edit History ({editHistory.length} changes)</h4>
                       <div className="space-y-2 max-h-60 overflow-y-auto">
-                        {(selectedCompany?.edit_history || []).map((edit: any, i: number) => (
-                          <div key={i} className="glassmorphism p-3 rounded-lg text-sm">
+                        {editHistory.map((edit, i) => (
+                          <div key={edit.id} className="glassmorphism p-3 rounded-lg text-sm">
                             <div className="flex justify-between items-start mb-2">
-                              <span className="font-medium capitalize">{edit.field}</span>
+                              <span className="font-medium capitalize">{edit.field_name}</span>
                               <span className="text-xs text-muted-foreground">
-                                {new Date(edit.timestamp).toLocaleString()}
+                                {new Date(edit.created_at).toLocaleString()}
                               </span>
                             </div>
                             <div className="grid grid-cols-2 gap-2 text-xs">
                               <div>
                                 <span className="text-gray-400">From:</span>
-                                <p className="mt-1 text-gray-300 break-words">
-                                  {edit.old_value ? 
-                                    (edit.old_value.length > 100 ? 
-                                      edit.old_value.substring(0, 100) + '...' : 
-                                      edit.old_value) : 
-                                    "Empty"}
-                                </p>
+                                <p className="mt-1 text-gray-300">{edit.old_value || "Empty"}</p>
                               </div>
                               <div>
                                 <span className="text-green-400">To:</span>
-                                <p className="mt-1 text-green-300 break-words">
-                                  {edit.new_value ? 
-                                    (edit.new_value.length > 100 ? 
-                                      edit.new_value.substring(0, 100) + '...' : 
-                                      edit.new_value) : 
-                                    "Empty"}
-                                </p>
+                                <p className="mt-1 text-green-300">{edit.new_value}</p>
                               </div>
                             </div>
                           </div>
                         ))}
-                        {(!selectedCompany?.edit_history || selectedCompany.edit_history.length === 0) && (
+                        {editHistory.length === 0 && (
                           <p className="text-center text-muted-foreground py-4">No edits recorded</p>
                         )}
                       </div>
@@ -725,50 +684,13 @@ export default function EnhancedAdminPage() {
                           <span className="font-medium">{selectedCompany.enrichment_attempts || 0}</span>
                         </div>
                         <div className="flex justify-between">
-                          <span className="text-sm">Data Quality Score:</span>
+                          <span className="text-sm">Best Quality Score:</span>
                           <span className="font-medium">
-                            {Number(selectedCompany.data_quality_score || 0).toFixed(2)}%
-                          </span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span className="text-sm">Confidence Score:</span>
-                          <span className="font-medium">
-                            {Number(selectedCompany.confidence_score || 0).toFixed(2)}%
-                          </span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span className="text-sm">Completeness Score:</span>
-                          <span className="font-medium">
-                            {Number(selectedCompany.completeness_score || 0).toFixed(2)}%
+                            {selectedCompany.best_enrichment_quality?.toFixed(2) || "N/A"}
                           </span>
                         </div>
                       </div>
                     </div>
-                    
-                    {selectedCompany.original_company_data && (
-                      <div className="glassmorphism p-4 rounded-lg">
-                        <h4 className="font-medium mb-3">Original Company Data</h4>
-                        <pre className="text-xs overflow-auto max-h-40">
-                          {JSON.stringify(selectedCompany.original_company_data, null, 2)}
-                        </pre>
-                      </div>
-                    )}
-                    
-                    {selectedCompany.activities && selectedCompany.activities.length > 0 && (
-                      <div className="glassmorphism p-4 rounded-lg">
-                        <h4 className="font-medium mb-3">Activity Log</h4>
-                        <div className="space-y-2 max-h-40 overflow-y-auto">
-                          {selectedCompany.activities.map((activity: any, i: number) => (
-                            <div key={i} className="text-xs">
-                              <span className="text-blue-400">{activity.action}</span>
-                              <span className="text-gray-400 ml-2">
-                                {new Date(activity.timestamp).toLocaleString()}
-                              </span>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    )}
                   </div>
                 )}
               </div>

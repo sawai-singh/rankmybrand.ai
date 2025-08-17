@@ -129,6 +129,7 @@ router.post('/enrich', async (req: Request, res: Response) => {
     const { email } = req.body;
     const ipAddress = req.ip || req.headers['x-forwarded-for'] || 'unknown';
     const userAgent = req.headers['user-agent'] || 'unknown';
+    const enrichStartTime = Date.now();
     
     if (!email) {
       return res.status(400).json({ error: 'Email is required' });
@@ -168,28 +169,73 @@ router.post('/enrich', async (req: Request, res: Response) => {
     // Store company data and onboarding session in database
     if (db) {
       try {
-        // Store company
+        // Store company with original data tracking
         const companyResult = await db.query(
-          `INSERT INTO companies (name, domain, description, industry, website_url, enrichment_data, created_at)
-           VALUES ($1, $2, $3, $4, $5, $6, CURRENT_TIMESTAMP)
+          `INSERT INTO companies (
+            name, domain, description, industry, website_url, enrichment_data,
+            original_name, original_description, original_industry,
+            source_type, data_completeness, created_at
+          )
+           VALUES ($1, $2, $3, $4, $5, $6, $1, $3, $4, 'enrichment', $7, CURRENT_TIMESTAMP)
            ON CONFLICT (domain) 
-           DO UPDATE SET name = $1, description = $3, industry = $4, enrichment_data = $6, updated_at = CURRENT_TIMESTAMP
+           DO UPDATE SET 
+             name = $1, description = $3, industry = $4, enrichment_data = $6,
+             original_name = COALESCE(companies.original_name, $1),
+             original_description = COALESCE(companies.original_description, $3),
+             original_industry = COALESCE(companies.original_industry, $4),
+             source_type = 'enrichment',
+             updated_at = CURRENT_TIMESTAMP
            RETURNING id`,
           [enrichmentData.name, enrichmentData.domain, enrichmentData.description, 
-           enrichmentData.industry, `https://${enrichmentData.domain}`, JSON.stringify(enrichmentData)]
+           enrichmentData.industry, `https://${enrichmentData.domain}`, JSON.stringify(enrichmentData),
+           calculateDataCompleteness(enrichmentData)]
         );
         
-        // Update onboarding session status to 'company_enriched'
+        // Log enrichment attempt
         await db.query(
-          `UPDATE onboarding_sessions 
-           SET status = 'company_enriched',
-               session_id = COALESCE(session_id, $1),
-               steps_completed = COALESCE(steps_completed, '[]'::jsonb) || 
-                 jsonb_build_array(jsonb_build_object('step', 'company_enrichment', 'timestamp', CURRENT_TIMESTAMP::text)),
-               metadata = COALESCE(metadata, '{}'::jsonb) || $2::jsonb,
-               last_activity = CURRENT_TIMESTAMP
-           WHERE email = $3`,
-          [sessionId, JSON.stringify({ company_id: companyResult.rows[0].id, enrichmentData }), email]
+          `INSERT INTO company_enrichment_log (
+            company_id, enrichment_type, enrichment_source, raw_response, 
+            extracted_data, data_quality, fields_enriched, created_at
+          )
+          VALUES ($1, 'email', $2, $3, $4, $5, $6, CURRENT_TIMESTAMP)`,
+          [companyResult.rows[0].id, enrichmentData.enrichmentSource || 'clearbit',
+           JSON.stringify(enrichmentData), JSON.stringify(enrichmentData),
+           enrichmentData.confidence || 0.5, Object.keys(enrichmentData).length]
+        );
+        
+        // Update onboarding session with enhanced tracking
+        const enrichTime = Date.now() - enrichStartTime;
+        await db.query(
+          `INSERT INTO onboarding_sessions (
+            session_id, email, status, steps_completed, metadata, 
+            original_company_data, time_on_company_step, last_activity, created_at
+          )
+          VALUES ($1, $2, 'company_enriched', 
+            jsonb_build_array(jsonb_build_object('step', 'company_enrichment', 'timestamp', CURRENT_TIMESTAMP::text)),
+            $3::jsonb, $4::jsonb, $5, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+          )
+          ON CONFLICT (session_id) 
+          DO UPDATE SET 
+            status = 'company_enriched',
+            steps_completed = COALESCE(onboarding_sessions.steps_completed, '[]'::jsonb) || 
+              jsonb_build_array(jsonb_build_object('step', 'company_enrichment', 'timestamp', CURRENT_TIMESTAMP::text)),
+            metadata = COALESCE(onboarding_sessions.metadata, '{}'::jsonb) || $3::jsonb,
+            original_company_data = $4::jsonb,
+            time_on_company_step = $5,
+            last_activity = CURRENT_TIMESTAMP`,
+          [sessionId, email, JSON.stringify({ company_id: companyResult.rows[0].id, enrichmentData }),
+           JSON.stringify(enrichmentData), Math.round(enrichTime / 1000)]
+        );
+        
+        // Track user journey analytics
+        await db.query(
+          `INSERT INTO user_journey_analytics (
+            session_id, company_id, journey_stage, stage_started_at,
+            stage_completed_at, time_spent_seconds, actions_taken, created_at
+          )
+          VALUES ($1, $2, 'company_enrichment', $3, CURRENT_TIMESTAMP, $4, $5, CURRENT_TIMESTAMP)`,
+          [sessionId, companyResult.rows[0].id, new Date(Date.now() - enrichTime),
+           Math.round(enrichTime / 1000), JSON.stringify([{action: 'enrichment_completed', timestamp: new Date()}])]
         );
         
         // Log activity
@@ -218,13 +264,93 @@ router.post('/enrich', async (req: Request, res: Response) => {
 });
 
 /**
+ * Track company edits during onboarding
+ */
+router.post('/track-edit', async (req: Request, res: Response) => {
+  try {
+    const { sessionId, field, oldValue, newValue, step } = req.body;
+    const ipAddress = req.ip || req.headers['x-forwarded-for'] || 'unknown';
+    const userAgent = req.headers['user-agent'] || 'unknown';
+    
+    if (!sessionId || !field) {
+      return res.status(400).json({ error: 'Session ID and field are required' });
+    }
+
+    // Get session data
+    const sessionData = await redis.get(sessionId);
+    if (!sessionData) {
+      return res.status(400).json({ error: 'Invalid or expired session' });
+    }
+
+    const session = JSON.parse(sessionData);
+    const email = session.email;
+    const companyDomain = session.enrichmentData?.domain;
+
+    if (db && companyDomain) {
+      try {
+        // Get company ID
+        const companyResult = await db.query(
+          `SELECT id FROM companies WHERE domain = $1`,
+          [companyDomain]
+        );
+        
+        if (companyResult.rows[0]) {
+          const companyId = companyResult.rows[0].id;
+          
+          // Track edit in history
+          await db.query(
+            `INSERT INTO company_edit_history (
+              company_id, session_id, field_name, old_value, new_value,
+              edit_source, edit_step, ip_address, user_agent, created_at
+            )
+            VALUES ($1, $2, $3, $4, $5, 'onboarding', $6, $7, $8, CURRENT_TIMESTAMP)`,
+            [companyId, sessionId, field, oldValue, newValue, step, ipAddress, userAgent]
+          );
+          
+          // Update company with edited values and track edit count
+          await db.query(
+            `UPDATE companies 
+             SET ${field} = $1,
+                 user_edited = TRUE,
+                 edit_count = COALESCE(edit_count, 0) + 1,
+                 last_edited_at = CURRENT_TIMESTAMP,
+                 final_${field} = $1
+             WHERE id = $2`,
+            [newValue, companyId]
+          );
+          
+          // Update onboarding session
+          await db.query(
+            `UPDATE onboarding_sessions 
+             SET edited_company_data = COALESCE(edited_company_data, original_company_data)::jsonb || 
+                   jsonb_build_object($1, $2),
+                 total_edits = COALESCE(total_edits, 0) + 1,
+                 last_activity = CURRENT_TIMESTAMP
+             WHERE session_id = $3`,
+            [field, newValue, sessionId]
+          );
+        }
+      } catch (dbError) {
+        console.error('Failed to track edit:', dbError);
+      }
+    }
+
+    res.json({ success: true });
+  } catch (error: any) {
+    console.error('Edit tracking error:', error);
+    res.status(500).json({ error: 'Failed to track edit' });
+  }
+});
+
+/**
  * Generate AI description
  */
 router.post('/generate-description', async (req: Request, res: Response) => {
   try {
-    const { sessionId, company, crawledPages } = req.body;
+    const { sessionId, company, crawledPages, userEditedCompany } = req.body;
     const ipAddress = req.ip || req.headers['x-forwarded-for'] || 'unknown';
     const userAgent = req.headers['user-agent'] || 'unknown';
+    const descriptionStartTime = Date.now();
     
     if (!sessionId || !company) {
       return res.status(400).json({ error: 'Session ID and company data are required' });
@@ -251,28 +377,51 @@ router.post('/generate-description', async (req: Request, res: Response) => {
       }
     }
 
+    // Use edited company data if provided
+    const companyData = userEditedCompany || company;
+    
     // Generate description using real content
-    const description = await enrichmentService.generateDescription(company, crawledPages);
+    const description = await enrichmentService.generateDescription(companyData, crawledPages);
     
     // Update session
     session.description = description;
+    session.company = companyData;  // Store the edited version
     session.step = 'description';
     await redis.setex(sessionId, 3600, JSON.stringify(session));
 
     // Update database
     if (db) {
       try {
-        // Update onboarding session status to 'description_generated'
+        // Update onboarding session with description tracking
+        const descriptionTime = Date.now() - descriptionStartTime;
         await db.query(
           `UPDATE onboarding_sessions 
            SET status = 'description_generated', 
                steps_completed = COALESCE(steps_completed, '[]'::jsonb) || 
                  jsonb_build_array(jsonb_build_object('step', 'description_generation', 'timestamp', CURRENT_TIMESTAMP::text)),
                metadata = COALESCE(metadata, '{}'::jsonb) || $1::jsonb,
+               ai_generated_descriptions = jsonb_build_array($2::jsonb),
+               selected_description = $3,
+               time_on_description_step = COALESCE(time_on_description_step, 0) + $4,
+               edited_company_data = $5::jsonb,
                last_activity = CURRENT_TIMESTAMP
-           WHERE email = $2 OR session_id = $3`,
-          [JSON.stringify({ description, wordCount: description.split(' ').length }), email, sessionId]
+           WHERE email = $6 OR session_id = $7`,
+          [JSON.stringify({ description, wordCount: description.split(' ').length }),
+           JSON.stringify({ text: description, generated_at: new Date() }),
+           description, Math.round(descriptionTime / 1000),
+           JSON.stringify(companyData), email, sessionId]
         );
+        
+        // If company was edited, save final version
+        if (userEditedCompany && companyData.domain) {
+          await db.query(
+            `UPDATE companies 
+             SET final_name = $1, final_description = $2, final_industry = $3,
+                 user_edited = TRUE
+             WHERE domain = $4`,
+            [companyData.name, companyData.description, companyData.industry, companyData.domain]
+          );
+        }
         
         // Log activity
         await db.query(
@@ -311,6 +460,7 @@ router.post('/find-competitors', async (req: Request, res: Response) => {
     const { sessionId, company } = req.body;
     const ipAddress = req.ip || req.headers['x-forwarded-for'] || 'unknown';
     const userAgent = req.headers['user-agent'] || 'unknown';
+    const competitorStartTime = Date.now();
     
     if (!sessionId || !company) {
       return res.status(400).json({ error: 'Session ID and company data are required' });
@@ -368,16 +518,22 @@ router.post('/find-competitors', async (req: Request, res: Response) => {
           }
         }
         
-        // Update onboarding session status to 'competitors_selected'
+        // Update onboarding session with competitor tracking
+        const competitorTime = Date.now() - competitorStartTime;
         await db.query(
           `UPDATE onboarding_sessions 
            SET status = 'competitors_selected', 
                steps_completed = COALESCE(steps_completed, '[]'::jsonb) || 
                  jsonb_build_array(jsonb_build_object('step', 'competitor_discovery', 'timestamp', CURRENT_TIMESTAMP::text)),
                metadata = COALESCE(metadata, '{}'::jsonb) || $1::jsonb,
+               suggested_competitors = $2::jsonb,
+               final_competitors = $2::jsonb,
+               time_on_competitor_step = COALESCE(time_on_competitor_step, 0) + $3,
                last_activity = CURRENT_TIMESTAMP
-           WHERE email = $2 OR session_id = $3`,
-          [JSON.stringify({ competitors, count: competitors.length }), email, sessionId]
+           WHERE email = $4 OR session_id = $5`,
+          [JSON.stringify({ competitors, count: competitors.length }),
+           JSON.stringify(competitors), Math.round(competitorTime / 1000),
+           email, sessionId]
         );
         
         // Log activity
@@ -407,7 +563,8 @@ router.post('/find-competitors', async (req: Request, res: Response) => {
  */
 router.post('/complete', async (req: Request, res: Response) => {
   try {
-    const { sessionId, email, company, competitors, description } = req.body;
+    const { sessionId, email, company, competitors, description, editedDescription } = req.body;
+    const completionTime = Date.now();
     
     if (!sessionId || !email || !company) {
       return res.status(400).json({ error: 'Missing required data' });
@@ -431,7 +588,7 @@ router.post('/complete', async (req: Request, res: Response) => {
 
       // Start database transaction
       const result = await db.transaction(async (client: any) => {
-      // 1. Create or update company in database
+      // 1. Create or update company in database with final data
       let companyRecord = await companyRepository.findByDomain(company.domain);
       
       if (!companyRecord) {
@@ -439,7 +596,12 @@ router.post('/complete', async (req: Request, res: Response) => {
           name: company.name,
           domain: company.domain,
           logo_url: company.logo,
-          description: description || company.description,
+          description: editedDescription || description || company.description,
+          original_name: company.originalName || company.name,
+          original_description: company.originalDescription || company.description,
+          final_name: company.name,
+          final_description: editedDescription || description || company.description,
+          user_edited: !!editedDescription || company.userEdited,
           industry: company.industry,
           company_size: company.size,
           employee_count: company.employeeCount,
@@ -494,18 +656,24 @@ router.post('/complete', async (req: Request, res: Response) => {
         }
       }
 
-      // 4. Save onboarding session to database
+      // 4. Save complete onboarding session with all tracking data
       await db.query(`
         INSERT INTO onboarding_sessions (
           session_id, user_id, email, current_step,
           email_validated, company_enriched, description_generated,
           competitors_selected, completed, completed_at,
-          company_data, description_text
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+          company_data, description_text,
+          final_company_data, edited_description,
+          data_quality_score, completeness_score
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
         ON CONFLICT (session_id) DO UPDATE SET
           completed = true,
           completed_at = CURRENT_TIMESTAMP,
-          user_id = $2
+          user_id = $2,
+          final_company_data = $13,
+          edited_description = $14,
+          data_quality_score = $15,
+          completeness_score = $16
       `, [
         sessionId,
         user.id,
@@ -518,8 +686,25 @@ router.post('/complete', async (req: Request, res: Response) => {
         true,
         new Date(),
         JSON.stringify(company),
-        description
+        description,
+        JSON.stringify(company),  // final_company_data
+        editedDescription || description,  // edited_description
+        calculateDataQuality(company),  // data_quality_score
+        calculateDataCompleteness(company)  // completeness_score
       ]);
+      
+      // Log final journey analytics
+      await db.query(
+        `INSERT INTO user_journey_analytics (
+          user_id, session_id, company_id, journey_stage,
+          stage_started_at, stage_completed_at, time_spent_seconds,
+          actions_taken, created_at
+        )
+        VALUES ($1, $2, $3, 'onboarding_complete', $4, CURRENT_TIMESTAMP, $5, $6, CURRENT_TIMESTAMP)`,
+        [user.id, sessionId, companyRecord.id, new Date(completionTime),
+         Math.round((Date.now() - completionTime) / 1000),
+         JSON.stringify([{action: 'completed_onboarding', timestamp: new Date()}])]
+      );
 
       return { user, company: companyRecord };
     });
@@ -729,5 +914,223 @@ async function storeUserData(email: string, company: any, competitors: any[], an
   await redis.setex(`user:${email}`, 86400, JSON.stringify(userData));
   return userData;
 }
+
+/**
+ * Calculate data completeness percentage
+ */
+function calculateDataCompleteness(data: any): number {
+  const fields = [
+    'name', 'domain', 'description', 'industry', 'size',
+    'employeeCount', 'logo', 'location', 'socialProfiles', 'techStack'
+  ];
+  
+  let filledFields = 0;
+  fields.forEach(field => {
+    if (data[field]) {
+      if (typeof data[field] === 'object' && !Array.isArray(data[field])) {
+        // Check if object has values
+        if (Object.keys(data[field]).some(key => data[field][key])) {
+          filledFields++;
+        }
+      } else if (Array.isArray(data[field]) && data[field].length > 0) {
+        filledFields++;
+      } else if (data[field]) {
+        filledFields++;
+      }
+    }
+  });
+  
+  // Ensure the result fits in NUMERIC(3,2) - max 99.99
+  const percentage = (filledFields / fields.length) * 100;
+  return Math.min(99.99, Math.round(percentage * 100) / 100);
+}
+
+/**
+ * Calculate data quality score
+ */
+function calculateDataQuality(data: any): number {
+  let score = 0;
+  let weights = 0;
+  
+  // Name and domain are critical
+  if (data.name && data.name.length > 2) {
+    score += 20;
+    weights += 20;
+  }
+  
+  if (data.domain && data.domain.includes('.')) {
+    score += 20;
+    weights += 20;
+  }
+  
+  // Description quality
+  if (data.description) {
+    const wordCount = data.description.split(' ').length;
+    if (wordCount > 50) score += 15;
+    else if (wordCount > 20) score += 10;
+    else if (wordCount > 0) score += 5;
+    weights += 15;
+  }
+  
+  // Other important fields
+  if (data.industry) { score += 10; weights += 10; }
+  if (data.employeeCount || data.size) { score += 10; weights += 10; }
+  if (data.location && data.location.city) { score += 10; weights += 10; }
+  if (data.logo) { score += 5; weights += 5; }
+  if (data.techStack && data.techStack.length > 0) { score += 10; weights += 10; }
+  
+  return weights > 0 ? Math.round((score / weights) * 100) : 0;
+}
+
+/**
+ * Track step transitions and time spent
+ */
+router.post('/track-step', async (req: Request, res: Response) => {
+  try {
+    const { sessionId, fromStep, toStep, timeSpent } = req.body;
+    
+    if (!sessionId) {
+      return res.status(400).json({ error: 'Session ID is required' });
+    }
+
+    // Get session data from Redis
+    const sessionData = await redis.get(sessionId);
+    if (!sessionData) {
+      return res.status(400).json({ error: 'Invalid or expired session' });
+    }
+
+    const session = JSON.parse(sessionData);
+    
+    // Update session in database with time tracking
+    if (db) {
+      try {
+        // Map step names to database columns
+        const timeColumns: Record<string, string> = {
+          'company': 'time_on_company_step',
+          'description': 'time_on_description_step', 
+          'competitors': 'time_on_competitor_step'
+        };
+        
+        const columnName = timeColumns[fromStep];
+        if (columnName && timeSpent) {
+          await db.query(
+            `UPDATE onboarding_sessions 
+             SET ${columnName} = COALESCE(${columnName}, 0) + $1,
+                 last_activity = CURRENT_TIMESTAMP
+             WHERE session_id = $2`,
+            [Math.round(timeSpent / 1000), sessionId]
+          );
+        }
+
+        // Track journey analytics
+        await db.query(
+          `INSERT INTO user_journey_analytics (
+            session_id, journey_stage, stage_started_at, stage_completed_at,
+            time_spent_seconds, created_at
+          )
+          VALUES ($1, $2, CURRENT_TIMESTAMP - INTERVAL '${timeSpent} milliseconds', 
+                  CURRENT_TIMESTAMP, $3, CURRENT_TIMESTAMP)`,
+          [sessionId, fromStep, Math.round(timeSpent / 1000)]
+        );
+      } catch (dbError) {
+        console.error('Failed to track step time:', dbError);
+      }
+    }
+
+    res.json({ success: true });
+  } catch (error: any) {
+    console.error('Step tracking error:', error);
+    res.status(500).json({ error: 'Failed to track step' });
+  }
+});
+
+/**
+ * Enhanced edit tracking with proper session handling
+ */
+router.post('/track-field-edit', async (req: Request, res: Response) => {
+  try {
+    const { sessionId, field, oldValue, newValue, step } = req.body;
+    const ipAddress = req.ip || req.headers['x-forwarded-for'] || 'unknown';
+    const userAgent = req.headers['user-agent'] || 'unknown';
+    
+    if (!sessionId || !field) {
+      return res.status(400).json({ error: 'Session ID and field are required' });
+    }
+
+    // Get session data from Redis
+    const sessionData = await redis.get(sessionId);
+    if (!sessionData) {
+      return res.status(400).json({ error: 'Invalid or expired session' });
+    }
+
+    const session = JSON.parse(sessionData);
+    const email = session.email;
+    const companyDomain = session.enrichmentData?.domain;
+
+    if (db && companyDomain) {
+      try {
+        // Get company ID
+        const companyResult = await db.query(
+          `SELECT id FROM companies WHERE domain = $1`,
+          [companyDomain]
+        );
+        
+        if (companyResult.rows[0]) {
+          const companyId = companyResult.rows[0].id;
+          
+          // Track edit in history with proper session_id
+          await db.query(
+            `INSERT INTO company_edit_history (
+              company_id, session_id, field_name, old_value, new_value,
+              edit_source, edit_step, ip_address, user_agent, created_at
+            )
+            VALUES ($1, $2, $3, $4, $5, 'onboarding', $6, $7, $8, CURRENT_TIMESTAMP)`,
+            [companyId, sessionId, field, oldValue || '', newValue || '', step || 'company', ipAddress, userAgent]
+          );
+          
+          // Update company with edited values
+          const fieldMapping: Record<string, string> = {
+            'name': 'name',
+            'description': 'description',
+            'industry': 'industry'
+          };
+          
+          const dbField = fieldMapping[field];
+          if (dbField) {
+            await db.query(
+              `UPDATE companies 
+               SET ${dbField} = $1,
+                   final_${dbField} = $1,
+                   user_edited = TRUE,
+                   edit_count = COALESCE(edit_count, 0) + 1,
+                   last_edited_at = CURRENT_TIMESTAMP
+               WHERE id = $2`,
+              [newValue, companyId]
+            );
+          }
+          
+          // Update session tracking
+          await db.query(
+            `UPDATE onboarding_sessions 
+             SET edited_company_data = COALESCE(edited_company_data, '{}'::jsonb) || 
+                   jsonb_build_object($1, $2),
+                 total_edits = COALESCE(total_edits, 0) + 1,
+                 last_activity = CURRENT_TIMESTAMP
+             WHERE session_id = $3`,
+            [field, newValue, sessionId]
+          );
+        }
+      } catch (dbError) {
+        console.error('Failed to track edit:', dbError);
+        return res.status(500).json({ error: 'Failed to track edit' });
+      }
+    }
+
+    res.json({ success: true });
+  } catch (error: any) {
+    console.error('Edit tracking error:', error);
+    res.status(500).json({ error: 'Failed to track edit' });
+  }
+});
 
 export default router;

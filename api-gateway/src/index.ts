@@ -511,6 +511,61 @@ app.get('/api/admin/user/:email', limiter, asyncHandler(async (req: any, res: an
   }
 }));
 
+// Enhanced company journey endpoints for admin dashboard
+app.get('/api/admin/companies/journey', limiter, asyncHandler(async (req: any, res: any) => {
+  try {
+    if (!db) {
+      return res.status(503).json({ error: 'Database not available' });
+    }
+
+    // Use the new session-based view to show individual journeys
+    const result = await db.query(`
+      SELECT * FROM admin_session_journeys
+      ORDER BY session_started DESC
+      LIMIT 100
+    `);
+
+    res.json({
+      companies: result.rows || [],
+      total: result.rows?.length || 0
+    });
+  } catch (error) {
+    console.error('Failed to fetch company journey data:', error);
+    res.status(500).json({ error: 'Failed to fetch data' });
+  }
+}));
+
+app.get('/api/admin/company/:id/journey', limiter, asyncHandler(async (req: any, res: any) => {
+  try {
+    const { id } = req.params;
+    
+    if (!db) {
+      return res.status(503).json({ error: 'Database not available' });
+    }
+
+    // Get company journey using the function
+    const result = await db.query(
+      `SELECT get_company_journey($1) as journey`,
+      [id]
+    );
+
+    if (result.rows[0]?.journey) {
+      const journey = result.rows[0].journey;
+      res.json({
+        company: journey.company,
+        edits: journey.edits || [],
+        enrichments: journey.enrichments || [],
+        journey_stages: journey.journey_stages || []
+      });
+    } else {
+      res.status(404).json({ error: 'Company not found' });
+    }
+  } catch (error) {
+    console.error('Failed to fetch company journey details:', error);
+    res.status(500).json({ error: 'Failed to fetch details' });
+  }
+}));
+
 // Dashboard API endpoints
 app.get('/api/activities', limiter, asyncHandler(async (req: any, res: any) => {
   // Return demo activities with real-time data
