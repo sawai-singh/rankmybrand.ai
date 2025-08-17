@@ -1133,4 +1133,114 @@ router.post('/track-field-edit', async (req: Request, res: Response) => {
   }
 });
 
+/**
+ * Track competitor changes (additions/removals)
+ */
+router.post('/track-competitor-change', async (req: Request, res: Response) => {
+  try {
+    const { 
+      sessionId, 
+      action, // 'add' | 'remove' | 'finalize'
+      competitor,
+      suggestedCompetitors,
+      finalCompetitors 
+    } = req.body;
+    
+    if (!sessionId) {
+      return res.status(400).json({ error: 'Session ID is required' });
+    }
+
+    // Get session data from Redis
+    const sessionData = await redis.get(sessionId);
+    if (!sessionData) {
+      return res.status(400).json({ error: 'Invalid or expired session' });
+    }
+
+    const session = JSON.parse(sessionData);
+    
+    if (db) {
+      try {
+        // Get or create the onboarding session record
+        const sessionResult = await db.query(
+          `SELECT suggested_competitors, user_added_competitors, removed_competitors 
+           FROM onboarding_sessions WHERE session_id = $1`,
+          [sessionId]
+        );
+
+        let currentSuggested = sessionResult.rows[0]?.suggested_competitors || suggestedCompetitors || [];
+        let currentAdded = sessionResult.rows[0]?.user_added_competitors || [];
+        let currentRemoved = sessionResult.rows[0]?.removed_competitors || [];
+
+        // Handle different actions
+        if (action === 'add' && competitor) {
+          // Add to user_added_competitors if not in suggested
+          if (!currentSuggested.includes(competitor)) {
+            currentAdded = [...new Set([...currentAdded, competitor])];
+          }
+        } else if (action === 'remove' && competitor) {
+          // Add to removed_competitors if it was suggested
+          if (currentSuggested.includes(competitor)) {
+            currentRemoved = [...new Set([...currentRemoved, competitor])];
+          }
+          // Remove from added if it was manually added
+          currentAdded = currentAdded.filter((c: string) => c !== competitor);
+        } else if (action === 'finalize' && finalCompetitors) {
+          // Store the final selection
+          await db.query(
+            `UPDATE onboarding_sessions 
+             SET suggested_competitors = COALESCE(suggested_competitors, $2::jsonb),
+                 user_added_competitors = $3::jsonb,
+                 removed_competitors = $4::jsonb,
+                 final_competitors = $5::jsonb,
+                 last_activity = CURRENT_TIMESTAMP
+             WHERE session_id = $1`,
+            [sessionId, 
+             JSON.stringify(suggestedCompetitors || currentSuggested),
+             JSON.stringify(currentAdded),
+             JSON.stringify(currentRemoved),
+             JSON.stringify(finalCompetitors)]
+          );
+          
+          return res.json({ success: true, finalized: true });
+        }
+
+        // Update the session with current state
+        if (action === 'add' || action === 'remove') {
+          await db.query(
+            `INSERT INTO onboarding_sessions (
+              session_id, suggested_competitors, user_added_competitors, 
+              removed_competitors, last_activity
+            )
+            VALUES ($1, $2::jsonb, $3::jsonb, $4::jsonb, CURRENT_TIMESTAMP)
+            ON CONFLICT (session_id) 
+            DO UPDATE SET 
+              suggested_competitors = COALESCE(onboarding_sessions.suggested_competitors, $2::jsonb),
+              user_added_competitors = $3::jsonb,
+              removed_competitors = $4::jsonb,
+              last_activity = CURRENT_TIMESTAMP`,
+            [sessionId, 
+             JSON.stringify(suggestedCompetitors || currentSuggested),
+             JSON.stringify(currentAdded),
+             JSON.stringify(currentRemoved)]
+          );
+        }
+
+        res.json({ 
+          success: true,
+          userAddedCompetitors: currentAdded,
+          removedCompetitors: currentRemoved
+        });
+      } catch (dbError) {
+        console.error('Failed to track competitor change:', dbError);
+        return res.status(500).json({ error: 'Failed to track competitor change' });
+      }
+    } else {
+      res.json({ success: true });
+    }
+  } catch (error: any) {
+    console.error('Competitor tracking error:', error);
+    res.status(500).json({ error: 'Failed to track competitor change' });
+  }
+});
+
 export default router;

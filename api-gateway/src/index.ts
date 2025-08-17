@@ -236,6 +236,15 @@ app.use('/api/auth', limiter, authRoutes);
 app.use('/api/onboarding', limiter, onboardingRoutes);
 
 // ========================================
+// Report Queue Routes (Feature-flagged)
+// ========================================
+if (process.env.ENABLE_QUEUED_REPORT === 'true') {
+  const reportRoutes = require('./routes/report.routes').default;
+  app.use('/api/report', limiter, reportRoutes);
+  console.log('✅ Report queue routes enabled');
+}
+
+// ========================================
 // Unified API Endpoints
 // ========================================
 
@@ -520,14 +529,24 @@ app.get('/api/admin/companies/journey', limiter, asyncHandler(async (req: any, r
 
     // Use the new session-based view to show individual journeys
     const result = await db.query(`
-      SELECT * FROM admin_session_journeys
-      ORDER BY session_started DESC
+      SELECT 
+        asj.*,
+        os.metadata->>'competitor_journey' as competitor_journey_json
+      FROM admin_session_journeys asj
+      LEFT JOIN onboarding_sessions os ON asj.session_id = os.session_id
+      ORDER BY asj.session_started DESC
       LIMIT 100
     `);
 
+    // Parse competitor journey JSON for each row
+    const companies = (result.rows || []).map((row: any) => ({
+      ...row,
+      competitor_journey: row.competitor_journey_json ? JSON.parse(row.competitor_journey_json) : null
+    }));
+    
     res.json({
-      companies: result.rows || [],
-      total: result.rows?.length || 0
+      companies,
+      total: companies.length
     });
   } catch (error) {
     console.error('Failed to fetch company journey data:', error);

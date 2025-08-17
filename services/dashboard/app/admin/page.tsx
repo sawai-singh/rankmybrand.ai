@@ -52,6 +52,14 @@ interface CompanyJourneyData {
   time_on_description_step: number;
   time_on_competitor_step: number;
   
+  // Competitor tracking
+  competitor_journey: {
+    suggested?: string[];
+    added?: string[];
+    removed?: string[];
+    final?: string[];
+  };
+  
   // Enrichment and activity data
   enrichment_attempts: number;
   activity_count: number;
@@ -86,7 +94,7 @@ export default function EnhancedAdminPage() {
   const [filterStatus, setFilterStatus] = useState("all");
   const [selectedCompany, setSelectedCompany] = useState<CompanyJourneyData | null>(null);
   const [editHistory, setEditHistory] = useState<EditHistory[]>([]);
-  const [activeTab, setActiveTab] = useState<"overview" | "journey" | "edits" | "enrichment">("overview");
+  const [activeTab, setActiveTab] = useState<"overview" | "journey" | "edits" | "competitors" | "enrichment">("overview");
   
   const [stats, setStats] = useState({
     totalCompanies: 0,
@@ -389,6 +397,7 @@ export default function EnhancedAdminPage() {
                   <th className="text-left p-4 font-medium">Session / Email</th>
                   <th className="text-left p-4 font-medium">Company</th>
                   <th className="text-left p-4 font-medium">Description</th>
+                  <th className="text-left p-4 font-medium">Competitors</th>
                   <th className="text-left p-4 font-medium">Edits</th>
                   <th className="text-left p-4 font-medium">Quality</th>
                   <th className="text-left p-4 font-medium">Journey Time</th>
@@ -456,6 +465,26 @@ export default function EnhancedAdminPage() {
                           <span className="text-xs text-gray-400 truncate">
                             {(company.company_description || "No description").substring(0, 50)}...
                           </span>
+                        )}
+                      </div>
+                    </td>
+                    <td className="p-4">
+                      <div className="space-y-1">
+                        {company.competitor_journey?.final ? (
+                          <>
+                            <div className="flex items-center gap-1">
+                              <Target className="w-3 h-3 text-purple-400" />
+                              <span className="text-xs">{company.competitor_journey.final.length} selected</span>
+                            </div>
+                            {company.competitor_journey.added?.length > 0 && (
+                              <span className="text-xs text-green-400">+{company.competitor_journey.added.length} added</span>
+                            )}
+                            {company.competitor_journey.removed?.length > 0 && (
+                              <span className="text-xs text-red-400">-{company.competitor_journey.removed.length} removed</span>
+                            )}
+                          </>
+                        ) : (
+                          <span className="text-xs text-gray-400">—</span>
                         )}
                       </div>
                     </td>
@@ -552,7 +581,7 @@ export default function EnhancedAdminPage() {
 
               {/* Tabs */}
               <div className="flex gap-2 mb-6">
-                {["overview", "journey", "edits", "enrichment"].map((tab) => (
+                {["overview", "journey", "edits", "competitors", "enrichment"].map((tab) => (
                   <button
                     key={tab}
                     onClick={() => setActiveTab(tab as any)}
@@ -711,6 +740,71 @@ export default function EnhancedAdminPage() {
                           <p className="text-center text-muted-foreground py-4">No edits recorded</p>
                         )}
                       </div>
+                    </div>
+                  </div>
+                )}
+
+                {activeTab === "competitors" && (
+                  <div className="space-y-4">
+                    <div className="glassmorphism p-4 rounded-lg">
+                      <h4 className="font-medium mb-3">Competitor Journey</h4>
+                      {selectedCompany.competitor_journey ? (
+                        <div className="space-y-4">
+                          {selectedCompany.competitor_journey.suggested && selectedCompany.competitor_journey.suggested.length > 0 && (
+                            <div>
+                              <h5 className="text-sm font-medium text-gray-400 mb-2">AI Suggested Competitors</h5>
+                              <div className="flex flex-wrap gap-2">
+                                {selectedCompany.competitor_journey.suggested.map((comp: string, idx: number) => (
+                                  <span key={idx} className="px-3 py-1 bg-blue-500/20 text-blue-400 rounded-lg text-sm">
+                                    {comp}
+                                  </span>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                          
+                          {selectedCompany.competitor_journey.added && selectedCompany.competitor_journey.added.length > 0 && (
+                            <div>
+                              <h5 className="text-sm font-medium text-green-400 mb-2">Manually Added</h5>
+                              <div className="flex flex-wrap gap-2">
+                                {selectedCompany.competitor_journey.added.map((comp: string, idx: number) => (
+                                  <span key={idx} className="px-3 py-1 bg-green-500/20 text-green-400 rounded-lg text-sm">
+                                    + {comp}
+                                  </span>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                          
+                          {selectedCompany.competitor_journey.removed && selectedCompany.competitor_journey.removed.length > 0 && (
+                            <div>
+                              <h5 className="text-sm font-medium text-red-400 mb-2">Removed</h5>
+                              <div className="flex flex-wrap gap-2">
+                                {selectedCompany.competitor_journey.removed.map((comp: string, idx: number) => (
+                                  <span key={idx} className="px-3 py-1 bg-red-500/20 text-red-400 rounded-lg text-sm line-through">
+                                    {comp}
+                                  </span>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                          
+                          {selectedCompany.competitor_journey.final && selectedCompany.competitor_journey.final.length > 0 && (
+                            <div>
+                              <h5 className="text-sm font-medium text-purple-400 mb-2">Final Selection</h5>
+                              <div className="flex flex-wrap gap-2">
+                                {selectedCompany.competitor_journey.final.map((comp: string, idx: number) => (
+                                  <span key={idx} className="px-3 py-1 bg-purple-500/20 text-purple-400 rounded-lg text-sm font-medium">
+                                    ✓ {comp}
+                                  </span>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      ) : (
+                        <p className="text-center text-muted-foreground py-4">No competitor data tracked</p>
+                      )}
                     </div>
                   </div>
                 )}

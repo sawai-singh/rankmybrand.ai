@@ -23,6 +23,9 @@ export default function CompetitorsPage() {
   const [customDomain, setCustomDomain] = useState('');
   const [selectedCount, setSelectedCount] = useState(0);
   const [company, setCompany] = useState<any>(null);
+  const [sessionId, setSessionId] = useState<string>('');
+  const [suggestedCompetitors, setSuggestedCompetitors] = useState<string[]>([]);
+  const [stepStartTime] = useState(Date.now());
 
   useEffect(() => {
     // Load session data
@@ -34,6 +37,7 @@ export default function CompetitorsPage() {
 
     const session = JSON.parse(sessionData);
     setCompany(session.company || session.enrichmentData);
+    setSessionId(session.sessionId || '');
     
     // Check if we already have competitors from enrichment
     const enrichmentData = session.enrichmentData || session.company;
@@ -58,6 +62,11 @@ export default function CompetitorsPage() {
       
       setCompetitors(competitorsFromEnrichment);
       setSelectedCount(competitorsFromEnrichment.length);
+      
+      // Store the original suggested competitors
+      const suggestedNames = competitorsFromEnrichment.map((c: Competitor) => c.name);
+      setSuggestedCompetitors(suggestedNames);
+      
       setLoading(false);
     } else {
       // Find competitors if not already available
@@ -105,14 +114,34 @@ export default function CompetitorsPage() {
     }
   };
 
-  const toggleCompetitor = (index: number) => {
+  const toggleCompetitor = async (index: number) => {
     const updated = [...competitors];
+    const competitor = updated[index];
+    const wasSelected = competitor.selected;
     updated[index].selected = !updated[index].selected;
     setCompetitors(updated);
     setSelectedCount(updated.filter(c => c.selected).length);
+    
+    // Track the change
+    if (sessionId) {
+      try {
+        await fetch(`${process.env.NEXT_PUBLIC_API_GATEWAY || 'http://localhost:4000'}/api/onboarding/track-competitor-change`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            sessionId,
+            action: wasSelected ? 'remove' : 'add',
+            competitor: competitor.name,
+            suggestedCompetitors
+          })
+        });
+      } catch (error) {
+        console.error('Failed to track competitor toggle:', error);
+      }
+    }
   };
 
-  const addCustomCompetitor = () => {
+  const addCustomCompetitor = async () => {
     if (!customDomain) return;
 
     // Clean domain
@@ -137,12 +166,49 @@ export default function CompetitorsPage() {
     setSelectedCount(selectedCount + 1);
     setCustomDomain('');
     toast.success('Competitor added');
+    
+    // Track the addition
+    if (sessionId) {
+      try {
+        await fetch(`${process.env.NEXT_PUBLIC_API_GATEWAY || 'http://localhost:4000'}/api/onboarding/track-competitor-change`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            sessionId,
+            action: 'add',
+            competitor: newCompetitor.name,
+            suggestedCompetitors
+          })
+        });
+      } catch (error) {
+        console.error('Failed to track competitor addition:', error);
+      }
+    }
   };
 
-  const removeCompetitor = (index: number) => {
+  const removeCompetitor = async (index: number) => {
+    const competitorToRemove = competitors[index];
     const updated = competitors.filter((_, i) => i !== index);
     setCompetitors(updated);
     setSelectedCount(updated.filter(c => c.selected).length);
+    
+    // Track the removal
+    if (sessionId) {
+      try {
+        await fetch(`${process.env.NEXT_PUBLIC_API_GATEWAY || 'http://localhost:4000'}/api/onboarding/track-competitor-change`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            sessionId,
+            action: 'remove',
+            competitor: competitorToRemove.name,
+            suggestedCompetitors
+          })
+        });
+      } catch (error) {
+        console.error('Failed to track competitor removal:', error);
+      }
+    }
   };
 
   const handleContinue = async () => {
@@ -151,6 +217,38 @@ export default function CompetitorsPage() {
     if (selected.length === 0 && competitors.length > 0) {
       toast.error('Please select at least one competitor');
       return;
+    }
+    
+    // Track final competitor selection and time spent
+    const timeSpent = Date.now() - stepStartTime;
+    if (sessionId) {
+      try {
+        // Track the finalization
+        await fetch(`${process.env.NEXT_PUBLIC_API_GATEWAY || 'http://localhost:4000'}/api/onboarding/track-competitor-change`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            sessionId,
+            action: 'finalize',
+            finalCompetitors: selected.map(c => c.name),
+            suggestedCompetitors
+          })
+        });
+        
+        // Track time spent on step
+        await fetch(`${process.env.NEXT_PUBLIC_API_GATEWAY || 'http://localhost:4000'}/api/onboarding/track-step`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            sessionId,
+            fromStep: 'competitors',
+            toStep: 'complete',
+            timeSpent
+          })
+        });
+      } catch (error) {
+        console.error('Failed to track competitor finalization:', error);
+      }
     }
 
     // Save to session
@@ -209,20 +307,76 @@ export default function CompetitorsPage() {
           localStorage.setItem('user', JSON.stringify(data.user));
         }
         
-        toast.success('Analysis started! Redirecting to dashboard...');
+        // Check feature flag for queued report flow
+        let enableQueuedReport = process.env.NEXT_PUBLIC_ENABLE_QUEUED_REPORT === 'true';
         
-        // Clear session storage
-        sessionStorage.removeItem('onboarding_session');
+        if (enableQueuedReport) {
+          // NEW FLOW: Queue report and redirect to generating page
+          try {
+            const queueResponse = await fetch(`${apiUrl}/api/report/queue`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                userId: data.user?.id || `user_${Date.now()}`,
+                companyId: data.user?.company?.id,
+                sessionId: sessionData.sessionId,
+                email: sessionData.email,
+                companyName: sessionData.company?.name || sessionData.enrichmentData?.name,
+                competitorCount: selected.length,
+                metadata: {
+                  description: sessionData.description,
+                  competitors: selected
+                }
+              })
+            });
+            
+            if (queueResponse.ok) {
+              const queueData = await queueResponse.json();
+              console.log('Report queued:', queueData);
+              
+              toast.success('Analysis started! Preparing your report...');
+              
+              // Store session info for generating page
+              sessionStorage.setItem('report_queued', JSON.stringify({
+                reportId: queueData.reportId,
+                email: sessionData.email,
+                etaMinutes: queueData.etaMinutes
+              }));
+              
+              // Clear onboarding session
+              sessionStorage.removeItem('onboarding_session');
+              
+              // Redirect to generating page
+              setTimeout(() => {
+                router.push('/generating');
+              }, 1000);
+            } else {
+              throw new Error('Failed to queue report');
+            }
+          } catch (queueError) {
+            console.error('Failed to queue report, falling back to direct redirect:', queueError);
+            // Fall back to old behavior
+            enableQueuedReport = false;
+          }
+        }
         
-        // Redirect to real dashboard with onboarding complete flag and token
-        setTimeout(() => {
-          // Dashboard is on port 3000, redirect with token and user data in URL
-          const token = encodeURIComponent(data.auth.token);
-          const userData = encodeURIComponent(JSON.stringify(data.user));
-          const redirectUrl = `http://localhost:3000/?onboarding=complete&token=${token}&user=${userData}`;
-          console.log('Redirecting to:', redirectUrl);
-          window.location.href = redirectUrl;
-        }, 2000);
+        if (!enableQueuedReport) {
+          // OLD FLOW: Direct redirect to dashboard (default behavior)
+          toast.success('Analysis started! Redirecting to dashboard...');
+          
+          // Clear session storage
+          sessionStorage.removeItem('onboarding_session');
+          
+          // Redirect to real dashboard with onboarding complete flag and token
+          setTimeout(() => {
+            // Dashboard is on port 3000, redirect with token and user data in URL
+            const token = encodeURIComponent(data.auth.token);
+            const userData = encodeURIComponent(JSON.stringify(data.user));
+            const redirectUrl = `http://localhost:3000/?onboarding=complete&token=${token}&user=${userData}`;
+            console.log('Redirecting to:', redirectUrl);
+            window.location.href = redirectUrl;
+          }, 2000);
+        }
       } else {
         throw new Error(data.error || 'Failed to complete onboarding');
       }
