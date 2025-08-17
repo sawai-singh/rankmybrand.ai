@@ -1,6 +1,6 @@
 /**
  * LLM-based Company Enrichment Service
- * Uses OpenAI GPT-4 to gather company information
+ * Uses OpenAI GPT to gather company information
  */
 
 import OpenAI from 'openai';
