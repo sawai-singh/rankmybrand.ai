@@ -1,0 +1,133 @@
+groups:
+  - name: rankmybrand_alerts
+    interval: 30s
+    rules:
+      # High error rate alert
+      - alert: HighErrorRate
+        expr: rate(rankmybrand_api_errors_total[5m]) > 0.05
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High error rate detected"
+          description: "Error rate is {{ $value | humanizePercentage }} for {{ $labels.endpoint }}"
+
+      # Service down alert
+      - alert: ServiceDown
+        expr: up{job=~"api-gateway|intelligence-engine|frontend|dashboard"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Service {{ $labels.job }} is down"
+          description: "{{ $labels.job }} has been down for more than 1 minute"
+
+      # High response time alert
+      - alert: HighResponseTime
+        expr: histogram_quantile(0.95, sum(rate(rankmybrand_http_request_duration_seconds_bucket[5m])) by (le, route)) > 2
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High response time on {{ $labels.route }}"
+          description: "95th percentile response time is {{ $value }}s for route {{ $labels.route }}"
+
+      # Low GEO score alert
+      - alert: LowGEOScore
+        expr: avg(rankmybrand_geo_score_value) < 50
+        for: 10m
+        labels:
+          severity: info
+        annotations:
+          summary: "Average GEO score is low"
+          description: "Average GEO score is {{ $value }}"
+
+      # Database connection issues
+      - alert: DatabaseConnectionFailure
+        expr: rate(rankmybrand_database_errors_total[5m]) > 0.01
+        for: 3m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Database connection failures detected"
+          description: "Database error rate is {{ $value | humanizePercentage }}"
+
+      # High memory usage
+      - alert: HighMemoryUsage
+        expr: (1 - (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes)) > 0.9
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High memory usage on {{ $labels.instance }}"
+          description: "Memory usage is {{ $value | humanizePercentage }}"
+
+      # High CPU usage
+      - alert: HighCPUUsage
+        expr: 100 - (avg by(instance) (irate(node_cpu_seconds_total{mode="idle"}[5m])) * 100) > 80
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High CPU usage on {{ $labels.instance }}"
+          description: "CPU usage is {{ $value }}%"
+
+      # Redis down
+      - alert: RedisDown
+        expr: up{job="redis"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Redis is down"
+          description: "Redis has been down for more than 1 minute"
+
+      # PostgreSQL down
+      - alert: PostgreSQLDown
+        expr: up{job="postgresql"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "PostgreSQL is down"
+          description: "PostgreSQL has been down for more than 1 minute"
+
+      # Low cache hit rate
+      - alert: LowCacheHitRate
+        expr: avg(rankmybrand_cache_hit_rate) < 50
+        for: 10m
+        labels:
+          severity: info
+        annotations:
+          summary: "Cache hit rate is low"
+          description: "Cache hit rate is {{ $value }}%"
+
+      # High LLM API failures
+      - alert: HighLLMAPIFailures
+        expr: rate(rankmybrand_llm_api_calls_total{status="failure"}[5m]) > 0.1
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High LLM API failure rate"
+          description: "LLM API failure rate is {{ $value | humanizePercentage }} for {{ $labels.provider }}"
+
+      # Onboarding funnel drop-off
+      - alert: OnboardingDropOff
+        expr: (rankmybrand_onboarding_funnel{stage="email_entered"} - rankmybrand_onboarding_funnel{stage="completed"}) / rankmybrand_onboarding_funnel{stage="email_entered"} > 0.7
+        for: 30m
+        labels:
+          severity: info
+        annotations:
+          summary: "High onboarding drop-off rate"
+          description: "{{ $value | humanizePercentage }} of users are not completing onboarding"
+
+      # Disk space alert
+      - alert: DiskSpaceLow
+        expr: (node_filesystem_avail_bytes{mountpoint="/"} / node_filesystem_size_bytes{mountpoint="/"}) < 0.1
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Low disk space on {{ $labels.instance }}"
+          description: "Only {{ $value | humanizePercentage }} disk space remaining"

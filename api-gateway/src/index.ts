@@ -41,6 +41,7 @@ import {
 } from './middleware/logging.middleware';
 import { sanitizeRequest } from './middleware/validation.middleware';
 import { securityHeaders } from './middleware/security.middleware';
+import { metricsMiddleware, metricsEndpoint, metrics } from './middleware/metrics.middleware';
 
 // Validate configuration on startup
 validateConfig();
@@ -114,6 +115,9 @@ app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 // Input sanitization
 app.use(sanitizeRequest);
 
+// Metrics collection middleware
+app.use(metricsMiddleware);
+
 // Rate limiting
 const limiter = rateLimit(config.rateLimit);
 const strictLimiter = rateLimit({
@@ -125,6 +129,7 @@ const strictLimiter = rateLimit({
 // Health & Monitoring Routes
 // ========================================
 app.use('/health', healthRoutes);
+app.get('/metrics', metricsEndpoint);
 
 // ========================================
 // API Routes with Service Proxying
