@@ -145,8 +145,8 @@ export default function EnhancedAdminPage() {
   const fetchEnhancedData = async () => {
     setLoading(true);
     try {
-      // Fetch from the new view
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_GATEWAY || 'http://localhost:4000'}/api/admin/companies/journey`);
+      // Fetch ALL companies including test companies without sessions
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_GATEWAY || 'http://localhost:4000'}/api/test/admin/all-companies`);
       if (response.ok) {
         const data = await response.json();
         setCompanies(data.companies || []);
@@ -191,8 +191,9 @@ export default function EnhancedAdminPage() {
     setLoadingQueries(true);
     try {
       // Fetch HISTORICAL queries that were generated for this company's reports
+      // Using test endpoint temporarily until auth is fixed
       const response = await fetch(
-        `${process.env.NEXT_PUBLIC_API_GATEWAY || 'http://localhost:4000'}/api/admin/company/${companyId}/historical-queries`
+        `${process.env.NEXT_PUBLIC_API_GATEWAY || 'http://localhost:4000'}/api/test/company/${companyId}/queries`
       );
       
       if (response.ok) {
@@ -203,12 +204,10 @@ export default function EnhancedAdminPage() {
         const queries = data.queries || [];
         setQueryStats({
           total: queries.length,
-          highPriority: queries.filter((q: AIQuery) => q.priority_score > 0.7).length,
-          brandMentions: queries.filter((q: AIQuery) => 
-            q.responses?.some(r => r.brand_mentioned)
-          ).length,
-          averageComplexity: queries.reduce((acc: number, q: AIQuery) => 
-            acc + q.complexity_score, 0) / (queries.length || 1)
+          highPriority: queries.filter((q: any) => q.priority_score > 0.7).length,
+          brandMentions: 0, // No response data yet
+          averageComplexity: queries.reduce((acc: number, q: any) => 
+            acc + (parseFloat(q.complexity_score) || 0), 0) / (queries.length || 1)
         });
       } else {
         setAiQueries([]);
@@ -479,9 +478,9 @@ export default function EnhancedAdminPage() {
                   <th className="text-left p-4 font-medium">Company</th>
                   <th className="text-left p-4 font-medium">Description</th>
                   <th className="text-left p-4 font-medium">Competitors</th>
+                  <th className="text-left p-4 font-medium">Queries</th>
                   <th className="text-left p-4 font-medium">Edits</th>
                   <th className="text-left p-4 font-medium">Quality</th>
-                  <th className="text-left p-4 font-medium">Journey Time</th>
                   <th className="text-left p-4 font-medium">Status</th>
                   <th className="text-left p-4 font-medium"></th>
                 </tr>
@@ -572,6 +571,18 @@ export default function EnhancedAdminPage() {
                     </td>
                     <td className="p-4">
                       <div className="flex items-center gap-2">
+                        {company.query_count > 0 ? (
+                          <>
+                            <span className="font-medium text-blue-400">{company.query_count}</span>
+                            <Sparkles className="w-4 h-4 text-blue-400" />
+                          </>
+                        ) : (
+                          <span className="text-gray-400">0</span>
+                        )}
+                      </div>
+                    </td>
+                    <td className="p-4">
+                      <div className="flex items-center gap-2">
                         {company.edit_count > 0 ? (
                           <>
                             <span className="font-medium text-yellow-400">{company.edit_count}</span>
@@ -600,18 +611,6 @@ export default function EnhancedAdminPage() {
                           </div>
                         )}
                       </div>
-                    </td>
-                    <td className="p-4">
-                      {(company.time_on_company_step || company.time_on_description_step || company.time_on_competitor_step) ? (
-                        <div className="flex items-center gap-1">
-                          <Clock className="w-3 h-3 text-blue-400" />
-                          <span className="text-xs">
-                            {Math.round(((company.time_on_company_step || 0) + (company.time_on_description_step || 0) + (company.time_on_competitor_step || 0)) / 60)}m
-                          </span>
-                        </div>
-                      ) : (
-                        <span className="text-xs text-gray-400">—</span>
-                      )}
                     </td>
                     <td className="p-4">
                       <span className={`px-2 py-1 rounded-full text-xs font-medium ${

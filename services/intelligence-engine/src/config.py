@@ -29,7 +29,7 @@ class Settings(BaseSettings):
     
     # PostgreSQL Configuration
     postgres_host: str = Field(default="localhost", env="POSTGRES_HOST")
-    postgres_port: int = Field(default=5433, env="POSTGRES_PORT")
+    postgres_port: int = Field(default=5432, env="POSTGRES_PORT")
     postgres_db: str = Field(default="rankmybrand", env="POSTGRES_DB")
     postgres_user: str = Field(default="postgres", env="POSTGRES_USER")
     postgres_password: str = Field(default="postgres", env="POSTGRES_PASSWORD")
@@ -68,12 +68,18 @@ class Settings(BaseSettings):
     confidence_threshold: float = Field(default=0.7, env="CONFIDENCE_THRESHOLD")
     top_k_keywords: int = Field(default=10, env="TOP_K_KEYWORDS")
     
-    # OpenAI Configuration for LLM Entity Detection
+    # LLM Configuration for Entity Detection and AI Analysis
     openai_api_key: str = Field(default="", env="OPENAI_API_KEY")
     openai_model: str = Field(default="gpt-4o-mini", env="OPENAI_MODEL")
     openai_timeout: int = Field(default=30, env="OPENAI_TIMEOUT")
     openai_max_calls_per_minute: int = Field(default=60, env="OPENAI_MAX_CALLS_PER_MINUTE")
     openai_max_calls_per_customer: int = Field(default=10, env="OPENAI_MAX_CALLS_PER_CUSTOMER")
+    
+    # Additional LLM Providers
+    anthropic_api_key: str = Field(default="", env="ANTHROPIC_API_KEY")
+    perplexity_api_key: str = Field(default="", env="PERPLEXITY_API_KEY")
+    gemini_api_key: str = Field(default="", env="GOOGLE_AI_API_KEY")
+    cohere_api_key: str = Field(default="", env="COHERE_API_KEY")
     
     # Security Configuration
     jwt_secret: str = Field(default="change-me-in-production", env="JWT_SECRET")

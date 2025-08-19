@@ -5,6 +5,7 @@
 
 import { Router, Request, Response } from 'express';
 import { enrichmentService } from '../services/enrichment.service';
+import { queryGenerationService } from '../services/query-generation.service';
 import Redis from 'ioredis';
 import axios from 'axios';
 import { WebSocket } from 'ws';
@@ -507,14 +508,19 @@ router.post('/find-competitors', async (req: Request, res: Response) => {
         if (companyResult.rows[0]) {
           const companyId = companyResult.rows[0].id;
           
-          // Store each competitor
-          for (const competitor of competitors) {
-            await db.query(
-              `INSERT INTO competitors (company_id, competitor_name, competitor_domain, discovered_method, created_at)
-               VALUES ($1, $2, $3, 'ai_suggested', CURRENT_TIMESTAMP)
-               ON CONFLICT (company_id, competitor_domain) DO NOTHING`,
-              [companyId, competitor.name, competitor.domain]
-            );
+          // Store each competitor (handle both string and object formats)
+          for (const competitor of competitors || []) {
+            const competitorName = typeof competitor === 'string' ? competitor : competitor.name;
+            const competitorDomain = typeof competitor === 'string' ? null : competitor.domain;
+            
+            if (competitorName) {
+              await db.query(
+                `INSERT INTO competitors (company_id, competitor_name, competitor_domain, discovered_method, created_at)
+                 VALUES ($1, $2, $3, 'ai_suggested', CURRENT_TIMESTAMP)
+                 ON CONFLICT (company_id, competitor_domain) DO NOTHING`,
+                [companyId, competitorName, competitorDomain]
+              );
+            }
           }
         }
         
@@ -562,6 +568,7 @@ router.post('/find-competitors', async (req: Request, res: Response) => {
  * Complete onboarding and start full analysis
  */
 router.post('/complete', async (req: Request, res: Response) => {
+  console.log('=== ONBOARDING COMPLETE ENDPOINT CALLED ===');
   try {
     const { sessionId, email, company, competitors, description, editedDescription } = req.body;
     const completionTime = Date.now();
@@ -641,18 +648,26 @@ router.post('/complete', async (req: Request, res: Response) => {
         });
       }
 
-      // 3. Save competitors
+      // 3. Save competitors (handle both string and object formats)
       if (competitors && competitors.length > 0) {
         for (const competitor of competitors) {
-          await companyRepository.addCompetitor({
-            company_id: companyRecord.id,
-            competitor_name: competitor.name,
-            competitor_domain: competitor.domain,
-            discovery_source: competitor.source || 'manual',
-            discovery_reason: competitor.reason,
-            similarity_score: competitor.similarity,
-            added_by_user_id: user.id
-          });
+          const competitorName = typeof competitor === 'string' ? competitor : competitor.name;
+          // Use placeholder domain if not provided
+          const competitorDomain = typeof competitor === 'string' 
+            ? `${competitorName.toLowerCase().replace(/\s+/g, '')}.com` 
+            : (competitor.domain || `${competitor.name.toLowerCase().replace(/\s+/g, '')}.com`);
+          
+          if (competitorName) {
+            await companyRepository.addCompetitor({
+              company_id: companyRecord.id,
+              competitor_name: competitorName,
+              competitor_domain: competitorDomain,
+              discovery_source: typeof competitor === 'string' ? 'manual' : (competitor.source || 'manual'),
+              discovery_reason: typeof competitor === 'string' ? null : competitor.reason,
+              similarity_score: typeof competitor === 'string' ? null : competitor.similarity,
+              added_by_user_id: user.id
+            });
+          }
         }
       }
 
@@ -689,8 +704,8 @@ router.post('/complete', async (req: Request, res: Response) => {
         description,
         JSON.stringify(company),  // final_company_data
         editedDescription || description,  // edited_description
-        calculateDataQuality(company),  // data_quality_score
-        calculateDataCompleteness(company)  // completeness_score
+        Math.min(9.99, calculateDataQuality(company) / 10),  // data_quality_score (scale to 0-9.99)
+        Math.min(9.99, calculateDataCompleteness(company) / 10)  // completeness_score (scale to 0-9.99)
       ]);
       
       // Log final journey analytics
@@ -710,6 +725,7 @@ router.post('/complete', async (req: Request, res: Response) => {
     });
 
     // 5. Start full analysis jobs
+    console.log('Transaction result:', JSON.stringify(result, null, 2));
     const analysisJobs = await startFullAnalysis(result.company, competitors);
     
     // 6. Save analysis job IDs
@@ -733,6 +749,16 @@ router.post('/complete', async (req: Request, res: Response) => {
     
     // 8. Clear Redis session
     await redis.del(sessionId);
+    
+    // 9. Trigger AI query generation for the company (professional async handling)
+    const companyId = result?.company?.id;
+    if (companyId) {
+      // Schedule query generation asynchronously - will retry if it fails
+      queryGenerationService.scheduleQueryGeneration(companyId).catch(err => {
+        console.error(`Failed to schedule query generation for company ${companyId}:`, err);
+      });
+      console.log(`Query generation scheduled for company ${companyId}`);
+    }
 
     res.json({
       success: true,
@@ -751,6 +777,25 @@ router.post('/complete', async (req: Request, res: Response) => {
     });
   } catch (dbError: any) {
     console.error('Database operation failed, using fallback:', dbError.message);
+    
+    // Even if the main transaction fails, ensure query generation happens
+    try {
+      // Try to find the company that was created
+      const companyResult = await db.query(
+        'SELECT id FROM companies WHERE domain = $1 ORDER BY created_at DESC LIMIT 1',
+        [company?.domain]
+      );
+      
+      if (companyResult.rows[0]?.id) {
+        const companyId = companyResult.rows[0].id;
+        console.log(`Transaction failed but company ${companyId} exists - scheduling query generation`);
+        queryGenerationService.scheduleQueryGeneration(companyId).catch(err => {
+          console.error(`Failed to schedule query generation for company ${companyId}:`, err);
+        });
+      }
+    } catch (queryScheduleError) {
+      console.error('Failed to schedule query generation in fallback:', queryScheduleError);
+    }
       
       // Fallback response without database
       // Still try to update onboarding status to completed
@@ -857,6 +902,26 @@ async function startBackgroundCrawl(domain: string, sessionId: string) {
  */
 async function startFullAnalysis(company: any, competitors: any[]) {
   const jobs: any[] = [];
+  
+  // AI VISIBILITY ANALYSIS - Generate queries and analyze with LLMs
+  try {
+    console.log('Starting AI Visibility analysis for company:', company.name);
+    const reportService = process.env.API_GATEWAY || 'http://localhost:4000';
+    const reportResponse = await axios.post(`${reportService}/api/reports/generate-internal`, {
+      companyId: company.id,
+      userId: company.user_id,
+      reportType: 'comprehensive',
+      includeAIVisibility: true,
+      includeCompetitorAnalysis: true
+    });
+    
+    if (reportResponse.data.reportId) {
+      jobs.push({ type: 'ai_visibility', id: reportResponse.data.reportId });
+      console.log('AI Visibility report queued:', reportResponse.data.reportId);
+    }
+  } catch (error) {
+    console.error('AI Visibility analysis failed:', error);
+  }
   
   // GEO analysis
   try {

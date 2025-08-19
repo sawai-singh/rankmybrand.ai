@@ -125,7 +125,7 @@ class LLMProviderManager:
                 name=LLMProvider.PERPLEXITY,
                 api_key=os.getenv("PERPLEXITY_API_KEY"),
                 base_url="https://api.perplexity.ai",
-                model="pplx-70b-online",
+                model="sonar",  # Using sonar as default model
                 priority=4,
                 weight=1.1  # Good for real-time data
             )

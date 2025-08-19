@@ -55,6 +55,11 @@ export interface CollectionOptions {
   timeout?: number;
   retries?: number;
   priority?: 'low' | 'normal' | 'high';
+  // Perplexity-specific options
+  searchDomains?: string[];
+  recency?: 'day' | 'week' | 'month' | 'year';
+  contextSize?: 'low' | 'medium' | 'high';
+  searchMode?: 'web' | 'academic';
 }
 
 export interface PlatformConfig {

@@ -12,10 +12,9 @@ import uuid
 from dataclasses import dataclass, asdict
 import hashlib
 
-from query_generator import IntelligentQueryGenerator, QueryContext, GeneratedQuery
-from llm_orchestrator import MultiLLMOrchestrator, OrchestratorConfig
-from response_analyzer import ResponseAnalyzer, AnalysisResult
-from visibility_scorer import VisibilityScorer
+from .query_generator import IntelligentQueryGenerator, QueryContext, GeneratedQuery
+from .llm_orchestrator import MultiLLMOrchestrator, OrchestratorConfig
+from .response_analyzer import LLMResponseAnalyzer, ResponseAnalysis
 
 logger = logging.getLogger(__name__)
 
@@ -78,7 +77,7 @@ class AIVisibilityService:
                 retry_attempts=3
             )
         )
-        self.response_analyzer = ResponseAnalyzer()
+        self.response_analyzer = LLMResponseAnalyzer()
         self.visibility_scorer = VisibilityScorer()
         
     async def generate_visibility_report(

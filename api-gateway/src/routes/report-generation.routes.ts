@@ -48,7 +48,7 @@ router.post(
   '/generate',
   authenticate,
   asyncHandler(async (req: Request, res: Response) => {
-    const userId = (req as any).user.id;
+    const userId = (req as any).user?.id;
     const { 
       companyId, 
       reportType = 'comprehensive',
@@ -124,6 +124,98 @@ router.post(
 
     } catch (error) {
       logger.error('Failed to start report generation:', error);
+      res.status(500).json({
+        error: 'Failed to start report generation',
+        message: 'Please try again later',
+      });
+    }
+  })
+);
+
+/**
+ * Internal endpoint for triggering report generation from onboarding
+ * No authentication required as it's called internally
+ */
+router.post(
+  '/generate-internal',
+  asyncHandler(async (req: Request, res: Response) => {
+    const { 
+      companyId,
+      userId,
+      reportType = 'comprehensive',
+      includeAIVisibility = true,
+      includeCompetitorAnalysis = true 
+    } = req.body;
+
+    logger.info(`Starting internal report generation for company ${companyId}`);
+
+    try {
+      // Fetch company data
+      const companyResult = await db.query(
+        `SELECT c.*, array_agg(DISTINCT comp.name) as competitors
+         FROM companies c
+         LEFT JOIN company_competitors cc ON cc.company_id = c.id
+         LEFT JOIN companies comp ON comp.id = cc.competitor_id
+         WHERE c.id = $1
+         GROUP BY c.id`,
+        [companyId]
+      );
+
+      if (!companyResult.rows[0]) {
+        return res.status(404).json({ error: 'Company not found' });
+      }
+
+      const company = companyResult.rows[0];
+      const reportId = uuidv4();
+
+      // Create report record
+      await db.query(
+        `INSERT INTO reports (id, company_id, user_id, type, status, created_at)
+         VALUES ($1, $2, $3, $4, $5, NOW())
+         ON CONFLICT DO NOTHING`,
+        [reportId, companyId, userId || company.user_id, reportType, 'processing']
+      );
+
+      // Queue the report generation job
+      const job = await reportQueue.add('generate-report', {
+        reportId,
+        companyId,
+        userId: userId || company.user_id,
+        reportType,
+        company: {
+          id: company.id,
+          name: company.name,
+          domain: company.domain,
+          description: company.description,
+          industry: company.industry,
+          competitors: company.competitors || [],
+        },
+        options: {
+          includeAIVisibility,
+          includeCompetitorAnalysis,
+        },
+      }, {
+        jobId: reportId,
+      });
+
+      // Notify via WebSocket for real-time updates
+      redis.publish('report:started', JSON.stringify({
+        reportId,
+        companyId,
+        userId: userId || company.user_id,
+        timestamp: new Date().toISOString(),
+      }));
+
+      res.json({
+        success: true,
+        reportId,
+        status: 'processing',
+        message: 'Report generation started (internal)',
+        estimatedTime: reportType === 'instant' ? 30 : 120, // seconds
+      });
+
+    } catch (error) {
+      logger.error('Failed to start internal report generation:', error);
       res.status(500).json({
         error: 'Failed to start report generation',
         message: 'Please try again later',

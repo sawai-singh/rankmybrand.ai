@@ -73,7 +73,7 @@ class GeneratedQuery:
 class IntelligentQueryGenerator:
     """GPT-5 powered query generation with advanced context understanding"""
     
-    def __init__(self, openai_api_key: str, model: str = "gpt-4o"):
+    def __init__(self, openai_api_key: str, model: str = "gpt-5-chat-latest"):
         """Initialize with GPT-5 or fallback to GPT-4"""
         self.client = AsyncOpenAI(api_key=openai_api_key)
         self.model = model

@@ -7,7 +7,7 @@ import { AIResponse, CollectionOptions, Citation } from '../types';
 
 export class PerplexityCollector extends BaseCollector {
   private client?: AxiosInstance;
-  private models: string[] = ['pplx-70b-online', 'pplx-7b-online', 'pplx-70b-chat', 'pplx-7b-chat'];
+  private models: string[] = ['sonar', 'sonar-pro'];
   
   constructor(redis: Redis) {
     super('perplexity', redis);
@@ -51,7 +51,7 @@ export class PerplexityCollector extends BaseCollector {
     try {
       // Make a minimal API call to validate the key
       const response = await this.client.post('/chat/completions', {
-        model: 'pplx-7b-chat',
+        model: 'sonar',
         messages: [{ role: 'user', content: 'test' }],
         max_tokens: 1
       });
@@ -73,7 +73,7 @@ export class PerplexityCollector extends BaseCollector {
     
     try {
       // Check cache first
-      const cacheKey = `${prompt}:${options?.model || 'pplx-70b-online'}`;
+      const cacheKey = `${prompt}:${options?.model || 'sonar'}`;
       const { data: cachedResponse, fromCache } = await this.withCache(
         cacheKey,
         options?.cacheTTL || this.cacheTTL,
@@ -81,7 +81,7 @@ export class PerplexityCollector extends BaseCollector {
           // Execute with rate limiting
           return this.withRateLimit('api', async () => {
             return this.withRetry(async () => {
-              const model = options?.model || 'pplx-70b-online';
+              const model = options?.model || 'sonar';
               
               // Perplexity-specific parameters
               const requestBody = {
@@ -99,11 +99,15 @@ export class PerplexityCollector extends BaseCollector {
                 max_tokens: options?.maxTokens || 2000,
                 temperature: options?.temperature || 0.7,
                 top_p: 1,
-                return_citations: true, // Perplexity feature
-                search_domain_filter: [], // Can limit to specific domains
+                // Perplexity-specific search parameters
+                search_mode: 'web', // or 'academic'
+                search_domain_filter: options?.searchDomains || undefined,
+                search_recency_filter: options?.recency || 'month',
                 return_images: false,
                 return_related_questions: false,
-                search_recency_filter: 'month' // Get recent information
+                web_search_options: {
+                  search_context_size: options?.contextSize || 'medium'
+                }
               };
               
               const response = await this.client!.post('/chat/completions', requestBody);
@@ -238,19 +242,17 @@ export class PerplexityCollector extends BaseCollector {
       return 0;
     }
     
-    // Perplexity pricing (estimated - in cents per 1K tokens)
+    // Perplexity pricing (per 1M tokens)
     const pricing: Record<string, { prompt: number; completion: number }> = {
-      'pplx-70b-online': { prompt: 0.7, completion: 2.8 },
-      'pplx-7b-online': { prompt: 0.07, completion: 0.28 },
-      'pplx-70b-chat': { prompt: 0.7, completion: 2.8 },
-      'pplx-7b-chat': { prompt: 0.07, completion: 0.28 }
+      'sonar': { prompt: 1.0, completion: 1.0 }, // $1 per 1M tokens
+      'sonar-pro': { prompt: 3.0, completion: 15.0 } // $3/$15 per 1M tokens
     };
     
-    const model = usage.model || 'pplx-70b-online';
-    const modelPricing = pricing[model] || pricing['pplx-70b-online'];
+    const model = usage.model || 'sonar';
+    const modelPricing = pricing[model] || pricing['sonar'];
     
-    const promptCost = (usage.promptTokens / 1000) * modelPricing.prompt;
-    const completionCost = (usage.completionTokens / 1000) * modelPricing.completion;
+    const promptCost = (usage.promptTokens / 1000000) * modelPricing.prompt;
+    const completionCost = (usage.completionTokens / 1000000) * modelPricing.completion;
     
     return Math.round((promptCost + completionCost) * 100) / 100; // Round to 2 decimal places
   }
@@ -275,7 +277,7 @@ export class PerplexityCollector extends BaseCollector {
     }
     
     const requestBody = {
-      model: options?.model || 'pplx-70b-online',
+      model: options?.model || 'sonar',
       messages: [
         {
           role: 'user',

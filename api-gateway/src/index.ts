@@ -27,6 +27,8 @@ import healthRoutes from './routes/health.routes';
 import aiVisibilityRoutes from './routes/ai-visibility.routes';
 import reportGenerationRoutes from './routes/report-generation.routes';
 import adminAIVisibilityRoutes from './routes/admin-ai-visibility.routes';
+import testQueriesRoutes from './routes/test-queries.routes';
+import queryStatusRoutes from './routes/query-status.routes';
 
 // Import middleware
 import { 
@@ -244,6 +246,8 @@ app.use('/api/onboarding', limiter, onboardingRoutes);
 app.use('/api/ai-visibility', limiter, aiVisibilityRoutes);
 app.use('/api/reports', limiter, reportGenerationRoutes);
 app.use('/api/admin', limiter, adminAIVisibilityRoutes);
+app.use('/api/test', testQueriesRoutes); // Test route without auth
+app.use('/api/query-status', queryStatusRoutes); // Query generation status
 
 // ========================================
 // Report Queue Routes (Feature-flagged)

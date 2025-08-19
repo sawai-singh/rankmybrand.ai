@@ -6,6 +6,7 @@ from prometheus_client import make_asgi_app
 import logging
 from src.api.analysis_routes import router as analysis_router
 from src.api.geo_routes import router as geo_router
+from src.api.ai_visibility_routes import router as ai_visibility_router
 from src.config import settings
 from src.monitoring.middleware import setup_metrics_middleware
 
@@ -44,6 +45,7 @@ if settings.enable_metrics:
 # Include routers
 app.include_router(analysis_router, prefix="/api")
 app.include_router(geo_router)
+app.include_router(ai_visibility_router)
 
 @app.on_event("startup")
 async def startup_event():
