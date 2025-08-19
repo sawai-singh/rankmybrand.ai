@@ -142,6 +142,34 @@ router.post('/register', async (req: Request, res: Response) => {
 });
 
 /**
+ * Check if user exists
+ */
+router.post('/check-user', async (req: Request, res: Response) => {
+  try {
+    const validation = magicLinkSchema.safeParse(req.body);
+    if (!validation.success) {
+      return res.status(400).json({ 
+        error: 'Invalid email address' 
+      });
+    }
+
+    const { email } = validation.data;
+
+    // Check if user exists
+    const user = await userRepository.findByEmail(email);
+    
+    res.json({
+      success: true,
+      exists: !!user,
+      hasReport: !!user // For now, assume all users have reports
+    });
+  } catch (error: any) {
+    console.error('Check user error:', error);
+    res.status(500).json({ error: 'Failed to check user' });
+  }
+});
+
+/**
  * Request magic link
  */
 router.post('/magic-link', async (req: Request, res: Response) => {
@@ -169,7 +197,7 @@ router.post('/magic-link', async (req: Request, res: Response) => {
     const token = await userRepository.generateMagicLink(email);
     
     // Create magic link URL
-    const magicLinkUrl = `${process.env.FRONTEND_URL || 'http://localhost:3000'}/auth/magic-link?token=${token}`;
+    const magicLinkUrl = `${process.env.FRONTEND_URL || 'http://localhost:3001'}/r/${token}`;
     
     // Send email (implement email service)
     console.log('Magic link URL:', magicLinkUrl); // For development

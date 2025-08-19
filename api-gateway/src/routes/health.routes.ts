@@ -20,6 +20,7 @@ const SERVICES = {
   search: process.env.SEARCH_SERVICE || 'http://localhost:3002',
   intelligence: process.env.INTELLIGENCE_SERVICE || 'http://localhost:8002',
   action: process.env.ACTION_SERVICE || 'http://localhost:8082',
+  aiVisibility: process.env.AI_VISIBILITY_SERVICE || 'http://localhost:8100',
 };
 
 // Health status types
@@ -161,6 +162,57 @@ router.get('/redis', async (req: Request, res: Response) => {
 router.get('/metrics', async (req: Request, res: Response) => {
   const metrics = await getSystemMetrics();
   res.json(metrics);
+});
+
+/**
+ * AI Visibility Service Health Check
+ */
+router.get('/ai-visibility', async (req: Request, res: Response) => {
+  try {
+    const aiVisHealth = await checkAIVisibilityHealth();
+    const statusCode = aiVisHealth.status === 'healthy' ? 200 : 
+                       aiVisHealth.status === 'degraded' ? 206 : 503;
+    
+    res.status(statusCode).json(aiVisHealth);
+  } catch (error: any) {
+    res.status(503).json({
+      status: 'unhealthy',
+      error: error.message,
+      timestamp: new Date().toISOString(),
+    });
+  }
+});
+
+/**
+ * LLM Providers Health Check
+ */
+router.get('/llm-providers', async (req: Request, res: Response) => {
+  try {
+    const providersHealth = await checkLLMProvidersHealth();
+    res.json(providersHealth);
+  } catch (error: any) {
+    res.status(503).json({
+      status: 'unhealthy',
+      error: error.message,
+      providers: {},
+    });
+  }
+});
+
+/**
+ * AI Visibility Job Queue Status
+ */
+router.get('/ai-visibility/queue', async (req: Request, res: Response) => {
+  try {
+    const queueStatus = await checkAIVisibilityQueue();
+    res.json(queueStatus);
+  } catch (error: any) {
+    res.status(503).json({
+      status: 'unhealthy',
+      error: error.message,
+      queue: {},
+    });
+  }
 });
 
 // Helper functions
@@ -379,6 +431,152 @@ async function getSystemMetrics() {
     },
     disk: diskUsage,
   };
+}
+
+async function checkAIVisibilityHealth() {
+  const startTime = Date.now();
+  
+  try {
+    // Check AI Visibility service health
+    const response = await fetch(`${SERVICES.aiVisibility}/health`);
+    const data = await response.json();
+    const responseTime = Date.now() - startTime;
+    
+    // Get additional metrics from Redis
+    const today = new Date().toISOString().split('T')[0];
+    const [
+      dailyCost,
+      totalAudits,
+      queueSize,
+      cacheHits,
+      cacheMisses
+    ] = await Promise.all([
+      redis.get(`daily_cost:${today}`),
+      redis.get(`metrics:audits:${today}`),
+      redis.llen('ai_visibility:job_queue'),
+      redis.get(`cache:hits:${today}`),
+      redis.get(`cache:misses:${today}`)
+    ]);
+    
+    const cacheHitRate = cacheHits && cacheMisses 
+      ? (parseInt(cacheHits) / (parseInt(cacheHits) + parseInt(cacheMisses)) * 100).toFixed(2)
+      : 0;
+    
+    return {
+      status: data.status || 'degraded',
+      responseTime,
+      service: data,
+      metrics: {
+        dailyCost: parseFloat(dailyCost || '0'),
+        totalAudits: parseInt(totalAudits || '0'),
+        queueSize: queueSize || 0,
+        cacheHitRate: parseFloat(cacheHitRate as string),
+      },
+      lastChecked: new Date().toISOString(),
+    };
+  } catch (error: any) {
+    return {
+      status: 'unhealthy',
+      responseTime: Date.now() - startTime,
+      error: error.message,
+      metrics: {},
+      lastChecked: new Date().toISOString(),
+    };
+  }
+}
+
+async function checkLLMProvidersHealth() {
+  try {
+    // Check AI Visibility service's provider health endpoint
+    const response = await fetch(`${SERVICES.aiVisibility}/api/ai-visibility/providers/health`);
+    const data = await response.json();
+    
+    // Get usage metrics from Redis
+    const today = new Date().toISOString().split('T')[0];
+    const [
+      openaiCalls,
+      anthropicCalls,
+      googleCalls,
+      perplexityCalls
+    ] = await Promise.all([
+      redis.get(`metrics:llm:openai:${today}`),
+      redis.get(`metrics:llm:anthropic:${today}`),
+      redis.get(`metrics:llm:google:${today}`),
+      redis.get(`metrics:llm:perplexity:${today}`)
+    ]);
+    
+    return {
+      status: 'healthy',
+      providers: data,
+      usage: {
+        openai: parseInt(openaiCalls || '0'),
+        anthropic: parseInt(anthropicCalls || '0'),
+        google: parseInt(googleCalls || '0'),
+        perplexity: parseInt(perplexityCalls || '0'),
+      },
+      timestamp: new Date().toISOString(),
+    };
+  } catch (error: any) {
+    return {
+      status: 'unhealthy',
+      error: error.message,
+      providers: {},
+      usage: {},
+      timestamp: new Date().toISOString(),
+    };
+  }
+}
+
+async function checkAIVisibilityQueue() {
+  try {
+    // Get queue metrics from Redis
+    const [
+      queueSize,
+      processingCount,
+      completedToday,
+      failedToday
+    ] = await Promise.all([
+      redis.llen('ai_visibility:job_queue'),
+      redis.get('ai_visibility:processing_count'),
+      redis.get(`ai_visibility:completed:${new Date().toISOString().split('T')[0]}`),
+      redis.get(`ai_visibility:failed:${new Date().toISOString().split('T')[0]}`)
+    ]);
+    
+    // Calculate average processing time
+    const recentJobs = await redis.lrange('ai_visibility:recent_jobs', 0, 10);
+    let avgProcessingTime = 0;
+    
+    if (recentJobs.length > 0) {
+      const times = recentJobs.map(job => {
+        try {
+          const parsed = JSON.parse(job);
+          return parsed.processingTime || 0;
+        } catch {
+          return 0;
+        }
+      });
+      avgProcessingTime = times.reduce((a, b) => a + b, 0) / times.length;
+    }
+    
+    return {
+      status: queueSize > 100 ? 'degraded' : 'healthy',
+      queue: {
+        size: queueSize || 0,
+        processing: parseInt(processingCount || '0'),
+        completedToday: parseInt(completedToday || '0'),
+        failedToday: parseInt(failedToday || '0'),
+        avgProcessingTime: Math.round(avgProcessingTime),
+      },
+      timestamp: new Date().toISOString(),
+    };
+  } catch (error: any) {
+    return {
+      status: 'unhealthy',
+      error: error.message,
+      queue: {},
+      timestamp: new Date().toISOString(),
+    };
+  }
 }
 
 export default router;

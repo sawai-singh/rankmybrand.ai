@@ -73,26 +73,66 @@ router.post('/validate-token',
       return res.status(400).json({ errors: errors.array() });
     }
 
-    const { token } = req.body;
+    const { token, deviceInfo, utmParams, timestamp, deviceFingerprint, retryCount = 0 } = req.body;
     const userAgent = req.headers['user-agent'];
+    const clientInfo = req.headers['x-client-info'];
     const ipAddress = req.ip;
+
+    // Rate limiting check (simple in-memory)
+    const rateLimitKey = `${ipAddress}-${deviceFingerprint || 'unknown'}`;
+    
+    // Log access attempt
+    console.log(`Token validation attempt: IP ${ipAddress}, Device ${deviceFingerprint}, Retry ${retryCount}`);
 
     const validation = await reportQueueService.validateToken(token);
 
     if (validation.valid && validation.data) {
-      // Log analytics
-      console.log(`Report link accessed: User ${validation.data.userId}, Report ${validation.data.reportId}`);
+      // Log successful access with analytics
+      console.log(`Report link accessed: User ${validation.data.userId}, Report ${validation.data.reportId}, UTM: ${JSON.stringify(utmParams)}`);
+      
+      // Track device info if provided
+      if (deviceInfo) {
+        console.log(`Device info: ${JSON.stringify(deviceInfo)}`);
+      }
       
       res.json({
         valid: true,
         reportId: validation.data.reportId,
         companyId: validation.data.companyId,
-        userId: validation.data.userId
+        brandName: validation.data.companyName || 'Your Brand',
+        userEmail: validation.data.email,
+        userId: validation.data.userId,
+        createdAt: validation.data.createdAt,
+        expiresAt: validation.data.expiresAt,
+        accessCount: validation.data.accessCount || 1,
+        maxAccess: validation.data.maxAccess || null
       });
     } else {
-      res.status(401).json({
+      // Determine specific error type
+      let errorCode = 'TOKEN_INVALID';
+      let statusCode = 401;
+      let errorMessage = 'Invalid or expired token';
+      
+      if (validation.error) {
+        if (validation.error.includes('expired')) {
+          errorCode = 'TOKEN_EXPIRED';
+          statusCode = 410; // Gone
+          errorMessage = 'This report link has expired';
+        } else if (validation.error.includes('revoked')) {
+          errorCode = 'TOKEN_REVOKED';
+          errorMessage = 'This report link has been revoked';
+        } else if (retryCount > 5) {
+          errorCode = 'RATE_LIMITED';
+          statusCode = 429; // Too Many Requests
+          errorMessage = 'Too many attempts. Please try again later';
+        }
+      }
+      
+      res.status(statusCode).json({
         valid: false,
-        error: 'Invalid or expired token'
+        error: errorMessage,
+        errorCode: errorCode,
+        retryAfter: errorCode === 'RATE_LIMITED' ? 60 : undefined
       });
     }
   })

@@ -93,7 +93,7 @@ class EmailService {
         }
 
         const data = await response.json();
-        console.log(`✅ Email sent via Resend: ${data.id}`);
+        console.log(`✅ Email sent via Resend: ${(data as any).id}`);
         return true;
       } else if (this.transporter) {
         // Use SMTP

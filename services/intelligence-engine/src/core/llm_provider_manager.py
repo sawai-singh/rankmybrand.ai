@@ -110,11 +110,11 @@ class LLMProviderManager:
             )
             
         # Google Gemini
-        if os.getenv("GEMINI_API_KEY"):
+        if os.getenv("GOOGLE_AI_API_KEY") or os.getenv("GEMINI_API_KEY"):
             self.providers[LLMProvider.GEMINI] = ProviderConfig(
                 name=LLMProvider.GEMINI,
-                api_key=os.getenv("GEMINI_API_KEY"),
-                model="gemini-pro",
+                api_key=os.getenv("GOOGLE_AI_API_KEY") or os.getenv("GEMINI_API_KEY"),
+                model="gemini-2.5-flash",  # Gemini 2.5 Flash
                 priority=3,
                 weight=1.0
             )

@@ -1,57 +1,46 @@
-import { redirect } from 'next/navigation';
-import { headers } from 'next/headers';
+import { Suspense } from 'react';
+import type { Metadata } from 'next';
+import { notFound } from 'next/navigation';
+import TokenValidator from './TokenValidator';
+import LoadingRedirect from './LoadingRedirect';
 
-interface PageProps {
-  params: {
-    token: string;
+type PageProps = {
+  params: { token: string };
+  searchParams: {
+    utm_source?: string;
+    utm_medium?: string;
+    utm_campaign?: string;
+    [key: string]: string | undefined;
   };
-}
+};
 
-export default async function SignedLinkPage({ params }: PageProps) {
-  const { token } = params;
-  
-  // Validate token server-side
-  try {
-    const apiUrl = process.env.NEXT_PUBLIC_API_GATEWAY || 'http://localhost:4000';
-    const response = await fetch(`${apiUrl}/api/report/validate-token`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        // Forward user agent for logging
-        'User-Agent': headers().get('user-agent') || '',
-      },
-      body: JSON.stringify({ token }),
-      cache: 'no-store'
-    });
+const TOKEN_REGEX = /^[A-Za-z0-9_-]{32,256}$/;
 
-    if (response.ok) {
-      const data = await response.json();
-      
-      // Redirect to dashboard with report params
-      // Using View Transitions API via client component would require additional wrapper
-      // For SSR, we use standard redirect with query params
-      const dashboardUrl = new URL(process.env.DASHBOARD_URL || 'http://localhost:3000');
-      dashboardUrl.searchParams.set('report', data.reportId);
-      dashboardUrl.searchParams.set('from', 'email');
-      if (data.companyId) {
-        dashboardUrl.searchParams.set('company', data.companyId);
-      }
-      
-      redirect(dashboardUrl.toString());
-    } else {
-      // Invalid or expired token
-      redirect('/login?error=invalid_token');
-    }
-  } catch (error) {
-    console.error('Token validation error:', error);
-    redirect('/login?error=token_error');
-  }
-}
-
-// Generate metadata for the page
-export async function generateMetadata({ params }: PageProps) {
+export async function generateMetadata(): Promise<Metadata> {
   return {
-    title: 'Opening your dashboard...',
-    robots: 'noindex, nofollow', // Don't index these temporary links
+    title: 'Accessing Your Report | RankMyBrand',
+    description: 'Securely accessing your AI visibility report',
+    robots: 'noindex, nofollow, noarchive',
+    other: { 'X-Robots-Tag': 'noindex, nofollow, noarchive' },
   };
+}
+
+export default function SignedLinkPage({ params, searchParams }: PageProps) {
+  const { token } = params;
+
+  if (!token || !TOKEN_REGEX.test(token)) {
+    notFound();
+  }
+
+  // Pass through only string values (defensive)
+  const utmParams: Record<string, string> = {};
+  for (const [k, v] of Object.entries(searchParams || {})) {
+    if (typeof v === 'string') utmParams[k] = v;
+  }
+
+  return (
+    <Suspense fallback={<LoadingRedirect />}>
+      <TokenValidator token={token} utmParams={utmParams} />
+    </Suspense>
+  );
 }

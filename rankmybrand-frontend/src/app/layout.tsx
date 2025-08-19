@@ -1,89 +1,50 @@
-import type { Metadata, Viewport } from 'next';
+import type { Metadata } from 'next';
 import { Inter, Outfit, JetBrains_Mono } from 'next/font/google';
-import { Analytics } from '@vercel/analytics/react';
 import './globals.css';
-import { Providers } from './providers';
-import { Toaster } from 'sonner';
+import { cn } from '@/lib/utils';
 
-const inter = Inter({ 
+const inter = Inter({
   subsets: ['latin'],
   variable: '--font-inter',
   display: 'swap',
+  preload: true,
 });
 
-const outfit = Outfit({ 
+const outfit = Outfit({
   subsets: ['latin'],
   variable: '--font-outfit',
   display: 'swap',
+  preload: true,
 });
 
-const jetbrainsMono = JetBrains_Mono({ 
+const jetbrainsMono = JetBrains_Mono({
   subsets: ['latin'],
-  variable: '--font-mono',
+  variable: '--font-jetbrains',
   display: 'swap',
+  preload: true,
 });
 
 export const metadata: Metadata = {
-  title: 'RankMyBrand - AI Visibility in 10 Seconds | Beat AthenaHQ',
-  description: 'Get instant AI visibility scores across ChatGPT, Claude, Perplexity & more. 50% cheaper than AthenaHQ with 3x faster results. Start free.',
-  keywords: 'GEO platform, AI visibility, ChatGPT ranking, Claude optimization, Perplexity SEO, brand visibility, AI search optimization',
-  authors: [{ name: 'RankMyBrand' }],
-  creator: 'RankMyBrand',
-  publisher: 'RankMyBrand',
-  formatDetection: {
-    email: false,
-    address: false,
-    telephone: false,
-  },
-  metadataBase: new URL('https://rankmybrand.ai'),
+  title: 'RankMyBrand - AI Visibility Analytics Platform',
+  description: 'Track and optimize your brand visibility across AI platforms like ChatGPT, Claude, Gemini, and Perplexity',
+  keywords: 'AI visibility, brand tracking, ChatGPT optimization, AI analytics',
   openGraph: {
-    title: 'RankMyBrand - AI Visibility in 10 Seconds',
-    description: 'Instant AI visibility scores. 50% cheaper than AthenaHQ.',
-    url: 'https://rankmybrand.ai',
-    siteName: 'RankMyBrand',
-    images: [
-      {
-        url: '/og-image.png',
-        width: 1200,
-        height: 630,
-        alt: 'RankMyBrand - AI Visibility Platform',
-      },
-    ],
-    locale: 'en_US',
+    title: 'RankMyBrand - AI Visibility Analytics Platform',
+    description: 'Track and optimize your brand visibility across AI platforms',
     type: 'website',
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'RankMyBrand - AI Visibility in 10 Seconds',
-    description: 'Instant AI visibility scores. 50% cheaper than AthenaHQ.',
-    creator: '@rankmybrand',
-    images: ['/twitter-image.png'],
-  },
-  robots: {
-    index: true,
-    follow: true,
-    googleBot: {
-      index: true,
-      follow: true,
-      'max-video-preview': -1,
-      'max-image-preview': 'large',
-      'max-snippet': -1,
-    },
-  },
-  verification: {
-    google: 'google-verification-code',
-    yandex: 'yandex-verification-code',
+    title: 'RankMyBrand - AI Visibility Analytics Platform',
+    description: 'Track and optimize your brand visibility across AI platforms',
   },
 };
 
-export const viewport: Viewport = {
+export const viewport = {
   width: 'device-width',
   initialScale: 1,
   maximumScale: 5,
-  themeColor: [
-    { media: '(prefers-color-scheme: light)', color: '#ffffff' },
-    { media: '(prefers-color-scheme: dark)', color: '#0a0a0a' },
-  ],
+  themeColor: '#8B5CF6',
 };
 
 export default function RootLayout({
@@ -94,21 +55,24 @@ export default function RootLayout({
   return (
     <html 
       lang="en" 
-      className={`${inter.variable} ${outfit.variable} ${jetbrainsMono.variable}`}
+      className={cn(
+        inter.variable,
+        outfit.variable,
+        jetbrainsMono.variable,
+        'font-sans'
+      )}
       suppressHydrationWarning
     >
-      <body className="font-sans antialiased">
-        <Providers>
-          {children}
-          <Toaster 
-            position="bottom-right"
-            toastOptions={{
-              className: 'font-sans',
-              duration: 4000,
-            }}
-          />
-        </Providers>
-        <Analytics />
+      <head>
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
+      </head>
+      <body className={cn(
+        'min-h-screen bg-background text-foreground antialiased',
+        'selection:bg-violet-600/20 selection:text-violet-900 dark:selection:bg-violet-400/20 dark:selection:text-violet-100'
+      )}>
+        {/* Removed all providers that might interfere with navigation */}
+        {children}
       </body>
     </html>
   );

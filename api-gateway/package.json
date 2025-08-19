@@ -35,7 +35,9 @@
     "winston": "^3.17.0",
     "ws": "^8.18.3",
     "xss-clean": "^0.1.4",
-    "zod": "^4.0.17"
+    "zod": "^4.0.17",
+    "bull": "^4.12.2",
+    "rate-limit-redis": "^4.2.0"
   },
   "devDependencies": {
     "@types/bcrypt": "^6.0.0",

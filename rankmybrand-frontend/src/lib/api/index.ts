@@ -161,9 +161,9 @@ class RankMyBrandAPI {
     const message = error.response?.data?.message || error.message;
 
     if (status === 401) {
-      // Unauthorized - redirect to login
+      // Unauthorized - redirect to access page
       if (typeof window !== 'undefined') {
-        window.location.href = '/login';
+        window.location.href = '/access';
       }
     } else if (status === 429) {
       // Rate limited

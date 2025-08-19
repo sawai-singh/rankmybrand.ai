@@ -5,7 +5,7 @@ import { EventBus } from './event-bus';
 import { ServiceRegistry } from './service-registry';
 import { RateLimiter } from './rate-limiter';
 import * as promClient from 'prom-client';
-import { logger, httpLogStream } from '../utils/logger';
+import { logger } from '../utils/logger';
 import { v4 as uuidv4 } from 'uuid';
 
 // Extend Express Request type to include our custom properties
@@ -163,11 +163,12 @@ export abstract class Microservice {
           if (result.retryAfter) {
             res.setHeader('Retry-After', String(result.retryAfter));
           }
-          return res.status(429).json({
+          res.status(429).json({
             error: 'Too Many Requests',
             message: 'Rate limit exceeded',
             retryAfter: result.retryAfter
           });
+          return;
         }
         
         next();
@@ -177,7 +178,7 @@ export abstract class Microservice {
   
   private setupBaseRoutes(): void {
     // Health check
-    this.app.get('/health', (req: Request, res: Response) => {
+    this.app.get('/health', (_req: Request, res: Response) => {
       res.json({
         status: 'healthy',
         service: this.config.serviceName,
@@ -188,7 +189,7 @@ export abstract class Microservice {
     });
     
     // Readiness check
-    this.app.get('/ready', async (req: Request, res: Response) => {
+    this.app.get('/ready', async (_req: Request, res: Response) => {
       try {
         // Check dependencies
         const checks = await this.performReadinessChecks();
@@ -211,7 +212,7 @@ export abstract class Microservice {
     });
     
     // Metrics endpoint
-    this.app.get('/metrics', async (req: Request, res: Response) => {
+    this.app.get('/metrics', async (_req: Request, res: Response) => {
       try {
         res.set('Content-Type', this.metrics.contentType);
         const metrics = await this.metrics.metrics();
@@ -222,7 +223,7 @@ export abstract class Microservice {
     });
     
     // Service info
-    this.app.get('/info', (req: Request, res: Response) => {
+    this.app.get('/info', (_req: Request, res: Response) => {
       res.json({
         service: this.config.serviceName,
         version: this.config.version,
@@ -256,7 +257,7 @@ export abstract class Microservice {
     });
     
     // Global error handler
-    this.app.use((err: any, req: Request, res: Response, next: NextFunction) => {
+    this.app.use((err: any, req: Request, res: Response, _next: NextFunction) => {
       const statusCode = err.statusCode || err.status || 500;
       const errorId = uuidv4();
       

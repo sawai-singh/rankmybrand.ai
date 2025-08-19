@@ -2,7 +2,6 @@ import winston from 'winston';
 import path from 'path';
 
 const logLevel = process.env.LOG_LEVEL || 'info';
-const logFormat = process.env.LOG_FORMAT || 'json';
 const nodeEnv = process.env.NODE_ENV || 'development';
 
 const customFormat = winston.format.combine(

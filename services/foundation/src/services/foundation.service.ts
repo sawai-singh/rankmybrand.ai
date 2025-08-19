@@ -87,7 +87,7 @@ export class FoundationService extends Microservice {
     const app = this.getApp();
     
     // Service registry endpoints
-    app.get('/api/foundation/services', async (req: Request, res: Response, next: NextFunction) => {
+    app.get('/api/foundation/services', async (_req: Request, res: Response, next: NextFunction) => {
       try {
         const result = await this.dbPool.query(
           'SELECT * FROM foundation.services ORDER BY name'
@@ -110,7 +110,8 @@ export class FoundationService extends Microservice {
         );
         
         if (result.rowCount === 0) {
-          return res.status(404).json({ error: 'Service not found' });
+          res.status(404).json({ error: 'Service not found' });
+          return;
         }
         
         res.json(result.rows[0]);
@@ -120,7 +121,7 @@ export class FoundationService extends Microservice {
     });
     
     // Event bus status
-    app.get('/api/foundation/events/status', async (req: Request, res: Response, next: NextFunction) => {
+    app.get('/api/foundation/events/status', async (_req: Request, res: Response, next: NextFunction) => {
       try {
         const metrics = await this.getEventBus().getMetrics();
         res.json(metrics);
@@ -190,7 +191,7 @@ export class FoundationService extends Microservice {
     });
     
     // System metrics
-    app.get('/api/foundation/metrics/summary', async (req: Request, res: Response, next: NextFunction) => {
+    app.get('/api/foundation/metrics/summary', async (_req: Request, res: Response, next: NextFunction) => {
       try {
         const [services, events, requests] = await Promise.all([
           this.dbPool.query('SELECT COUNT(*) as total, COUNT(*) FILTER (WHERE status = \'healthy\') as healthy FROM foundation.services'),
@@ -243,7 +244,7 @@ export class FoundationService extends Microservice {
     });
     
     // Health check with dependencies
-    app.get('/api/foundation/health/detailed', async (req: Request, res: Response, next: NextFunction) => {
+    app.get('/api/foundation/health/detailed', async (_req: Request, res: Response, next: NextFunction) => {
       try {
         const checks = await this.performReadinessChecks();
         res.json({

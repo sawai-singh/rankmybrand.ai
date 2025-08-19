@@ -24,6 +24,9 @@ import { db } from './database/connection';
 import onboardingRoutes from './routes/onboarding.routes';
 import authRoutes from './routes/auth.routes';
 import healthRoutes from './routes/health.routes';
+import aiVisibilityRoutes from './routes/ai-visibility.routes';
+import reportGenerationRoutes from './routes/report-generation.routes';
+import adminAIVisibilityRoutes from './routes/admin-ai-visibility.routes';
 
 // Import middleware
 import { 
@@ -234,6 +237,13 @@ app.use('/api/auth', limiter, authRoutes);
 // Onboarding Routes
 // ========================================
 app.use('/api/onboarding', limiter, onboardingRoutes);
+
+// ========================================
+// AI Visibility Routes
+// ========================================
+app.use('/api/ai-visibility', limiter, aiVisibilityRoutes);
+app.use('/api/reports', limiter, reportGenerationRoutes);
+app.use('/api/admin', limiter, adminAIVisibilityRoutes);
 
 // ========================================
 // Report Queue Routes (Feature-flagged)

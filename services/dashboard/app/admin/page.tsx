@@ -7,7 +7,8 @@ import {
   Target, Brain, Calendar, RefreshCw, Search,
   Filter, Download, Eye, ChevronRight, Edit3,
   Clock, TrendingUp, Shield, Zap, CheckCircle,
-  XCircle, AlertCircle, FileText, GitBranch
+  XCircle, AlertCircle, FileText, GitBranch,
+  Sparkles, MessageSquare, Hash, Layers
 } from "lucide-react";
 
 interface CompanyJourneyData {
@@ -76,6 +77,30 @@ interface CompanyJourneyData {
   edited_company_data: any;
   final_company_data: any;
   metadata: any;
+  
+  // AI Visibility data
+  ai_visibility?: {
+    audit_id?: string;
+    queries_generated?: number;
+    last_audit_date?: string;
+    audit_status?: string;
+  };
+}
+
+interface AIQuery {
+  id: string;
+  query_text: string;
+  intent: string;
+  complexity_score: number;
+  competitive_relevance: number;
+  buyer_journey_stage: string;
+  priority_score: number;
+  responses?: {
+    provider: string;
+    brand_mentioned: boolean;
+    sentiment: string;
+    response_snippet?: string;
+  }[];
 }
 
 interface EditHistory {
@@ -94,7 +119,15 @@ export default function EnhancedAdminPage() {
   const [filterStatus, setFilterStatus] = useState("all");
   const [selectedCompany, setSelectedCompany] = useState<CompanyJourneyData | null>(null);
   const [editHistory, setEditHistory] = useState<EditHistory[]>([]);
-  const [activeTab, setActiveTab] = useState<"overview" | "journey" | "edits" | "competitors" | "enrichment">("overview");
+  const [activeTab, setActiveTab] = useState<"overview" | "journey" | "edits" | "competitors" | "enrichment" | "queries">("overview");
+  const [aiQueries, setAiQueries] = useState<AIQuery[]>([]);
+  const [loadingQueries, setLoadingQueries] = useState(false);
+  const [queryStats, setQueryStats] = useState({
+    total: 0,
+    highPriority: 0,
+    brandMentions: 0,
+    averageComplexity: 0
+  });
   
   const [stats, setStats] = useState({
     totalCompanies: 0,
@@ -153,6 +186,54 @@ export default function EnhancedAdminPage() {
       console.error('Failed to fetch company details:', error);
     }
   };
+
+  const fetchAIQueries = async (companyId: number) => {
+    setLoadingQueries(true);
+    try {
+      // Fetch HISTORICAL queries that were generated for this company's reports
+      const response = await fetch(
+        `${process.env.NEXT_PUBLIC_API_GATEWAY || 'http://localhost:4000'}/api/admin/company/${companyId}/historical-queries`
+      );
+      
+      if (response.ok) {
+        const data = await response.json();
+        setAiQueries(data.queries || []);
+        
+        // Calculate stats from historical data
+        const queries = data.queries || [];
+        setQueryStats({
+          total: queries.length,
+          highPriority: queries.filter((q: AIQuery) => q.priority_score > 0.7).length,
+          brandMentions: queries.filter((q: AIQuery) => 
+            q.responses?.some(r => r.brand_mentioned)
+          ).length,
+          averageComplexity: queries.reduce((acc: number, q: AIQuery) => 
+            acc + q.complexity_score, 0) / (queries.length || 1)
+        });
+      } else {
+        setAiQueries([]);
+        setQueryStats({
+          total: 0,
+          highPriority: 0,
+          brandMentions: 0,
+          averageComplexity: 0
+        });
+      }
+    } catch (error) {
+      console.error('Failed to fetch historical queries:', error);
+      setAiQueries([]);
+      setQueryStats({
+        total: 0,
+        highPriority: 0,
+        brandMentions: 0,
+        averageComplexity: 0
+      });
+    } finally {
+      setLoadingQueries(false);
+    }
+  };
+
+  // Admin dashboard only views historical queries - no generation
 
   const filteredCompanies = companies.filter(company => {
     const matchesSearch = 
@@ -416,6 +497,7 @@ export default function EnhancedAdminPage() {
                     onClick={() => {
                       setSelectedCompany(company);
                       setEditHistory(company.edit_history || []);
+                      fetchAIQueries(company.company_id);
                     }}
                   >
                     <td className="p-4">
@@ -580,8 +662,8 @@ export default function EnhancedAdminPage() {
               </div>
 
               {/* Tabs */}
-              <div className="flex gap-2 mb-6">
-                {["overview", "journey", "edits", "competitors", "enrichment"].map((tab) => (
+              <div className="flex gap-2 mb-6 flex-wrap">
+                {["overview", "journey", "edits", "competitors", "enrichment", "queries"].map((tab) => (
                   <button
                     key={tab}
                     onClick={() => setActiveTab(tab as any)}
@@ -806,6 +888,159 @@ export default function EnhancedAdminPage() {
                         <p className="text-center text-muted-foreground py-4">No competitor data tracked</p>
                       )}
                     </div>
+                  </div>
+                )}
+
+                {activeTab === "queries" && (
+                  <div className="space-y-4">
+                    {/* Query Stats */}
+                    <div className="grid grid-cols-4 gap-4">
+                      <div className="glassmorphism p-4 rounded-lg">
+                        <div className="flex items-center gap-2 mb-2">
+                          <Hash className="w-4 h-4 text-purple-400" />
+                          <span className="text-sm text-gray-400">Total Queries</span>
+                        </div>
+                        <div className="text-2xl font-bold">{queryStats.total}</div>
+                      </div>
+                      <div className="glassmorphism p-4 rounded-lg">
+                        <div className="flex items-center gap-2 mb-2">
+                          <Sparkles className="w-4 h-4 text-yellow-400" />
+                          <span className="text-sm text-gray-400">High Priority</span>
+                        </div>
+                        <div className="text-2xl font-bold">{queryStats.highPriority}</div>
+                      </div>
+                      <div className="glassmorphism p-4 rounded-lg">
+                        <div className="flex items-center gap-2 mb-2">
+                          <MessageSquare className="w-4 h-4 text-green-400" />
+                          <span className="text-sm text-gray-400">Brand Mentions</span>
+                        </div>
+                        <div className="text-2xl font-bold">{queryStats.brandMentions}</div>
+                      </div>
+                      <div className="glassmorphism p-4 rounded-lg">
+                        <div className="flex items-center gap-2 mb-2">
+                          <Layers className="w-4 h-4 text-blue-400" />
+                          <span className="text-sm text-gray-400">Avg Complexity</span>
+                        </div>
+                        <div className="text-2xl font-bold">{(queryStats.averageComplexity * 100).toFixed(0)}%</div>
+                      </div>
+                    </div>
+
+                    {/* Historical Query Information */}
+                    <div className="glassmorphism p-4 rounded-lg">
+                      <div className="flex items-center justify-between mb-3">
+                        <h4 className="font-medium flex items-center gap-2">
+                          <Brain className="w-4 h-4 text-purple-400" />
+                          Historical AI Queries
+                        </h4>
+                        <span className="text-sm text-gray-400">
+                          Generated: {aiQueries.length > 0 ? new Date(aiQueries[0].created_at || Date.now()).toLocaleDateString() : 'N/A'}
+                        </span>
+                      </div>
+                      <p className="text-sm text-gray-400">
+                        Viewing historical queries that were automatically generated for this company's AI visibility reports.
+                        These queries were sent to multiple LLMs to analyze brand presence.
+                      </p>
+                    </div>
+
+                    {/* Historical Queries List */}
+                    <div className="glassmorphism p-4 rounded-lg">
+                      <h4 className="font-medium mb-3">Report Queries History ({aiQueries.length})</h4>
+                      {loadingQueries ? (
+                        <div className="text-center py-8">
+                          <div className="w-8 h-8 border-2 border-purple-500 border-t-transparent rounded-full animate-spin mx-auto mb-2" />
+                          <p className="text-sm text-gray-400">Loading queries...</p>
+                        </div>
+                      ) : (
+                        <div className="space-y-2 max-h-96 overflow-y-auto">
+                          {aiQueries.map((query, idx) => (
+                            <div key={query.id} className="glassmorphism p-3 rounded-lg hover:bg-white/5 transition-colors">
+                              <div className="flex items-start justify-between mb-2">
+                                <div className="flex-1">
+                                  <div className="flex items-center gap-2 mb-1">
+                                    <span className="text-xs text-gray-400">#{idx + 1}</span>
+                                    <span className="px-2 py-0.5 bg-purple-500/20 text-purple-400 rounded text-xs capitalize">
+                                      {query.intent}
+                                    </span>
+                                    <span className="px-2 py-0.5 bg-blue-500/20 text-blue-400 rounded text-xs capitalize">
+                                      {query.buyer_journey_stage}
+                                    </span>
+                                    {query.priority_score > 0.7 && (
+                                      <span className="px-2 py-0.5 bg-yellow-500/20 text-yellow-400 rounded text-xs">
+                                        High Priority
+                                      </span>
+                                    )}
+                                  </div>
+                                  <p className="text-sm font-medium mb-1">{query.query_text}</p>
+                                  <div className="flex gap-4 text-xs text-gray-400">
+                                    <span>Complexity: {(query.complexity_score * 100).toFixed(0)}%</span>
+                                    <span>Competitive Relevance: {(query.competitive_relevance * 100).toFixed(0)}%</span>
+                                    <span>Priority Score: {(query.priority_score * 100).toFixed(0)}%</span>
+                                  </div>
+                                </div>
+                              </div>
+                              
+                              {query.responses && query.responses.length > 0 && (
+                                <div className="mt-3 pt-3 border-t border-white/10">
+                                  <div className="text-xs text-gray-400 mb-2">AI Responses:</div>
+                                  <div className="space-y-1">
+                                    {query.responses.map((resp, ridx) => (
+                                      <div key={ridx} className="flex items-center gap-2 text-xs">
+                                        <span className="font-medium capitalize">{resp.provider}:</span>
+                                        {resp.brand_mentioned ? (
+                                          <span className="text-green-400">✓ Brand mentioned</span>
+                                        ) : (
+                                          <span className="text-gray-500">No mention</span>
+                                        )}
+                                        <span className="text-gray-400">({resp.sentiment})</span>
+                                      </div>
+                                    ))}
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          ))}
+                          {aiQueries.length === 0 && (
+                            <div className="text-center py-8">
+                              <Brain className="w-12 h-12 text-gray-600 mx-auto mb-3" />
+                              <p className="text-gray-400">No historical queries found</p>
+                              <p className="text-sm text-gray-500 mt-1">Queries will appear here after AI visibility reports are generated</p>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Export Queries Button */}
+                    {aiQueries.length > 0 && (
+                      <div className="flex justify-end">
+                        <button
+                          onClick={() => {
+                            const csv = [
+                              ['Query', 'Intent', 'Stage', 'Complexity', 'Relevance', 'Priority'],
+                              ...aiQueries.map(q => [
+                                q.query_text,
+                                q.intent,
+                                q.buyer_journey_stage,
+                                (q.complexity_score * 100).toFixed(0) + '%',
+                                (q.competitive_relevance * 100).toFixed(0) + '%',
+                                (q.priority_score * 100).toFixed(0) + '%'
+                              ])
+                            ].map(row => row.join(',')).join('\n');
+                            
+                            const blob = new Blob([csv], { type: 'text/csv' });
+                            const url = URL.createObjectURL(blob);
+                            const a = document.createElement('a');
+                            a.href = url;
+                            a.download = `ai-queries-${selectedCompany?.company_name || 'company'}-${new Date().toISOString().split('T')[0]}.csv`;
+                            a.click();
+                          }}
+                          className="px-4 py-2 glassmorphism glassmorphism-hover rounded-lg flex items-center gap-2"
+                        >
+                          <Download className="w-4 h-4" />
+                          Export Queries CSV
+                        </button>
+                      </div>
+                    )}
                   </div>
                 )}
 

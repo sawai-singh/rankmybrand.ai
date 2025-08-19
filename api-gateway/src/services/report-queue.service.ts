@@ -286,7 +286,7 @@ class ReportQueueService {
   }
 
   // Validate signed token
-  async validateToken(token: string): Promise<{ valid: boolean; data?: any }> {
+  async validateToken(token: string): Promise<{ valid: boolean; data?: any; error?: string }> {
     try {
       // Decode token
       const decoded = Buffer.from(token, 'base64url').toString('utf-8');

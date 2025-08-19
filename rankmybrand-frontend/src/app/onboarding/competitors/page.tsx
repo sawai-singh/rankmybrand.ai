@@ -309,6 +309,8 @@ export default function CompetitorsPage() {
         
         // Check feature flag for queued report flow
         let enableQueuedReport = process.env.NEXT_PUBLIC_ENABLE_QUEUED_REPORT === 'true';
+        console.log('🚀 Feature flag NEXT_PUBLIC_ENABLE_QUEUED_REPORT:', process.env.NEXT_PUBLIC_ENABLE_QUEUED_REPORT);
+        console.log('🚀 enableQueuedReport:', enableQueuedReport);
         
         if (enableQueuedReport) {
           // NEW FLOW: Queue report and redirect to generating page
@@ -372,7 +374,7 @@ export default function CompetitorsPage() {
             // Dashboard is on port 3000, redirect with token and user data in URL
             const token = encodeURIComponent(data.auth.token);
             const userData = encodeURIComponent(JSON.stringify(data.user));
-            const redirectUrl = `http://localhost:3000/?onboarding=complete&token=${token}&user=${userData}`;
+            const redirectUrl = `http://localhost:3001/dashboard?onboarding=complete&token=${token}&user=${userData}`;
             console.log('Redirecting to:', redirectUrl);
             window.location.href = redirectUrl;
           }, 2000);
