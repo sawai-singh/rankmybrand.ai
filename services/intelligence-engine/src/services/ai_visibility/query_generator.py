@@ -89,6 +89,77 @@ class IntelligentQueryGenerator:
             QueryIntent.LOCAL: 0.02
         }
     
+    async def generate_enhanced_queries(
+        self,
+        prompt: str,
+        query_count: int = 48,
+        include_metadata: bool = True
+    ) -> List[GeneratedQuery]:
+        """Generate queries using enhanced prompt with category-based approach"""
+        
+        logger.info(f"Generating {query_count} enhanced queries with custom prompt")
+        
+        try:
+            # Use the provided world-class prompt directly
+            response = await self.client.chat.completions.create(
+                model="gpt-4-turbo-preview",  # Use GPT-4 for reliability
+                messages=[
+                    {"role": "system", "content": "You are an expert search query architect. Generate exactly the requested number of queries following the specifications precisely."},
+                    {"role": "user", "content": prompt}
+                ],
+                response_format={"type": "json_object"},
+                temperature=0.8,
+                max_tokens=4000
+            )
+            
+            # Parse the response
+            result = json.loads(response.choices[0].message.content)
+            queries_data = result if isinstance(result, list) else result.get('queries', [])
+            
+            # Convert to GeneratedQuery objects
+            generated_queries = []
+            for idx, q in enumerate(queries_data[:query_count]):
+                query = GeneratedQuery(
+                    query_text=q.get('query', ''),
+                    intent=QueryIntent[q.get('intent', 'INFORMATIONAL').upper()],
+                    buyer_journey_stage=q.get('category', 'awareness'),
+                    complexity_score=float(q.get('specificity_level', 'medium') == 'long_tail') * 0.5 + 0.5,
+                    competitive_relevance=float(q.get('category', '') == 'comparison'),
+                    priority_score=float(q.get('priority', 5)) / 10.0,
+                    semantic_variations=[],
+                    expected_serp_features=[q.get('expected_serp_type', 'mixed')],
+                    persona_alignment=[q.get('persona', 'general')],
+                    industry_specificity=float(q.get('commercial_value', 'medium') == 'high') * 0.3 + 0.7
+                )
+                generated_queries.append(query)
+            
+            logger.info(f"Successfully generated {len(generated_queries)} enhanced queries")
+            return generated_queries
+            
+        except Exception as e:
+            logger.error(f"Error generating enhanced queries: {e}")
+            # Fallback to standard generation
+            return await self.generate_queries(QueryContext(
+                company_name="Unknown",
+                industry="Technology",
+                sub_industry=None,
+                description="",
+                unique_value_propositions=[],
+                target_audiences=[],
+                competitors=[],
+                products_services=[],
+                pain_points_solved=[],
+                geographic_markets=[],
+                technology_stack=None,
+                pricing_model=None,
+                company_size=None,
+                founding_year=None,
+                key_features=[],
+                use_cases=[],
+                integrations=None,
+                certifications=None
+            ), target_count=query_count)
+    
     async def generate_queries(
         self,
         context: QueryContext,

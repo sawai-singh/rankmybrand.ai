@@ -1,11 +1,13 @@
 /**
- * Query Generation Service
- * Handles AI query generation for companies with proper error handling and retry logic
+ * Enhanced Query Generation Service
+ * Handles AI query generation with category-based approach and comprehensive context
  */
 
 import { logger } from '../utils/logger';
 import { db } from '../database/connection';
 import * as http from 'http';
+import { PromptBuilderService } from './prompt-builder.service';
+import { EnhancedCompanyContext } from '../types/query-generation.types';
 
 interface QueryGenerationRequest {
   company_id: number;
@@ -16,6 +18,7 @@ interface QueryGenerationRequest {
   competitors: string[];
   products_services?: string[];
   force_regenerate?: boolean;
+  enhanced_context?: EnhancedCompanyContext;
 }
 
 class QueryGenerationService {
@@ -24,8 +27,11 @@ class QueryGenerationService {
   private readonly retryDelay = 5000; // 5 seconds
   private pendingQueue: Map<number, QueryGenerationRequest> = new Map();
   private processingQueue: Set<number> = new Set();
+  private promptBuilder: PromptBuilderService;
 
   private constructor() {
+    // Initialize prompt builder
+    this.promptBuilder = new PromptBuilderService();
     // Start processing pending queries every 30 seconds
     setInterval(() => this.processPendingQueue(), 30000);
   }
@@ -60,12 +66,15 @@ class QueryGenerationService {
         return;
       }
 
-      // Fetch company details
+      // Fetch comprehensive company details
       const companyResult = await db.query(
         `SELECT c.id, c.name, c.domain, c.industry, c.description,
-                array_agg(DISTINCT comp.competitor_name) FILTER (WHERE comp.competitor_name IS NOT NULL) as competitors
+                c.sub_industry, c.value_proposition, c.location,
+                array_agg(DISTINCT comp.competitor_name) FILTER (WHERE comp.competitor_name IS NOT NULL) as competitors,
+                array_agg(DISTINCT ps.service_name) FILTER (WHERE ps.service_name IS NOT NULL) as products_services
          FROM companies c
          LEFT JOIN competitors comp ON c.id = comp.company_id
+         LEFT JOIN products_services ps ON c.id = ps.company_id
          WHERE c.id = $1
          GROUP BY c.id`,
         [companyId]
@@ -77,6 +86,10 @@ class QueryGenerationService {
       }
 
       const company = companyResult.rows[0];
+      
+      // Build enhanced context for better query generation
+      const enhancedContext = this.promptBuilder.buildEnhancedContext(company);
+      
       const request: QueryGenerationRequest = {
         company_id: company.id,
         company_name: company.name,
@@ -84,8 +97,9 @@ class QueryGenerationService {
         industry: company.industry || 'Technology',
         description: company.description || '',
         competitors: company.competitors || [],
-        products_services: [],
-        force_regenerate: false
+        products_services: company.products_services || [],
+        force_regenerate: false,
+        enhanced_context: enhancedContext
       };
 
       // Add to pending queue
@@ -156,11 +170,22 @@ class QueryGenerationService {
   }
 
   /**
-   * Call the Intelligence Engine API to generate queries
+   * Call the Intelligence Engine API with enhanced prompt
    */
   private async callIntelligenceEngine(request: QueryGenerationRequest): Promise<boolean> {
     return new Promise((resolve) => {
-      const postData = JSON.stringify(request);
+      // Build the enhanced request with the world-class prompt
+      const enhancedRequest = {
+        ...request,
+        prompt: request.enhanced_context 
+          ? this.promptBuilder.buildQueryGenerationPrompt(request.enhanced_context)
+          : null,
+        use_enhanced_generation: true,
+        query_count: 48,
+        include_metadata: true
+      };
+      
+      const postData = JSON.stringify(enhancedRequest);
       
       const options = {
         hostname: 'localhost',

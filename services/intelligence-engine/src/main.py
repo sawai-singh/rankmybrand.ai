@@ -12,7 +12,7 @@ from src.monitoring import HealthChecker
 from src.monitoring.middleware import setup_metrics_middleware
 from src.processors import ResponseProcessor
 from src.models.schemas import AIResponse, ProcessedResponse
-from src.api import analysis_routes
+from src.api import analysis_routes, ai_visibility_simple
 
 
 # Global instances
@@ -101,6 +101,10 @@ app.mount("/metrics", metrics_app)
 
 # Include analysis routes
 app.include_router(analysis_routes.router)
+
+# Include AI visibility routes - use REAL AI generation
+from src.api import ai_visibility_real
+app.include_router(ai_visibility_real.router)
 
 # Include GEO routes
 from src.api import geo_routes

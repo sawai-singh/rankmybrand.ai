@@ -29,6 +29,8 @@ import reportGenerationRoutes from './routes/report-generation.routes';
 import adminAIVisibilityRoutes from './routes/admin-ai-visibility.routes';
 import testQueriesRoutes from './routes/test-queries.routes';
 import queryStatusRoutes from './routes/query-status.routes';
+import enhancedQueryRoutes from './routes/enhanced-query.routes';
+import userDashboardRoutes from './routes/user-dashboard.routes';
 
 // Import middleware
 import { 
@@ -248,6 +250,8 @@ app.use('/api/reports', limiter, reportGenerationRoutes);
 app.use('/api/admin', limiter, adminAIVisibilityRoutes);
 app.use('/api/test', testQueriesRoutes); // Test route without auth
 app.use('/api/query-status', queryStatusRoutes); // Query generation status
+app.use('/api/enhanced-query', enhancedQueryRoutes); // Enhanced query generation
+app.use('/api', userDashboardRoutes); // User dashboard endpoints
 
 // ========================================
 // Report Queue Routes (Feature-flagged)
@@ -308,92 +312,132 @@ app.post('/api/analyze/complete', strictLimiter, asyncHandler(async (req: any, r
   }
 }));
 
-// Instant score endpoint (optimized for speed)
+// Instant score endpoint (optimized for speed) - USING REAL DATA
 app.post('/api/analyze/instant', limiter, asyncHandler(async (req: any, res: any) => {
-  const { domain } = req.body;
+  const { domain, email } = req.body;
   
   if (!domain) {
     return res.status(400).json({ error: 'Domain is required' });
   }
   
   try {
-    // First try to call the real GEO Calculator service
-    try {
-      const geoResponse = await fetch(`${config.services.geo}/api/v1/geo/analyze`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ domain }),
-      });
-      
-      if (geoResponse.ok) {
-        const data = await geoResponse.json();
+    // Import RealDataService
+    const { RealDataService } = await import('./services/real-data.service');
+    const realDataService = new RealDataService(db);
+    
+    // Get all real data in parallel
+    const [
+      platformScores,
+      competitors,
+      metrics,
+      sentiment,
+      insights,
+      geoScore
+    ] = await Promise.all([
+      realDataService.getPlatformScores(domain),
+      realDataService.getCompetitorAnalysis(domain),
+      realDataService.calculateMetrics(domain),
+      realDataService.getSentiment(domain),
+      realDataService.generateInsights(domain),
+      realDataService.calculateGEOScore(domain)
+    ]);
+    
+    // Check if we have any real data
+    if (!platformScores && !metrics) {
+      // Try to create a company entry if email provided
+      if (email && db) {
+        const companyResult = await db.query(
+          `INSERT INTO companies (name, domain, created_at) 
+           VALUES ($1, $2, CURRENT_TIMESTAMP) 
+           ON CONFLICT (domain) DO UPDATE SET updated_at = CURRENT_TIMESTAMP
+           RETURNING id`,
+          [domain.split('.')[0], domain]
+        );
         
-        // Publish for real-time updates
-        await redisPub.publish('score:instant', JSON.stringify(data));
-        
-        return res.json(data);
+        if (companyResult.rows[0]) {
+          return res.json({
+            domain,
+            score: 0,
+            message: 'Company registered. Analysis will begin shortly.',
+            isDemo: false,
+            timestamp: new Date().toISOString()
+          });
+        }
       }
-    } catch (serviceError) {
-      console.log('GEO service not available, falling back to demo data');
+      
+      return res.status(404).json({
+        error: 'No data available for this domain',
+        message: 'Please complete onboarding first'
+      });
     }
     
-    // Fallback to demo data if service is not available
-    const score = 60 + Math.random() * 35; // 60-95 range
+    // Calculate share of voice based on competitors
+    const shareOfVoice = competitors.length > 0 
+      ? Math.round(100 / (competitors.length + 1))
+      : 100;
     
+    // Count citations from queries
+    const citationResult = await db.query(
+      `SELECT COUNT(*) as citations
+       FROM ai_queries aq
+       JOIN companies c ON aq.company_id = c.id
+       WHERE c.domain = $1 AND aq.category = 'brand_specific'`,
+      [domain]
+    );
+    const citationCount = citationResult.rows[0]?.citations || 0;
+    
+    // Build response from REAL data only
     const data = {
       domain,
-      score: Math.round(score * 10) / 10,
-      platforms: {
-        chatgpt: Math.round(70 + Math.random() * 25),
-        claude: Math.round(65 + Math.random() * 30),
-        perplexity: Math.round(60 + Math.random() * 35),
-        gemini: Math.round(55 + Math.random() * 40),
-        bing: Math.round(50 + Math.random() * 45),
-        you: Math.round(45 + Math.random() * 50),
-        poe: Math.round(40 + Math.random() * 55),
-        huggingchat: Math.round(35 + Math.random() * 60)
+      score: geoScore,
+      platforms: platformScores || {},
+      shareOfVoice,
+      sentiment: sentiment || { positive: 0, neutral: 100, negative: 0 },
+      citationCount,
+      competitorAnalysis: competitors,
+      insights: insights || [],
+      metrics: metrics || {
+        statistics: 0,
+        quotation: 0,
+        fluency: 0,
+        relevance: 0,
+        authority: 0,
+        ai_visibility: 0
       },
-      shareOfVoice: Math.round(15 + Math.random() * 70),
-      sentiment: {
-        positive: Math.round(40 + Math.random() * 40),
-        neutral: Math.round(20 + Math.random() * 30),
-        negative: Math.round(5 + Math.random() * 20)
-      },
-      citationCount: Math.floor(5 + Math.random() * 95),
-      competitorAnalysis: [
-        { domain: 'competitor1.com', score: Math.round(50 + Math.random() * 40), position: 1 },
-        { domain: 'competitor2.com', score: Math.round(45 + Math.random() * 40), position: 2 },
-        { domain: 'competitor3.com', score: Math.round(40 + Math.random() * 40), position: 3 }
-      ],
-      insights: [
-        'Your content is ranking well for informational queries',
-        'Consider adding more statistical data to improve AI visibility',
-        'Your brand authority score is strong in your niche'
-      ],
-      metrics: {
-        statistics: 0.6 + Math.random() * 0.35,
-        quotation: 0.5 + Math.random() * 0.4,
-        fluency: 0.7 + Math.random() * 0.25,
-        relevance: 0.6 + Math.random() * 0.3,
-        authority: 0.5 + Math.random() * 0.35,
-        ai_visibility: 0.6 + Math.random() * 0.3
-      },
-      recommendations: [] as string[],
-      isDemo: true, // Flag to indicate this is demo data
+      recommendations: [],
+      isDemo: false, // This is REAL data
       timestamp: new Date().toISOString()
     };
     
-    // Add string recommendations based on metrics
-    if (data.metrics.statistics < 0.7) {
-      data.recommendations.push('Add more data points and statistics to your content');
+    // Generate recommendations based on real metrics
+    if (metrics) {
+      if (metrics.statistics < 0.5) {
+        data.recommendations.push('Add more data-driven content with statistics and research');
+      }
+      if (metrics.quotation < 0.3) {
+        data.recommendations.push('Include more brand mentions and entity markers');
+      }
+      if (metrics.authority < 0.5) {
+        data.recommendations.push('Build domain authority through quality backlinks');
+      }
     }
     
-    if (data.metrics.quotation < 0.7) {
-      data.recommendations.push('Include expert quotes and authoritative citations');
-    }
-    
-    if (data.metrics.authority < 0.7) {
-      data.recommendations.push('Build more high-quality backlinks to increase authority');
+    // Store the analysis in database for future use
+    if (db && geoScore > 0) {
+      const companyResult = await db.query(
+        'SELECT id FROM companies WHERE domain = $1',
+        [domain]
+      );
+      
+      if (companyResult.rows[0]) {
+        await db.query(
+          `INSERT INTO geo_analyses 
+           (company_id, analysis_type, overall_score, visibility_score, platform_scores, created_at)
+           VALUES ($1, 'instant', $2, $3, $4, CURRENT_TIMESTAMP)
+           ON CONFLICT DO NOTHING`,
+          [companyResult.rows[0].id, geoScore, metrics.ai_visibility * 100, JSON.stringify(data.platforms)]
+        ).catch(err => console.error('Failed to save GEO analysis:', err));
+      }
     }
     
     // Publish for real-time updates

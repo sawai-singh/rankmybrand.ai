@@ -6,6 +6,7 @@
 import { Router, Request, Response } from 'express';
 import { enrichmentService } from '../services/enrichment.service';
 import { queryGenerationService } from '../services/query-generation.service';
+import { emailService } from '../services/email.service';
 import Redis from 'ioredis';
 import axios from 'axios';
 import { WebSocket } from 'ws';
@@ -570,10 +571,28 @@ router.post('/find-competitors', async (req: Request, res: Response) => {
 router.post('/complete', async (req: Request, res: Response) => {
   console.log('=== ONBOARDING COMPLETE ENDPOINT CALLED ===');
   try {
-    const { sessionId, email, company, competitors, description, editedDescription } = req.body;
+    const { sessionId, email, company, competitors, description, editedDescription, companyName, domain, industry, additionalInfo } = req.body;
     const completionTime = Date.now();
     
-    if (!sessionId || !email || !company) {
+    // Allow simplified onboarding for testing
+    let finalEmail = email;
+    let finalCompany = company;
+    
+    if (!email && !sessionId) {
+      return res.status(400).json({ error: 'Email is required' });
+    }
+    
+    // Handle simplified test data
+    if (!company && companyName && domain) {
+      finalCompany = {
+        name: companyName,
+        domain: domain,
+        industry: industry || 'Technology',
+        description: description || `${companyName} is a leading company in ${industry || 'Technology'}`
+      };
+    }
+    
+    if (!finalEmail || !finalCompany) {
       return res.status(400).json({ error: 'Missing required data' });
     }
 
@@ -596,44 +615,44 @@ router.post('/complete', async (req: Request, res: Response) => {
       // Start database transaction
       const result = await db.transaction(async (client: any) => {
       // 1. Create or update company in database with final data
-      let companyRecord = await companyRepository.findByDomain(company.domain);
+      let companyRecord = await companyRepository.findByDomain(finalCompany.domain);
       
       if (!companyRecord) {
         companyRecord = await companyRepository.create({
-          name: company.name,
-          domain: company.domain,
-          logo_url: company.logo,
-          description: editedDescription || description || company.description,
-          original_name: company.originalName || company.name,
-          original_description: company.originalDescription || company.description,
-          final_name: company.name,
-          final_description: editedDescription || description || company.description,
-          user_edited: !!editedDescription || company.userEdited,
-          industry: company.industry,
-          company_size: company.size,
-          employee_count: company.employeeCount,
-          headquarters_city: company.location?.city,
-          headquarters_state: company.location?.state,
-          headquarters_country: company.location?.country,
-          linkedin_url: company.socialProfiles?.linkedin,
-          twitter_url: company.socialProfiles?.twitter,
-          facebook_url: company.socialProfiles?.facebook,
-          tech_stack: company.techStack,
-          tags: company.tags,
-          enrichment_source: company.enrichmentSource,
-          enrichment_data: company,
-          enrichment_confidence: company.confidence,
+          name: finalCompany.name,
+          domain: finalCompany.domain,
+          logo_url: finalCompany.logo,
+          description: editedDescription || description || finalCompany.description,
+          original_name: finalCompany.originalName || finalCompany.name,
+          original_description: finalCompany.originalDescription || finalCompany.description,
+          final_name: finalCompany.name,
+          final_description: editedDescription || description || finalCompany.description,
+          user_edited: !!editedDescription || finalCompany.userEdited,
+          industry: finalCompany.industry,
+          company_size: finalCompany.size,
+          employee_count: finalCompany.employeeCount,
+          headquarters_city: finalCompany.location?.city,
+          headquarters_state: finalCompany.location?.state,
+          headquarters_country: finalCompany.location?.country,
+          linkedin_url: finalCompany.socialProfiles?.linkedin,
+          twitter_url: finalCompany.socialProfiles?.twitter,
+          facebook_url: finalCompany.socialProfiles?.facebook,
+          tech_stack: finalCompany.techStack,
+          tags: finalCompany.tags,
+          enrichment_source: finalCompany.enrichmentSource,
+          enrichment_data: finalCompany,
+          enrichment_confidence: finalCompany.confidence,
           enrichment_date: new Date()
         });
       }
 
       // 2. Create user account
-      let user = await userRepository.findByEmail(email);
+      let user = await userRepository.findByEmail(finalEmail);
       
       if (!user) {
         user = await userRepository.create({
-          email: email,
-          work_email: email,
+          email: finalEmail,
+          work_email: finalEmail,
           company_id: companyRecord.id,
           email_verified: true, // Auto-verify since they came through onboarding
           onboarding_completed: true,
@@ -758,6 +777,50 @@ router.post('/complete', async (req: Request, res: Response) => {
         console.error(`Failed to schedule query generation for company ${companyId}:`, err);
       });
       console.log(`Query generation scheduled for company ${companyId}`);
+      
+      // 10. Generate dashboard URL for the user
+      try {
+        const crypto = require('crypto');
+        const dashboardId = crypto.randomBytes(16).toString('hex');
+        const dashboardUrl = `${process.env.DASHBOARD_BASE_URL || 'http://localhost:3000'}/dashboard/${dashboardId}`;
+        
+        // Store dashboard URL in database
+        await db.query(
+          `INSERT INTO user_dashboards (user_email, company_id, dashboard_id, dashboard_url, dashboard_status)
+           VALUES ($1, $2, $3, $4, $5)
+           ON CONFLICT (user_email) 
+           DO UPDATE SET dashboard_url = $4, dashboard_status = $5`,
+          [email, companyId, dashboardId, dashboardUrl, 'active']
+        );
+        
+        // Update user tracking
+        await db.query(
+          `UPDATE user_tracking 
+           SET company_id = $1, 
+               dashboard_url = $2, 
+               dashboard_ready = true, 
+               dashboard_ready_at = CURRENT_TIMESTAMP
+           WHERE email = $3`,
+          [companyId, dashboardUrl, email]
+        );
+        
+        console.log(`Dashboard URL generated for user ${email}: ${dashboardUrl}`);
+        
+        // 11. Send email with dashboard link
+        try {
+          await emailService.sendDashboardReadyEmail(
+            email,
+            dashboardUrl,
+            result.company.name,
+            session.session_token
+          );
+          console.log(`Dashboard email sent to ${email}`);
+        } catch (emailError) {
+          console.error('Failed to send dashboard email:', emailError);
+        }
+      } catch (dashboardError) {
+        console.error('Failed to generate dashboard URL:', dashboardError);
+      }
     }
 
     res.json({
@@ -783,7 +846,7 @@ router.post('/complete', async (req: Request, res: Response) => {
       // Try to find the company that was created
       const companyResult = await db.query(
         'SELECT id FROM companies WHERE domain = $1 ORDER BY created_at DESC LIMIT 1',
-        [company?.domain]
+        [finalCompany?.domain]
       );
       
       if (companyResult.rows[0]?.id) {
@@ -809,13 +872,13 @@ router.post('/complete', async (req: Request, res: Response) => {
                    jsonb_build_array(jsonb_build_object('step', 'onboarding_completed', 'timestamp', CURRENT_TIMESTAMP::text)),
                  last_activity = CURRENT_TIMESTAMP
              WHERE email = $1`,
-            [email]
+            [finalEmail]
           );
           
           // Also update users table if exists
           await db.query(
             `UPDATE users SET onboarding_completed = true WHERE email = $1`,
-            [email]
+            [finalEmail]
           );
         } catch (e) {
           console.log('Failed to update completion status:', e);
@@ -827,8 +890,8 @@ router.post('/complete', async (req: Request, res: Response) => {
       const token = jwt.sign(
         { 
           userId: `user_${Date.now()}`,
-          email: email,
-          company: company.name || company.domain
+          email: finalEmail,
+          company: finalCompany.name || finalCompany.domain
         },
         process.env.JWT_SECRET || 'development-secret',
         { expiresIn: '24h' }
@@ -839,8 +902,8 @@ router.post('/complete', async (req: Request, res: Response) => {
         success: true,
         user: {
           id: `user_${Date.now()}`,
-          email: email,
-          company: company.name || company.domain
+          email: finalEmail,
+          company: finalCompany.name || finalCompany.domain
         },
         auth: {
           token: token,

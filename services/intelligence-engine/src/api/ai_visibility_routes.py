@@ -6,8 +6,7 @@ from pydantic import BaseModel
 import logging
 import asyncio
 from datetime import datetime
-import psycopg2
-from psycopg2.extras import RealDictCursor
+import asyncpg
 import os
 import json
 
@@ -23,15 +22,14 @@ router = APIRouter(
 )
 
 # Database connection
-def get_db_connection():
+async def get_db_connection():
     """Get database connection."""
-    return psycopg2.connect(
+    return await asyncpg.connect(
         host=settings.postgres_host,
         port=settings.postgres_port,
         database=settings.postgres_db,
         user='sawai',  # Use the actual user since postgres user doesn't exist
-        password='',
-        cursor_factory=RealDictCursor
+        password=''
     )
 
 class GenerateQueriesRequest(BaseModel):
@@ -44,6 +42,11 @@ class GenerateQueriesRequest(BaseModel):
     competitors: List[str] = []
     products_services: List[str] = []
     force_regenerate: bool = False
+    # Enhanced generation fields
+    prompt: Optional[str] = None
+    use_enhanced_generation: bool = False
+    query_count: int = 48
+    include_metadata: bool = False
 
 class QueryResponse(BaseModel):
     """Response model for generated queries."""
@@ -67,31 +70,28 @@ async def generate_queries(
         
         # Check if queries already exist and not forcing regeneration
         if not request.force_regenerate:
-            conn = get_db_connection()
+            conn = await get_db_connection()
             try:
-                with conn.cursor() as cursor:
-                    cursor.execute(
-                        "SELECT COUNT(*) as count FROM ai_queries WHERE company_id = %s",
-                        (request.company_id,)
+                result = await conn.fetchrow(
+                    "SELECT COUNT(*) as count FROM ai_queries WHERE company_id = $1",
+                    request.company_id
+                )
+                if result and result['count'] > 0:
+                    logger.info(f"Queries already exist for company {request.company_id}")
+                    existing_queries = await conn.fetch(
+                        """SELECT id, query_text, intent, buyer_journey_stage, 
+                           priority, relevance_score, complexity_score, category
+                           FROM ai_queries WHERE company_id = $1
+                           ORDER BY relevance_score DESC LIMIT 50""",
+                        request.company_id
                     )
-                    result = cursor.fetchone()
-                    if result and result['count'] > 0:
-                        logger.info(f"Queries already exist for company {request.company_id}")
-                        cursor.execute(
-                            """SELECT id, query_text, intent, buyer_journey_stage, 
-                               priority, relevance_score, complexity_score, category
-                               FROM ai_queries WHERE company_id = %s
-                               ORDER BY relevance_score DESC LIMIT 50""",
-                            (request.company_id,)
-                        )
-                        existing_queries = cursor.fetchall()
-                        return {
-                            "status": "existing",
-                            "message": f"Found {len(existing_queries)} existing queries",
-                            "queries": existing_queries
-                        }
+                    return {
+                        "status": "existing",
+                        "message": f"Found {len(existing_queries)} existing queries",
+                        "queries": [dict(q) for q in existing_queries]
+                    }
             finally:
-                conn.close()
+                await conn.close()
         
         # Create query context
         context = QueryContext(
@@ -118,8 +118,18 @@ async def generate_queries(
         # Initialize query generator
         generator = IntelligentQueryGenerator(openai_api_key=settings.openai_api_key)
         
-        # Generate queries
-        queries = await generator.generate_queries(context)
+        # Generate queries - use enhanced prompt if provided
+        if request.use_enhanced_generation and request.prompt:
+            logger.info(f"Using enhanced generation with custom prompt for company {request.company_id}")
+            # Generate using the enhanced prompt directly
+            queries = await generator.generate_enhanced_queries(
+                prompt=request.prompt,
+                query_count=request.query_count,
+                include_metadata=request.include_metadata
+            )
+        else:
+            # Generate using standard method
+            queries = await generator.generate_queries(context)
         
         # Save queries to database
         conn = get_db_connection()
@@ -135,13 +145,32 @@ async def generate_queries(
                 table_exists = cursor.fetchone()
                 logger.info(f"Table ai_queries exists: {table_exists['exists']}")
                 for query in queries:
+                    # Map buyer journey stage to our category system
+                    category_mapping = {
+                        'problem_unaware': 'problem_unaware',
+                        'awareness': 'problem_unaware',
+                        'solution_seeking': 'solution_seeking',
+                        'consideration': 'solution_seeking',
+                        'brand_specific': 'brand_specific',
+                        'evaluation': 'comparison',
+                        'comparison': 'comparison',
+                        'purchase': 'purchase_intent',
+                        'decision': 'purchase_intent',
+                        'use_case': 'use_case'
+                    }
+                    category = category_mapping.get(query.buyer_journey_stage, 'solution_seeking')
+                    
+                    # Determine priority based on query characteristics
+                    priority = int(query.priority_score * 10) if query.priority_score else 5
+                    
                     cursor.execute(
                         """INSERT INTO ai_queries 
                            (report_id, company_id, query_id, query_text, intent, 
                             buyer_journey_stage, complexity_score, competitive_relevance,
                             priority_score, semantic_variations, expected_serp_features,
-                            persona_alignment, industry_specificity, created_at)
-                           VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                            persona_alignment, industry_specificity, created_at,
+                            category, priority)
+                           VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                            ON CONFLICT (id) DO NOTHING""",
                         (
                             f"manual_{request.company_id}_{datetime.now().strftime('%Y%m%d')}",
@@ -157,7 +186,9 @@ async def generate_queries(
                             json.dumps(query.expected_serp_features),
                             query.persona_alignment,
                             query.industry_specificity,
-                            datetime.now()
+                            datetime.now(),
+                            category,
+                            priority
                         )
                     )
                 conn.commit()
