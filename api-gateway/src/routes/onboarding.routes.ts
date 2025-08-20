@@ -582,13 +582,24 @@ router.post('/complete', async (req: Request, res: Response) => {
       return res.status(400).json({ error: 'Email is required' });
     }
     
-    // Handle simplified test data
+    // Handle simplified test data or direct field mapping
     if (!company && companyName && domain) {
       finalCompany = {
         name: companyName,
         domain: domain,
         industry: industry || 'Technology',
-        description: description || `${companyName} is a leading company in ${industry || 'Technology'}`
+        description: description || `${companyName} is a leading company in ${industry || 'Technology'}`,
+        size: req.body.company_size || req.body.size,
+        location: req.body.location ? {
+          city: req.body.location.split(',')[0]?.trim(),
+          state: req.body.location.split(',')[1]?.trim(),
+          country: req.body.location.split(',')[2]?.trim() || 'United States'
+        } : undefined,
+        value_proposition: req.body.value_proposition,
+        sub_industry: req.body.sub_industry,
+        products_services: req.body.products_services,
+        originalName: companyName,
+        originalDescription: description
       };
     }
     
@@ -629,17 +640,23 @@ router.post('/complete', async (req: Request, res: Response) => {
           final_description: editedDescription || description || finalCompany.description,
           user_edited: !!editedDescription || finalCompany.userEdited,
           industry: finalCompany.industry,
-          company_size: finalCompany.size,
+          sub_industry: finalCompany.sub_industry,
+          value_proposition: finalCompany.value_proposition,
+          products_services: finalCompany.products_services,
+          company_size: finalCompany.size || finalCompany.company_size,
           employee_count: finalCompany.employeeCount,
           headquarters_city: finalCompany.location?.city,
           headquarters_state: finalCompany.location?.state,
           headquarters_country: finalCompany.location?.country,
+          location: finalCompany.location ? 
+            `${finalCompany.location.city || ''}${finalCompany.location.state ? ', ' + finalCompany.location.state : ''}${finalCompany.location.country ? ', ' + finalCompany.location.country : ''}`.trim() : 
+            undefined,
           linkedin_url: finalCompany.socialProfiles?.linkedin,
           twitter_url: finalCompany.socialProfiles?.twitter,
           facebook_url: finalCompany.socialProfiles?.facebook,
           tech_stack: finalCompany.techStack,
           tags: finalCompany.tags,
-          enrichment_source: finalCompany.enrichmentSource,
+          enrichment_source: finalCompany.enrichmentSource || 'manual',
           enrichment_data: finalCompany,
           enrichment_confidence: finalCompany.confidence,
           enrichment_date: new Date()
