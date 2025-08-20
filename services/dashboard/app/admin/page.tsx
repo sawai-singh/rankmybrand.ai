@@ -936,7 +936,7 @@ export default function EnhancedAdminPage() {
                         </span>
                       </div>
                       <p className="text-sm text-gray-400">
-                        Viewing historical queries that were automatically generated for this company's AI visibility reports.
+                        Viewing historical queries that were automatically generated for this company&apos;s AI visibility reports.
                         These queries were sent to multiple LLMs to analyze brand presence.
                       </p>
                     </div>
