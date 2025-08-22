@@ -31,6 +31,18 @@ export interface MetricsData {
   platformScores: Record<string, number>;
 }
 
+export interface GeoSovProgress {
+  stage: 'analyzing' | 'calculating_geo' | 'calculating_sov' | 'aggregating' | 'complete';
+  progress: number; // 0-100
+  currentProvider?: string;
+  currentQuery?: string;
+  totalQueries: number;
+  completedQueries: number;
+  geoScore?: number;
+  sovScore?: number;
+  message?: string;
+}
+
 export interface RecommendationData {
   id: string;
   title: string;

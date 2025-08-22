@@ -4,9 +4,8 @@ from fastapi import APIRouter, HTTPException, Depends
 from typing import Dict, Any, List, Optional
 from pydantic import BaseModel, Field, field_validator
 from src.processors.response_processor import ResponseProcessor
-from src.nlp.llm_entity_detector import LLMEntityDetector
-from src.nlp.llm_sentiment_analyzer import LLMSentimentAnalyzer
-from src.nlp.llm_gap_detector import LLMGapDetector
+# NLP functionality now integrated into response_analyzer
+from src.core.analysis.response_analyzer import UnifiedResponseAnalyzer
 from src.models.schemas import AIResponse
 from src.config import settings
 from src.api.auth import get_current_user, check_rate_limit, require_customer_id, require_brand_id
@@ -191,7 +190,7 @@ async def detect_entities(
     instead of hardcoded patterns.
     """
     try:
-        detector = LLMEntityDetector()
+        analyzer = UnifiedResponseAnalyzer(openai_api_key=settings.OPENAI_API_KEY)
         
         # Override with authenticated customer_id
         customer_context = {
@@ -202,7 +201,17 @@ async def detect_entities(
             "customer_id": customer_id  # Use authenticated customer_id
         }
         
-        entities = await detector.detect(request.text, customer_context)
+        # Use analyze_response for entity detection
+        analysis = await analyzer.analyze_response(
+            response_text=request.text,
+            query="entity detection",
+            brand_name=customer_context.get('brand_name', ''),
+            competitors=customer_context.get('competitors', [])
+        )
+        entities = {
+            'brand_mentions': analysis.brand_analysis.mention_count,
+            'competitors': [c.competitor_name for c in analysis.competitors_analysis]
+        }
         
         return {
             "success": True,
@@ -225,7 +234,7 @@ async def analyze_visibility(request: VisibilityAnalysisRequest):
     Returns aggregated metrics about brand presence and sentiment.
     """
     try:
-        detector = LLMEntityDetector()
+        analyzer = UnifiedResponseAnalyzer(openai_api_key=settings.OPENAI_API_KEY)
         
         customer_context = {
             "brand_name": request.brand_name,
@@ -234,7 +243,8 @@ async def analyze_visibility(request: VisibilityAnalysisRequest):
             "competitors": request.competitors
         }
         
-        result = await detector.analyze_visibility(
+        # Use analyze_response for visibility analysis
+        result = await analyzer.analyze_response(
             request.texts,
             customer_context
         )
@@ -281,7 +291,7 @@ async def analyze_sentiment(request: SentimentAnalysisRequest):
     - Business impact assessment
     """
     try:
-        analyzer = LLMSentimentAnalyzer()
+        analyzer = UnifiedResponseAnalyzer(openai_api_key=settings.OPENAI_API_KEY)
         
         context = {
             "brand_name": request.brand_name,
@@ -290,7 +300,12 @@ async def analyze_sentiment(request: SentimentAnalysisRequest):
             "customer_id": request.customer_id
         }
         
-        analysis = await analyzer.analyze(request.text, context)
+        analysis = await analyzer.analyze_response(
+            response_text=request.text,
+            query=context.get('query', 'sentiment analysis'),
+            brand_name=context.get('brand_name', ''),
+            competitors=context.get('competitors', [])
+        )
         
         return {
             "success": True,
@@ -316,7 +331,7 @@ async def batch_sentiment_analysis(request: BatchSentimentRequest):
     Useful for analyzing multiple reviews, comments, or feedback at once.
     """
     try:
-        analyzer = LLMSentimentAnalyzer()
+        analyzer = UnifiedResponseAnalyzer(openai_api_key=settings.OPENAI_API_KEY)
         
         context = {
             "brand_name": request.brand_name,
@@ -324,7 +339,11 @@ async def batch_sentiment_analysis(request: BatchSentimentRequest):
             "purpose": request.purpose
         }
         
-        analyses = await analyzer.analyze_batch(request.texts, context)
+        analyses = await analyzer.analyze_batch(
+            responses=[{'text': text, 'query': context.get('query', 'batch analysis')} for text in request.texts],
+            brand_name=context.get('brand_name', ''),
+            competitors=context.get('competitors', [])
+        )
         
         # Calculate aggregate metrics
         total_sentiment = sum(a.overall_sentiment for a in analyses) / len(analyses)
@@ -392,7 +411,7 @@ async def detect_gaps(request: GapDetectionRequest):
     - Authority gaps
     """
     try:
-        detector = LLMGapDetector()
+        analyzer = UnifiedResponseAnalyzer(openai_api_key=settings.OPENAI_API_KEY)
         
         context = {
             "brand_name": request.brand_name,
@@ -402,7 +421,7 @@ async def detect_gaps(request: GapDetectionRequest):
             "business_goals": request.business_goals
         }
         
-        analysis = await detector.detect(
+        analysis = await analyzer.analyze_response(
             query=request.query,
             response=request.response,
             competitor_responses=request.competitor_responses,
@@ -434,7 +453,7 @@ async def analyze_content_portfolio(request: PortfolioAnalysisRequest):
     Provides portfolio-level insights and improvement roadmap.
     """
     try:
-        detector = LLMGapDetector()
+        analyzer = UnifiedResponseAnalyzer(openai_api_key=settings.OPENAI_API_KEY)
         
         context = {
             "brand_name": request.brand_name,
@@ -442,7 +461,8 @@ async def analyze_content_portfolio(request: PortfolioAnalysisRequest):
             "target_audience": request.target_audience
         }
         
-        analysis = await detector.analyze_content_portfolio(
+        # Analyze content portfolio using batch analysis
+        analysis = await analyzer.analyze_batch(
             content_items=request.content_items,
             context=context
         )

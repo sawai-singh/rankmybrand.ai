@@ -12,9 +12,9 @@ import uuid
 from dataclasses import dataclass, asdict
 import hashlib
 
-from .query_generator import IntelligentQueryGenerator, QueryContext, GeneratedQuery
-from .llm_orchestrator import MultiLLMOrchestrator, OrchestratorConfig
-from .response_analyzer import LLMResponseAnalyzer, ResponseAnalysis
+from ..analysis.query_generator import IntelligentQueryGenerator, QueryContext, GeneratedQuery
+from ..analysis.llm_orchestrator import LLMOrchestrator as MultiLLMOrchestrator, LLMProvider
+from ..analysis.response_analyzer import UnifiedResponseAnalyzer as LLMResponseAnalyzer, ResponseAnalysis
 
 logger = logging.getLogger(__name__)
 

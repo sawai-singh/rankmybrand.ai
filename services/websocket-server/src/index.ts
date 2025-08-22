@@ -11,21 +11,16 @@ import { v4 as uuidv4 } from 'uuid';
 import * as http from 'http';
 import dotenv from 'dotenv';
 import { ClientMessage, StreamData, BroadcastMessage } from './types';
-import { fetchLatestMetrics, fetchRecommendations, fetchCompetitors, closeDatabaseConnection } from './data-fetcher';
+import { fetchLatestMetrics, fetchRecommendations, fetchCompetitors } from './data-fetcher';
 
 dotenv.config();
 
 // Configuration
-const PORT = process.env.WS_PORT || 3001;
+const PORT = process.env.WS_PORT || 8001;
 const REDIS_HOST = process.env.REDIS_HOST || 'localhost';
 const REDIS_PORT = parseInt(process.env.REDIS_PORT || '6379');
 
 // Redis clients
-const redisSubscriber = new Redis({
-  host: REDIS_HOST,
-  port: REDIS_PORT,
-  retryStrategy: (times) => Math.min(times * 50, 2000),
-});
 
 const redisClient = new Redis({
   host: REDIS_HOST,
@@ -38,7 +33,7 @@ app.use(cors());
 app.use(express.json());
 
 // Health check endpoint
-app.get('/health', (req, res) => {
+app.get('/health', (_req, res) => {
   res.json({
     status: 'healthy',
     clients: clients.size,
@@ -73,6 +68,8 @@ const CONSUMER_NAME = `websocket-${process.pid}`;
 // Streams to monitor
 const STREAMS = [
   'metrics.calculated',
+  'geo_sov.scores',
+  'geo_sov.progress',
   'recommendations.ready',
   'automation.status',
   'system.health',
@@ -89,7 +86,7 @@ async function initializeStreamConsumers() {
       await redisClient.xgroup('CREATE', stream, CONSUMER_GROUP, '$', 'MKSTREAM');
       console.log(`Created consumer group for stream: ${stream}`);
     } catch (error) {
-      if (!error.message.includes('BUSYGROUP')) {
+      if (!(error as Error).message.includes('BUSYGROUP')) {
         console.error(`Error creating consumer group for ${stream}:`, error);
       }
     }
@@ -106,7 +103,8 @@ async function consumeStreams() {
   while (true) {
     try {
       // Read from multiple streams
-      const results = await redisClient.xreadgroup(
+      const streamKeys = [...STREAMS, ...STREAMS.map(() => '>')];
+      const results = await (redisClient as any).xreadgroup(
         'GROUP',
         CONSUMER_GROUP,
         CONSUMER_NAME,
@@ -115,9 +113,8 @@ async function consumeStreams() {
         'COUNT',
         10,
         'STREAMS',
-        ...STREAMS,
-        ...STREAMS.map(() => '>')
-      );
+        ...streamKeys
+      ) as Array<[string, Array<[string, string[]]>]> | null;
 
       if (results) {
         for (const [stream, messages] of results) {
@@ -155,6 +152,12 @@ async function processStreamMessage(stream: string, id: string, fields: string[]
     switch (stream) {
       case 'metrics.calculated':
         messageType = 'metrics';
+        break;
+      case 'geo_sov.scores':
+        messageType = 'geo_sov_scores';
+        break;
+      case 'geo_sov.progress':
+        messageType = 'geo_sov_progress';
         break;
       case 'recommendations.ready':
         messageType = 'recommendations';
@@ -200,23 +203,12 @@ function broadcastMessage(message: BroadcastMessage) {
   });
 }
 
-/**
- * Broadcast to specific clients based on subscription
- */
-function broadcastToSubscribers(stream: string, message: BroadcastMessage) {
-  const messageStr = JSON.stringify(message);
-  
-  clients.forEach((client) => {
-    if (client.subscriptions.has(stream) && client.ws.readyState === WebSocket.OPEN) {
-      client.ws.send(messageStr);
-    }
-  });
-}
+// Removed broadcastToSubscribers - using broadcastMessage instead
 
 /**
  * Handle WebSocket connections
  */
-wss.on('connection', (ws: WebSocket, req) => {
+wss.on('connection', (ws: WebSocket, _req) => {
   const clientId = uuidv4();
   const client: Client = {
     id: clientId,
@@ -318,7 +310,14 @@ async function handleClientMessage(client: Client, message: ClientMessage) {
 /**
  * Handle data requests from clients
  */
-async function handleDataRequest(client: Client, resource: string) {
+async function handleDataRequest(client: Client, resource: string | undefined) {
+  if (!resource) {
+    client.ws.send(JSON.stringify({
+      type: 'error',
+      message: 'Resource not specified',
+    }));
+    return;
+  }
   try {
     // Get brand_id from client's subscription or message
     const brandId = client.subscriptions.values().next().value || 'default';
@@ -381,7 +380,7 @@ async function handleAction(client: Client, message: ClientMessage) {
           'actions.requests',
           '*',
           'action', 'approve',
-          'recommendationId', message.recommendationId,
+          'recommendationId', message.recommendationId || '',
           'clientId', client.id,
           'timestamp', new Date().toISOString()
         );
@@ -392,7 +391,7 @@ async function handleAction(client: Client, message: ClientMessage) {
           'actions.requests',
           '*',
           'action', 'reject',
-          'recommendationId', message.recommendationId,
+          'recommendationId', message.recommendationId || '',
           'clientId', client.id,
           'timestamp', new Date().toISOString()
         );

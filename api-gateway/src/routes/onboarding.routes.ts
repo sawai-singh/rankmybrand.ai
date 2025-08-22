@@ -7,6 +7,7 @@ import { Router, Request, Response } from 'express';
 import { enrichmentService } from '../services/enrichment.service';
 import { queryGenerationService } from '../services/query-generation.service';
 import { emailService } from '../services/email.service';
+import { cacheService } from '../services/cache.service';
 import Redis from 'ioredis';
 import axios from 'axios';
 import { WebSocket } from 'ws';
@@ -137,6 +138,23 @@ router.post('/enrich', async (req: Request, res: Response) => {
       return res.status(400).json({ error: 'Email is required' });
     }
 
+    // Check cache first
+    const cachedCompany = await cacheService.getCachedCompany(email);
+    if (cachedCompany) {
+      console.log(`Cache hit for company lookup: ${email}`);
+      
+      // Generate session ID for cached data
+      const sessionId = `session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+      await redis.setex(sessionId, 3600, JSON.stringify({ email, enrichmentData: cachedCompany }));
+      
+      return res.json({
+        sessionId,
+        enrichmentData: cachedCompany,
+        nextStep: '/onboarding/company',
+        fromCache: true
+      });
+    }
+
     // Update user tracking
     if (db) {
       try {
@@ -250,6 +268,9 @@ router.post('/enrich', async (req: Request, res: Response) => {
         console.error('Failed to store enrichment data:', dbError);
       }
     }
+
+    // Cache the enrichment data for future use
+    await cacheService.cacheCompanyLookup(email, enrichmentData);
 
     // Start background crawl
     startBackgroundCrawl(enrichmentData.domain, sessionId);

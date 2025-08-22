@@ -37,12 +37,37 @@ const activeConnections = new promClient.Gauge({
 const geoScoreCalculations = new promClient.Counter({
   name: 'rankmybrand_geo_calculations_total',
   help: 'Total number of GEO score calculations',
-  labelNames: ['status']
+  labelNames: ['status', 'company']
 });
 
 const geoScoreValue = new promClient.Gauge({
   name: 'rankmybrand_geo_score_value',
   help: 'Latest GEO score value',
+  labelNames: ['company', 'domain']
+});
+
+const sovScoreCalculations = new promClient.Counter({
+  name: 'rankmybrand_sov_calculations_total',
+  help: 'Total number of SOV score calculations',
+  labelNames: ['status', 'company']
+});
+
+const sovScoreValue = new promClient.Gauge({
+  name: 'rankmybrand_sov_score_value',
+  help: 'Latest SOV score value',
+  labelNames: ['company', 'domain']
+});
+
+const geoSovCalculationDuration = new promClient.Histogram({
+  name: 'rankmybrand_geo_sov_calculation_duration_seconds',
+  help: 'Duration of GEO/SOV score calculations',
+  labelNames: ['type', 'company'],
+  buckets: [0.1, 0.5, 1, 2, 5, 10, 30]
+});
+
+const overallVisibilityScore = new promClient.Gauge({
+  name: 'rankmybrand_overall_visibility_score',
+  help: 'Overall visibility score combining GEO and SOV',
   labelNames: ['company', 'domain']
 });
 
@@ -101,6 +126,10 @@ register.registerMetric(httpRequestTotal);
 register.registerMetric(activeConnections);
 register.registerMetric(geoScoreCalculations);
 register.registerMetric(geoScoreValue);
+register.registerMetric(sovScoreCalculations);
+register.registerMetric(sovScoreValue);
+register.registerMetric(geoSovCalculationDuration);
+register.registerMetric(overallVisibilityScore);
 register.registerMetric(databaseQueryDuration);
 register.registerMetric(cacheHitRate);
 register.registerMetric(apiErrors);
@@ -163,12 +192,28 @@ export function metricsEndpoint(req: Request, res: Response) {
 
 // Helper functions to update custom metrics
 export const metrics = {
-  recordGeoCalculation: (status: 'success' | 'failure') => {
-    geoScoreCalculations.labels(status).inc();
+  recordGeoCalculation: (status: 'success' | 'failure', company?: string) => {
+    geoScoreCalculations.labels(status, company || 'unknown').inc();
   },
   
   updateGeoScore: (company: string, domain: string, score: number) => {
     geoScoreValue.labels(company, domain).set(score);
+  },
+  
+  recordSovCalculation: (status: 'success' | 'failure', company?: string) => {
+    sovScoreCalculations.labels(status, company || 'unknown').inc();
+  },
+  
+  updateSovScore: (company: string, domain: string, score: number) => {
+    sovScoreValue.labels(company, domain).set(score);
+  },
+  
+  recordGeoSovCalculationTime: (type: 'geo' | 'sov' | 'overall', company: string, duration: number) => {
+    geoSovCalculationDuration.labels(type, company).observe(duration);
+  },
+  
+  updateOverallVisibilityScore: (company: string, domain: string, score: number) => {
+    overallVisibilityScore.labels(company, domain).set(score);
   },
   
   recordDatabaseQuery: (operation: string, table: string, duration: number) => {

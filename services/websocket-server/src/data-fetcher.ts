@@ -97,7 +97,7 @@ export async function fetchRecommendations(brandId: string): Promise<Recommendat
       LIMIT 10
     `, [brandId]);
     
-    return result.rows.map(row => ({
+    return result.rows.map((row: any) => ({
       id: row.id,
       title: row.title,
       description: row.description,
@@ -131,7 +131,7 @@ export async function fetchCompetitors(brandId: string): Promise<CompetitorData[
       LIMIT 5
     `, [brandId]);
     
-    return result.rows.map(row => ({
+    return result.rows.map((row: any) => ({
       id: row.id,
       name: row.name,
       geoScore: row.geoScore,

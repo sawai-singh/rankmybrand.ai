@@ -7,6 +7,7 @@ import { validateRequest } from '../middleware/validate-request';
 import { asyncHandler } from '../utils/async-handler';
 import { ApiError } from '../utils/api-error';
 import { logger } from '../utils/logger';
+import { webhookService } from '../services/webhook.service';
 import Bull from 'bull';
 import Redis from 'ioredis';
 import { v4 as uuidv4 } from 'uuid';

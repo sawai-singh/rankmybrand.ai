@@ -31,6 +31,9 @@ import testQueriesRoutes from './routes/test-queries.routes';
 import queryStatusRoutes from './routes/query-status.routes';
 import enhancedQueryRoutes from './routes/enhanced-query.routes';
 import userDashboardRoutes from './routes/user-dashboard.routes';
+import cacheRoutes from './routes/cache.routes';
+import webhookRoutes from './routes/webhook.routes';
+import feedbackRoutes from './routes/feedback.routes';
 
 // Import middleware
 import { 
@@ -251,6 +254,9 @@ app.use('/api/admin', limiter, adminAIVisibilityRoutes);
 app.use('/api/test', testQueriesRoutes); // Test route without auth
 app.use('/api/query-status', queryStatusRoutes); // Query generation status
 app.use('/api/enhanced-query', enhancedQueryRoutes); // Enhanced query generation
+app.use('/api/cache', cacheRoutes); // Cache management
+app.use('/api/webhooks', webhookRoutes); // Webhook management
+app.use('/api/feedback', feedbackRoutes); // User feedback system
 app.use('/api', userDashboardRoutes); // User dashboard endpoints
 
 // ========================================
@@ -643,16 +649,7 @@ app.get('/api/admin/company/:id/journey', limiter, asyncHandler(async (req: any,
   }
 }));
 
-// Dashboard API endpoints
-app.get('/api/activities', limiter, asyncHandler(async (req: any, res: any) => {
-  // Return demo activities with real-time data
-  const activities = [
-    { id: 1, type: 'success', message: 'OpenAI GPT-4o analysis completed', timestamp: new Date().toISOString() },
-    { id: 2, type: 'info', message: 'AI visibility score calculated: 81.9', timestamp: new Date(Date.now() - 3600000).toISOString() },
-    { id: 3, type: 'warning', message: 'Competitor domain detected: competitor.com', timestamp: new Date(Date.now() - 7200000).toISOString() }
-  ];
-  res.json(activities);
-}));
+// Dashboard API endpoints - Activities endpoint moved to user-dashboard.routes.ts with REAL data
 
 app.get('/api/ai/visibility', limiter, asyncHandler(async (req: any, res: any) => {
   // Get user token to fetch their actual analysis

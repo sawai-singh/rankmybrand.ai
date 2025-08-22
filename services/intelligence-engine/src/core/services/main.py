@@ -30,13 +30,13 @@ from opentelemetry.sdk.trace.export import BatchSpanProcessor
 from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
 
 # Import our AI Visibility components
-from query_generator import IntelligentQueryGenerator, QueryContext
-from llm_orchestrator import MultiLLMOrchestrator, OrchestratorConfig
-from response_analyzer import ResponseAnalyzer
-from cache_manager import CacheManager
-from websocket_manager import WebSocketManager
-from job_processor import JobProcessor
-from monitoring import MetricsCollector, HealthMonitor
+from ..analysis.query_generator import IntelligentQueryGenerator, QueryContext
+from ..analysis.llm_orchestrator import LLMOrchestrator as MultiLLMOrchestrator
+from ..analysis.response_analyzer import UnifiedResponseAnalyzer as ResponseAnalyzer
+from ..utilities.cache_manager import IntelligentCacheManager as CacheManager
+from .websocket_manager import WebSocketManager
+from .job_processor import AuditJobProcessor as JobProcessor
+from .monitoring import MetricsCollector, HealthMonitor
 
 # Configure logging
 logging.basicConfig(

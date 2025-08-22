@@ -21,13 +21,18 @@ class RedisClient:
     
     async def initialize(self):
         """Initialize Redis connection."""
-        self.redis = redis.Redis(
-            host=settings.redis_host,
-            port=settings.redis_port,
-            db=settings.redis_db,
-            password=settings.redis_password,
-            decode_responses=True
-        )
+        # Only include password if it's set and not empty
+        redis_kwargs = {
+            'host': settings.redis_host,
+            'port': settings.redis_port,
+            'db': settings.redis_db,
+            'decode_responses': True
+        }
+        # Check for actual password value, not empty string
+        if settings.redis_password and settings.redis_password.strip():
+            redis_kwargs['password'] = settings.redis_password
+            
+        self.redis = redis.Redis(**redis_kwargs)
         
         # Create consumer group if not exists
         await self.create_consumer_group()

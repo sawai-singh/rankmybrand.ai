@@ -4,7 +4,7 @@ from fastapi import APIRouter, HTTPException, Depends
 from typing import Dict, Any, List, Optional
 from pydantic import BaseModel, Field
 from datetime import datetime
-from src.processors.geo_calculator_real import RealGEOCalculator
+from src.core.analysis.calculators.geo_calculator import GEOCalculator
 from src.api.auth import get_current_user, check_rate_limit
 import logging
 import asyncio
@@ -13,7 +13,7 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/v1/geo", tags=["geo"])
 
 # Initialize REAL GEO calculator
-geo_calculator = RealGEOCalculator()
+geo_calculator = GEOCalculator()
 
 
 class GEOAnalyzeRequest(BaseModel):
