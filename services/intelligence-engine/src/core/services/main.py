@@ -66,7 +66,7 @@ REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379/0")
 LLM_KEYS = {
     "openai": os.getenv("OPENAI_API_KEY", ""),
     "anthropic": os.getenv("ANTHROPIC_API_KEY", ""),
-    "google": os.getenv("GOOGLE_API_KEY", ""),
+    "google": os.getenv("GOOGLE_AI_API_KEY", ""),
     "perplexity": os.getenv("PERPLEXITY_API_KEY", "")
 }
 
@@ -162,7 +162,7 @@ async def lifespan(app: FastAPI):
         if LLM_KEYS["openai"]:
             query_generator = IntelligentQueryGenerator(
                 openai_api_key=LLM_KEYS["openai"],
-                model="gpt-4o"  # Use GPT-4 until GPT-5 is available
+                model=settings.openai_model  # Uses gpt-5-chat-latest from config  # Use GPT-4 until GPT-5 is available
             )
             logger.info("✅ Query generator initialized")
         
@@ -181,7 +181,7 @@ async def lifespan(app: FastAPI):
         
         response_analyzer = ResponseAnalyzer(
             openai_api_key=LLM_KEYS["openai"],
-            model="gpt-4o"
+            model=settings.openai_model  # Uses gpt-5-chat-latest from config
         )
         logger.info("✅ Response analyzer initialized")
         

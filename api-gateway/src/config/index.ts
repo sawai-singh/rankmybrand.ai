@@ -40,9 +40,9 @@ const envSchema = z.object({
   CRAWLER_SERVICE: z.string().url().default('http://localhost:3002'),
   SEARCH_SERVICE: z.string().url().default('http://localhost:3002'),
   DASHBOARD_SERVICE: z.string().url().default('http://localhost:3000'),
-  WEBSOCKET_SERVICE: z.string().url().default('http://localhost:3001'),
+  // WEBSOCKET_SERVICE removed - using integrated WebSocket
   INTELLIGENCE_SERVICE: z.string().url().default('http://localhost:8002'),
-  ACTION_SERVICE: z.string().url().default('http://localhost:8082'),
+  // ACTION_SERVICE removed - service not in use
   
   // CORS
   CORS_ORIGIN: z.string().default('*'),
@@ -157,9 +157,9 @@ export const config = {
     crawler: env.CRAWLER_SERVICE,
     search: env.SEARCH_SERVICE,
     dashboard: env.DASHBOARD_SERVICE,
-    websocket: env.WEBSOCKET_SERVICE,
+    // websocket: removed - using integrated WebSocket
     intelligence: env.INTELLIGENCE_SERVICE,
-    action: env.ACTION_SERVICE,
+    // action: removed - service not in use
   },
   
   // CORS

@@ -1,46 +1,31 @@
-# Build stage
-FROM python:3.11-slim AS builder
+# Single stage build to simplify Python dependencies
+FROM python:3.11-slim
 
 WORKDIR /app
 
-# Install build dependencies
+# Install build and runtime dependencies
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
     gcc \
     g++ \
     python3-dev \
-    postgresql-dev \
-    && rm -rf /var/lib/apt/lists/*
-
-# Copy requirements and install dependencies
-COPY requirements.txt .
-RUN pip install --user --no-cache-dir -r requirements.txt
-
-# Runtime stage
-FROM python:3.11-slim
-
-WORKDIR /app
-
-# Install runtime dependencies
-RUN apt-get update && \
-    apt-get install -y --no-install-recommends \
+    libpq-dev \
     libpq5 \
     curl \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy Python dependencies from builder
-COPY --from=builder /root/.local /root/.local
-
-# Make sure scripts in .local are usable
-ENV PATH=/root/.local/bin:$PATH
+# Copy requirements and install dependencies globally
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy application code
 COPY src ./src
 
-# Create non-root user
+# Create non-root user and set permissions
 RUN useradd -m -u 1001 appuser && \
     chown -R appuser:appuser /app
 
+# Switch to non-root user
 USER appuser
 
 EXPOSE 8002

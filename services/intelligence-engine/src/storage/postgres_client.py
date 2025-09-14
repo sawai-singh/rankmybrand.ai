@@ -25,19 +25,25 @@ class PostgresClient:
     
     async def initialize(self):
         """Initialize connection pool with production-ready settings."""
-        self.pool = await asyncpg.create_pool(
-            host=settings.postgres_host,
-            port=settings.postgres_port,
-            database=settings.postgres_db,
-            user=settings.postgres_user,
-            password=settings.postgres_password,
-            min_size=2,  # Reduced min size for better resource usage
-            max_size=settings.postgres_pool_size,
-            command_timeout=10,
-            max_queries=1000,  # Reduced from 50000 - prevents connection exhaustion
-            max_cacheable_statement_size=16384,  # Enable statement caching for performance
-            max_inactive_connection_lifetime=300.0  # Close idle connections after 5 minutes
-        )
+        # Build connection parameters, excluding password if empty (for trust auth)
+        conn_params = {
+            "host": settings.postgres_host,
+            "port": settings.postgres_port,
+            "database": settings.postgres_db,
+            "user": settings.postgres_user,
+            "min_size": 2,  # Reduced min size for better resource usage
+            "max_size": settings.postgres_pool_size,
+            "command_timeout": 10,
+            "max_queries": 1000,  # Reduced from 50000 - prevents connection exhaustion
+            "max_cacheable_statement_size": 16384,  # Enable statement caching for performance
+            "max_inactive_connection_lifetime": 300.0  # Close idle connections after 5 minutes
+        }
+        
+        # Only add password if it's not empty (for trust authentication)
+        if settings.postgres_password:
+            conn_params["password"] = settings.postgres_password
+            
+        self.pool = await asyncpg.create_pool(**conn_params)
         
         # Create schema if not exists
         await self.create_schema()

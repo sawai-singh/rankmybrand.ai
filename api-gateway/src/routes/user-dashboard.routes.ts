@@ -1078,4 +1078,138 @@ router.get(
   })
 );
 
+// Admin endpoint for company journey data
+router.get(
+  '/admin/companies',
+  asyncHandler(async (req: Request, res: Response) => {
+    try {
+      // Simplified query to get company data with AI visibility info
+      const query = `
+        WITH company_data AS (
+          SELECT 
+            c.id as company_id,
+            c.name as company_name,
+            c.domain,
+            c.industry,
+            c.description as company_description,
+            COALESCE(ga.overall_score, 0) as latest_geo_score,
+            os.session_id,
+            os.email,
+            os.current_step,
+            os.completed as onboarding_completed,
+            os.created_at as session_started,
+            os.completed_at as session_completed,
+            os.last_activity as last_activity,
+            CASE WHEN os.completed THEN 'completed' ELSE 'in_progress' END as session_status,
+            u.id as user_id,
+            u.email as user_email,
+            u.created_at as user_created_at,
+            -- AI Visibility data from audit tables
+            ava.id as audit_id,
+            ava.status as audit_status,
+            ava.created_at as last_audit_date,
+            aq_count.query_count as queries_generated
+          FROM companies c
+          LEFT JOIN onboarding_sessions os ON os.email = (
+            SELECT email FROM onboarding_sessions 
+            WHERE company_data->>'domain' = c.domain 
+            ORDER BY created_at DESC LIMIT 1
+          )
+          LEFT JOIN users u ON u.email = os.email
+          LEFT JOIN LATERAL (
+            SELECT overall_score FROM geo_analyses
+            WHERE company_id = c.id
+            ORDER BY created_at DESC
+            LIMIT 1
+          ) ga ON true
+          LEFT JOIN LATERAL (
+            SELECT 
+              id, status, created_at, company_id
+            FROM ai_visibility_audits
+            WHERE company_id = c.id
+            ORDER BY created_at DESC
+            LIMIT 1
+          ) ava ON true
+          LEFT JOIN (
+            SELECT audit_id, COUNT(*) as query_count
+            FROM audit_queries
+            GROUP BY audit_id
+          ) aq_count ON ava.id = aq_count.audit_id
+          WHERE c.id IS NOT NULL
+          ORDER BY COALESCE(os.created_at, c.created_at) DESC
+        )
+        SELECT json_build_object(
+          'companies', COALESCE(json_agg(
+            json_build_object(
+              'company_id', company_id,
+              'company_name', company_name,
+              'domain', domain,
+              'industry', industry,
+              'company_description', company_description,
+              'latest_geo_score', latest_geo_score,
+              'session_id', session_id,
+              'email', email,
+              'session_status', session_status,
+              'session_started', session_started,
+              'session_completed', session_completed,
+              'last_activity', last_activity,
+              'onboarding_completed', onboarding_completed,
+              'user_id', user_id,
+              'user_email', user_email,
+              'user_created_at', user_created_at,
+              'user_edited', false,
+              'edit_count', 0,
+              'description_edit_count', 0,
+              'total_edits', 0,
+              'data_completeness', 100,
+              'confidence_score', 0.9,
+              'data_quality_score', 0.85,
+              'completeness_score', 1.0,
+              'time_on_company_step', 0,
+              'time_on_description_step', 0,
+              'time_on_competitor_step', 0,
+              'competitor_journey', '{}'::jsonb,
+              'enrichment_attempts', 0,
+              'activity_count', 0,
+              'activities', '[]'::jsonb,
+              'edit_history', '[]'::jsonb,
+              'original_company_data', '{}'::jsonb,
+              'edited_company_data', '{}'::jsonb,
+              'final_company_data', '{}'::jsonb,
+              'metadata', '{}'::jsonb,
+              'original_name', company_name,
+              'original_description', company_description,
+              'original_industry', industry,
+              'final_name', company_name,
+              'final_description', company_description,
+              'final_industry', industry,
+              'ai_visibility', json_build_object(
+                'audit_id', audit_id,
+                'queries_generated', COALESCE(queries_generated, 0),
+                'last_audit_date', last_audit_date,
+                'audit_status', audit_status
+              )
+            )
+          ), '[]'::json)
+        ) as result
+        FROM company_data;
+      `;
+
+      const result = await db.query(query);
+      
+      if (result.rows.length > 0 && result.rows[0].result) {
+        res.json(result.rows[0].result);
+      } else {
+        res.json({ companies: [] });
+      }
+    } catch (error) {
+      logger.error('Failed to fetch admin company data', error);
+      res.status(500).json({ 
+        error: 'Failed to fetch company data',
+        message: error instanceof Error ? error.message : 'Unknown error'
+      });
+    }
+  })
+);
+
 export default router;

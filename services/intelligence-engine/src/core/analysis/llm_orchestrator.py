@@ -296,7 +296,7 @@ class LLMOrchestrator:
         # API Keys from config, parameters, or settings
         self.openai_key = openai_api_key or settings.openai_api_key
         self.anthropic_key = anthropic_api_key or settings.anthropic_api_key
-        self.google_key = google_api_key or settings.google_ai_api_key
+        self.google_key = google_api_key or settings.gemini_api_key
         self.perplexity_key = perplexity_api_key or settings.perplexity_api_key
         
         # Configuration
@@ -345,6 +345,10 @@ class LLMOrchestrator:
             genai.configure(api_key=self.google_key)
             self.gemini_model = genai.GenerativeModel('gemini-2.5-flash')
             self.clients[LLMProvider.GOOGLE_GEMINI] = self.gemini_model
+        
+        if self.perplexity_key:
+            # Perplexity uses HTTP API, so we mark it as available
+            self.clients[LLMProvider.PERPLEXITY] = "perplexity_http"
     
     def _initialize_circuit_breakers(self):
         """Initialize circuit breakers with fallback chains"""
@@ -388,7 +392,8 @@ class LLMOrchestrator:
         parallel_execution: bool = True,
         use_cache: bool = True,
         use_fallback: bool = True,
-        priority_queries: Optional[List[str]] = None
+        priority_queries: Optional[List[str]] = None,
+        response_callback: Optional[callable] = None
     ) -> Dict[str, List[LLMResponse]]:
         """Execute queries across multiple LLMs with improved resilience"""
         
@@ -444,28 +449,60 @@ class LLMOrchestrator:
                             )
                             tasks.append((query, provider, task))
                 
-                # Execute batch
+                # Execute batch with independent provider processing
                 if tasks:
-                    task_results = await asyncio.gather(
-                        *[task for _, _, task in tasks],
-                        return_exceptions=True
-                    )
+                    # Create a mapping of tasks to their metadata
+                    # This avoids the index lookup issue with asyncio.as_completed
+                    task_map = {}
                     
-                    for (query, provider, _), result in zip(tasks, task_results):
-                        if isinstance(result, Exception):
-                            logger.error(f"Failed {provider} for query: {result}")
-                            # Try fallback
-                            if use_fallback and hasattr(self, 'circuit_breakers'):
-                                fallback = self.circuit_breakers[provider].config.fallback_provider
-                                if fallback and fallback in available_providers:
-                                    fallback_result = await self._execute_with_resilience(
-                                        query, fallback, use_cache, False
-                                    )
-                                    results[query].append(fallback_result)
-                        else:
-                            results[query].append(result)
-                            if self.deduplicator:
-                                self.deduplicator.store_response(query, provider, result)
+                    for query, provider, task in tasks:
+                        # Create a wrapper that includes metadata
+                        async def task_wrapper(q=query, p=provider, t=task):
+                            try:
+                                result = await t
+                                return (q, p, result, None)
+                            except Exception as e:
+                                return (q, p, None, e)
+                        
+                        task_map[asyncio.create_task(task_wrapper())] = (query, provider)
+                    
+                    # Process results as they complete, not waiting for all
+                    completed_count = 0
+                    failed_providers = set()
+                    
+                    for completed_task in asyncio.as_completed(task_map.keys()):
+                        try:
+                            query, provider, result, error = await completed_task
+                            
+                            if error:
+                                logger.error(f"Provider {provider} execution failed: {error}")
+                                failed_providers.add(provider)
+                                
+                                # Skip failing providers after multiple failures
+                                if provider in failed_providers:
+                                    provider_fail_count = sum(1 for _, p in tasks if p == provider)
+                                    if provider_fail_count > 3:
+                                        logger.warning(f"Skipping remaining queries for {provider} due to repeated failures")
+                                        continue
+                            
+                            elif result:
+                                results[query].append(result)
+                                if self.deduplicator:
+                                    self.deduplicator.store_response(query, provider, result)
+                                completed_count += 1
+                                logger.debug(f"✓ {provider} completed query {completed_count}/{len(tasks)}")
+                                
+                                # Call the callback to save response immediately
+                                if response_callback:
+                                    try:
+                                        await response_callback(query, provider, result)
+                                    except Exception as cb_error:
+                                        logger.error(f"Callback failed for {provider}: {cb_error}")
+                                        
+                        except Exception as e:
+                            logger.error(f"Task processing error: {e}")
+                                
+                    logger.info(f"Batch completed: {completed_count} successful, {len(failed_providers)} providers with failures")
         else:
             # Sequential execution
             for query in queries:

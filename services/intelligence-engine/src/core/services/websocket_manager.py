@@ -47,6 +47,9 @@ class EventType(Enum):
     INSIGHT_DISCOVERED = "insight.discovered"
     COMPETITOR_ALERT = "competitor.alert"
     
+    # Dashboard events
+    DASHBOARD_DATA_READY = "dashboard.data_ready"
+    
     # System events
     CACHE_HIT = "system.cache_hit"
     ERROR_OCCURRED = "system.error"
@@ -174,7 +177,7 @@ class WebSocketManager:
     def __init__(
         self,
         redis_client: Optional[aioredis.Redis] = None,
-        port: int = 8080
+        port: int = 8090
     ):
         self.app = web.Application()
         self.port = port

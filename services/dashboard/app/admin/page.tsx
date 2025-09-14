@@ -140,6 +140,13 @@ export default function EnhancedAdminPage() {
 
   useEffect(() => {
     fetchEnhancedData();
+    
+    // Auto-refresh every 30 seconds
+    const interval = setInterval(() => {
+      fetchEnhancedData();
+    }, 30000);
+    
+    return () => clearInterval(interval);
   }, []);
 
   const fetchEnhancedData = async () => {

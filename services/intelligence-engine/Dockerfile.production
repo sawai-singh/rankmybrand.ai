@@ -20,8 +20,8 @@ RUN pip install --no-cache-dir \
     torch==2.8.0 --index-url https://download.pytorch.org/whl/cpu \
     && pip install --no-cache-dir -r requirements.txt
 
-# Download required NLP models
-RUN python -c "import nltk; nltk.download('punkt'); nltk.download('stopwords')"
+# Download required NLP models (skip if NLTK not installed)
+# RUN python -c "import nltk; nltk.download('punkt'); nltk.download('stopwords')"
 
 # Copy application code
 COPY . .

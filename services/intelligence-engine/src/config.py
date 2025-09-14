@@ -46,6 +46,9 @@ class Settings(BaseSettings):
     model_cache_dir: str = Field(default="/tmp/models", env="MODEL_CACHE_DIR")
     batch_size: int = Field(default=32, env="BATCH_SIZE")
     
+    # API Keys
+    openai_api_key: Optional[str] = Field(default=None, env="OPENAI_API_KEY")
+    
     # Processing Configuration
     max_workers: int = Field(default=4, env="MAX_WORKERS")
     processing_timeout: int = Field(default=30, env="PROCESSING_TIMEOUT")
@@ -70,7 +73,7 @@ class Settings(BaseSettings):
     
     # LLM Configuration for Entity Detection and AI Analysis
     openai_api_key: str = Field(default="", env="OPENAI_API_KEY")
-    openai_model: str = Field(default="gpt-4o-mini", env="OPENAI_MODEL")
+    openai_model: str = Field(default="gpt-5-chat-latest", env="OPENAI_MODEL")
     openai_timeout: int = Field(default=30, env="OPENAI_TIMEOUT")
     openai_max_calls_per_minute: int = Field(default=60, env="OPENAI_MAX_CALLS_PER_MINUTE")
     openai_max_calls_per_customer: int = Field(default=10, env="OPENAI_MAX_CALLS_PER_CUSTOMER")
@@ -143,6 +146,7 @@ class Settings(BaseSettings):
     class Config:
         env_file = ".env"
         case_sensitive = False
+        extra = "allow"
 
 
 # Global settings instance

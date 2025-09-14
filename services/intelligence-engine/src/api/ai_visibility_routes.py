@@ -10,8 +10,8 @@ import asyncpg
 import os
 import json
 
-from src.services.ai_visibility.query_generator import IntelligentQueryGenerator, QueryContext
-from src.services.ai_visibility.service import AIVisibilityService
+from src.core.analysis.query_generator import IntelligentQueryGenerator, QueryContext
+from src.core.services.service import AIVisibilityService
 from src.config import settings
 
 logger = logging.getLogger(__name__)

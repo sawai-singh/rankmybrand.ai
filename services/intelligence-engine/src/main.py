@@ -4,6 +4,7 @@ import asyncio
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, HTTPException, BackgroundTasks
 from fastapi.responses import JSONResponse
+from fastapi.middleware.cors import CORSMiddleware
 from prometheus_client import make_asgi_app
 from src.config import settings
 from src.consumer import StreamConsumer
@@ -12,7 +13,8 @@ from src.monitoring import HealthChecker
 from src.monitoring.middleware import setup_metrics_middleware
 from src.processors import ResponseProcessor
 from src.models.schemas import AIResponse, ProcessedResponse
-from src.api import analysis_routes, ai_visibility_simple
+from src.api import analysis_routes
+from src.core.services.job_processor import AuditJobProcessor
 
 
 # Global instances
@@ -22,12 +24,13 @@ redis: RedisClient = None
 cache: CacheManager = None
 health_checker: HealthChecker = None
 processor: ResponseProcessor = None
+job_processor: AuditJobProcessor = None
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Manage application lifecycle."""
-    global consumer, postgres, redis, cache, health_checker, processor
+    global consumer, postgres, redis, cache, health_checker, processor, job_processor
     
     # Startup
     print("Starting Intelligence Engine...")
@@ -54,6 +57,69 @@ async def lifespan(app: FastAPI):
     # Start consumer in background task
     consumer_task = asyncio.create_task(consumer.start())
     
+    # Initialize job_consumer_task variable
+    job_consumer_task = None
+    
+    # Initialize and start job processor for AI visibility audits
+    print("Initializing AI Visibility Job Processor...")
+    try:
+        job_processor = AuditJobProcessor(settings)
+        await job_processor.initialize()
+        
+        # Start job consumer loop in background
+        async def run_job_consumer():
+            """Run the job consumer loop."""
+            import redis.asyncio as redis
+            import json
+            from datetime import datetime
+            
+            redis_client = redis.Redis(
+                host=settings.redis_host,
+                port=settings.redis_port,
+                db=settings.redis_db,
+                password=settings.redis_password,
+                decode_responses=True
+            )
+            
+            while True:
+                try:
+                    # Fetch job from queue
+                    job_data = await redis_client.blpop('bull:ai-visibility-audit:wait', timeout=5)
+                    
+                    if job_data:
+                        job_json = json.loads(job_data[1])
+                        print(f"Processing audit job: {job_json.get('id')}")
+                        
+                        # Process job
+                        try:
+                            await job_processor.process_audit_job(job_json['data'])
+                            
+                            # Mark job as completed
+                            await redis_client.lpush('bull:ai-visibility-audit:completed', job_json['id'])
+                            print(f"Completed audit job: {job_json.get('id')}")
+                            
+                        except Exception as e:
+                            print(f"Failed to process job {job_json.get('id')}: {e}")
+                            # Mark job as failed
+                            await redis_client.lpush('bull:ai-visibility-audit:failed', json.dumps({
+                                'id': job_json['id'],
+                                'error': str(e),
+                                'timestamp': datetime.now().isoformat()
+                            }))
+                    
+                    await asyncio.sleep(0.1)  # Small delay to prevent tight loop
+                    
+                except Exception as e:
+                    print(f"Error in job consumer loop: {e}")
+                    await asyncio.sleep(5)  # Wait before retrying
+        
+        job_consumer_task = asyncio.create_task(run_job_consumer())
+        print("AI Visibility Job Processor started")
+        
+    except Exception as e:
+        print(f"Failed to start job processor: {e}")
+        job_consumer_task = None
+    
     print("Intelligence Engine started successfully")
     
     yield
@@ -73,6 +139,18 @@ async def lifespan(app: FastAPI):
         except asyncio.CancelledError:
             pass
     
+    # Cancel job consumer task
+    if job_consumer_task and not job_consumer_task.done():
+        job_consumer_task.cancel()
+        try:
+            await job_consumer_task
+        except asyncio.CancelledError:
+            pass
+    
+    # Cleanup job processor
+    if job_processor:
+        await job_processor.cleanup()
+    
     # Close connections
     if postgres:
         await postgres.close()
@@ -90,6 +168,15 @@ app = FastAPI(
     description="AI Response Intelligence Processing Engine",
     version="1.0.0",
     lifespan=lifespan
+)
+
+# Add CORS middleware
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:3000", "http://localhost:3001", "http://localhost:3002", "http://localhost:3003", "http://localhost:3004"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 # Setup Prometheus metrics middleware
@@ -116,6 +203,14 @@ try:
     app.include_router(llm_health_routes.router)
 except ImportError:
     print("LLM health routes not available")
+
+# Include Dashboard routes
+try:
+    from src.api import dashboard_endpoints
+    app.include_router(dashboard_endpoints.router)
+    print("Dashboard endpoints loaded successfully")
+except ImportError as e:
+    print(f"Dashboard endpoints not available: {e}")
 
 
 @app.get("/")

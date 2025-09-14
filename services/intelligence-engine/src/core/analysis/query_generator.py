@@ -102,7 +102,7 @@ class IntelligentQueryGenerator:
         try:
             # Use the provided world-class prompt directly
             response = await self.client.chat.completions.create(
-                model="gpt-4-turbo-preview",  # Use GPT-4 for reliability
+                model=self.model,  # Use configured model (gpt-5-chat-latest)
                 messages=[
                     {"role": "system", "content": "You are an expert search query architect. Generate exactly the requested number of queries following the specifications precisely."},
                     {"role": "user", "content": prompt}
@@ -293,7 +293,7 @@ class IntelligentQueryGenerator:
             QueryIntent.TRANSACTIONAL: f"""
             Generate {count} transactional queries for {context.company_name} and similar {context.industry} services.
             Include buying intent, signup intent, and trial-seeking queries.
-            Products/services: {', '.join(context.products_services[:3]) if context.products_services else context.description[:100]}
+            Products/services: {', '.join(context.products_services[:3]) if context.products_services else (context.description[:100] if context.description else 'Not specified')}
             """,
             
             QueryIntent.REVIEW_SEEKING: f"""

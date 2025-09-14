@@ -18,6 +18,7 @@ from openai import AsyncOpenAI
 # Import our calculators
 from .calculators.geo_calculator import GEOCalculator
 from .calculators.sov_calculator import SOVCalculator
+from .recommendation_extractor import IntelligentRecommendationExtractor
 
 logger = logging.getLogger(__name__)
 
@@ -99,6 +100,9 @@ class ResponseAnalysis:
     sov_score: float = 0.0  # Share of Voice score
     context_completeness_score: float = 0.0  # Information completeness
     
+    # NEW: Intelligent recommendations
+    recommendations: List[Dict[str, Any]] = field(default_factory=list)
+    
     processing_time_ms: float = 0.0
     metadata: Dict[str, Any] = field(default_factory=dict)
 
@@ -130,6 +134,10 @@ class UnifiedResponseAnalyzer:
         # Initialize calculators
         self.geo_calculator = GEOCalculator()
         self.sov_calculator = SOVCalculator()
+        self.recommendation_extractor = IntelligentRecommendationExtractor(
+            openai_api_key=openai_api_key,
+            model=model
+        )
         
         # Cache for performance
         self._analysis_cache = {}
@@ -196,6 +204,52 @@ class UnifiedResponseAnalyzer:
         analysis.context_completeness_score = await self._calculate_context_completeness_score(
             analysis, features, value_props
         )
+        
+        # Extract intelligent recommendations
+        if self.mode == AnalysisMode.FULL:
+            try:
+                # Get industry from metadata or default to "general"
+                industry = analysis.metadata.get('industry', 'general')
+                
+                # Get competitor context if available
+                competitor_context = None
+                if competitors:
+                    competitor_context = f"Key competitors: {', '.join(competitors[:5])}"
+                
+                # Extract recommendations using our LLM-powered extractor
+                recommendations = await self.recommendation_extractor.extract_recommendations_async(
+                    response_text=response_text,
+                    brand_name=brand_name,
+                    industry=industry,
+                    competitor_context=competitor_context,
+                    max_recommendations=10
+                )
+                
+                # Add to analysis
+                analysis.recommendations = recommendations
+                
+                # Extract additional insights if we have competitors
+                if competitors and len(competitors) > 0:
+                    # Extract competitive gaps
+                    competitive_gaps = await self.recommendation_extractor.extract_competitive_gaps(
+                        response_text=response_text,
+                        brand_name=brand_name,
+                        competitors=competitors
+                    )
+                    analysis.metadata['competitive_gaps'] = competitive_gaps
+                    
+                    # Extract content opportunities
+                    content_opportunities = await self.recommendation_extractor.extract_content_opportunities(
+                        response_text=response_text,
+                        brand_name=brand_name,
+                        industry=industry
+                    )
+                    analysis.metadata['content_opportunities'] = content_opportunities
+                
+                logger.info(f"Extracted {len(recommendations)} LLM-powered recommendations for {brand_name}")
+            except Exception as e:
+                logger.error(f"Error extracting recommendations: {e}")
+                analysis.recommendations = []
         
         # Add processing time
         analysis.processing_time_ms = (time.time() - start_time) * 1000
@@ -283,7 +337,13 @@ class UnifiedResponseAnalyzer:
                 improvement_suggestions=analysis_data.get('improvements', []),
                 seo_factors=analysis_data.get('seo_factors', {}),
                 processing_time_ms=0,  # Set by caller
-                metadata={'llm_tokens': response.usage.total_tokens}
+                metadata={
+                    'llm_tokens': response.usage.total_tokens,
+                    'response_text': response_text,
+                    'query': query,
+                    'provider': provider,
+                    'domain': f"{brand_name.split()[0].lower()}.com"  # Extract first word as domain
+                }
             )
             
         except Exception as e:
@@ -306,14 +366,30 @@ class UnifiedResponseAnalyzer:
         response_lower = response_text.lower()
         brand_lower = brand_name.lower()
         
-        # Brand mention analysis
-        brand_mentioned = brand_lower in response_lower
-        mention_count = response_lower.count(brand_lower)
+        # Extract the main brand name (first word) for better detection
+        # e.g., "Bikaji Foods International Ltd." -> "bikaji"
+        main_brand = brand_lower.split()[0] if brand_lower else brand_lower
+        
+        # Brand mention analysis - check both full name and main brand
+        brand_mentioned = (brand_lower in response_lower) or (main_brand in response_lower)
+        
+        # Count mentions of both full name and main brand
+        mention_count = response_lower.count(brand_lower) + response_lower.count(main_brand)
         
         # Find first position
         first_position = None
         if brand_mentioned:
-            position = response_lower.find(brand_lower)
+            # Find the earliest position of either full name or main brand
+            pos_full = response_lower.find(brand_lower)
+            pos_main = response_lower.find(main_brand)
+            
+            if pos_full >= 0 and pos_main >= 0:
+                position = min(pos_full, pos_main)
+            elif pos_full >= 0:
+                position = pos_full
+            else:
+                position = pos_main
+                
             first_position = position
             first_position_pct = (position / len(response_text)) * 100 if response_text else 0
         else:
@@ -373,7 +449,13 @@ class UnifiedResponseAnalyzer:
             improvement_suggestions=[],
             seo_factors={},
             processing_time_ms=0,
-            metadata={'analysis_type': 'fast'}
+            metadata={
+                'analysis_type': 'fast',
+                'response_text': response_text,
+                'query': query,
+                'provider': provider,
+                'domain': f"{brand_name.split()[0].lower()}.com"  # Extract first word as domain
+            }
         )
     
     async def _ai_visibility_analysis(
@@ -417,104 +499,128 @@ class UnifiedResponseAnalyzer:
         brand_name: str,
         provider: str
     ) -> float:
-        """Calculate GEO score for a single response"""
+        """Calculate GEO score for a single response using dedicated calculator"""
         
-        brand = analysis.brand_analysis
+        # Prepare LLM response data for calculator
+        llm_response_data = [{
+            'provider': provider,
+            'query': query,
+            'response': analysis.metadata.get('response_text', ''),
+            'brand_mentioned': analysis.brand_analysis.mentioned,
+            'mention_count': analysis.brand_analysis.mention_count,
+            'sentiment': analysis.brand_analysis.sentiment.value,
+            'position': analysis.brand_analysis.first_position_percentage,
+            'context_quality': analysis.brand_analysis.context_quality.value,
+            'recommendation_strength': analysis.brand_analysis.recommendation_strength.value
+        }]
         
-        # Citation frequency (0-100)
-        citation_score = min(brand.mention_count * 20, 100) if brand.mentioned else 0
+        # Extract domain from brand name or use default
+        domain = analysis.metadata.get('domain', f"{brand_name.lower().replace(' ', '')}.com")
         
-        # Sentiment score (0-100)
-        sentiment_map = {
-            Sentiment.POSITIVE: 100,
-            Sentiment.NEUTRAL: 50,
-            Sentiment.NEGATIVE: 0,
-            Sentiment.MIXED: 50
-        }
-        sentiment_score = sentiment_map.get(brand.sentiment, 50)
-        
-        # Position score (0-100)
-        if brand.mentioned and brand.first_position_percentage is not None:
-            position_score = max(0, 100 - brand.first_position_percentage)
-        else:
-            position_score = 0
-        
-        # Relevance score based on context quality (0-100)
-        context_map = {
-            ContextQuality.HIGH: 100,
-            ContextQuality.MEDIUM: 60,
-            ContextQuality.LOW: 30,
-            ContextQuality.NONE: 0
-        }
-        relevance_score = context_map.get(brand.context_quality, 0)
-        
-        # Authority score based on provider (0-100)
-        provider_key = provider.lower()
-        authority_score = self.PROVIDER_AUTHORITY.get(provider_key, 0.7) * 100
-        
-        # Calculate weighted GEO score
-        geo_score = (
-            citation_score * 0.25 +
-            sentiment_score * 0.20 +
-            position_score * 0.20 +
-            relevance_score * 0.20 +
-            authority_score * 0.15
+        # Use the dedicated GEO calculator
+        geo_result = self.geo_calculator.calculate(
+            domain=domain,
+            content=analysis.metadata.get('response_text', ''),
+            brand_terms=[brand_name] + analysis.metadata.get('brand_variations', []),
+            queries=[{'query': query, 'intent': analysis.metadata.get('query_intent', 'informational')}],
+            llm_responses=llm_response_data
         )
         
-        # Bonus for strong recommendations
-        if brand.recommendation_strength == RecommendationStrength.STRONG:
-            geo_score = min(geo_score * 1.1, 100)
+        # Extract the overall GEO score from calculator result
+        geo_score = geo_result.get('overall_score', 0.0)
+        
+        # Store detailed metrics in metadata for transparency
+        analysis.metadata['geo_metrics'] = geo_result.get('metrics', {})
         
         return round(geo_score, 2)
+    
+    def _sentiment_to_score(self, sentiment: str) -> float:
+        """Convert sentiment label to numerical score"""
+        sentiment_map = {
+            'positive': 0.8,
+            'neutral': 0.0,
+            'negative': -0.8,
+            'mixed': 0.2
+        }
+        return sentiment_map.get(sentiment.lower(), 0.0)
     
     async def _calculate_response_sov_score(
         self,
         analysis: ResponseAnalysis,
         brand_name: str
     ) -> float:
-        """Calculate Share of Voice for a single response"""
+        """Calculate Share of Voice using dedicated SOV calculator"""
         
-        brand = analysis.brand_analysis
-        competitors = analysis.competitors_analysis
+        from src.models.schemas import BrandMention, Entity
         
-        # Count mentions
-        brand_mentions = brand.mention_count if brand.mentioned else 0
-        competitor_mentions = sum(comp.mention_count for comp in competitors)
-        total_mentions = brand_mentions + competitor_mentions
+        # Prepare brand mentions for calculator with complete schema
+        brand_mentions = []
+        if analysis.brand_analysis.mentioned:
+            response_text = analysis.metadata.get('response_text', '')
+            brand_pos = response_text.lower().find(brand_name.lower())
+            mention_text = response_text[max(0, brand_pos-50):min(len(response_text), brand_pos+50)] if brand_pos >= 0 else ""
+            
+            brand_mentions.append(BrandMention(
+                response_id=analysis.metadata.get('response_id', str(analysis.analysis_id)),
+                brand_id=analysis.metadata.get('brand_id', 'bikaji_45'),  # Using company_id from context
+                brand_name=brand_name,
+                mention_text=mention_text or f"{brand_name} mentioned in response",
+                sentiment_score=self._sentiment_to_score(analysis.brand_analysis.sentiment.value),
+                sentiment_label=analysis.brand_analysis.sentiment.value,
+                confidence=0.95,  # High confidence for explicit mentions
+                context=analysis.brand_analysis.context_quality.value,
+                position=brand_pos if brand_pos >= 0 else 0,  # Position in response text
+                platform=analysis.metadata.get('provider', 'openai')  # LLM platform
+            ))
         
-        if total_mentions == 0:
-            return 0.0
+        # Prepare competitor entities for calculator
+        all_entities = []
         
-        if competitor_mentions == 0 and brand_mentions > 0:
-            return 100.0
+        # Add brand as an entity with proper schema
+        if analysis.brand_analysis.mentioned:
+            # Find position of brand in response for accurate entity location
+            response_text = analysis.metadata.get('response_text', '')
+            brand_pos = response_text.lower().find(brand_name.lower())
+            
+            all_entities.append(Entity(
+                text=brand_name,
+                type="BRAND",
+                confidence=0.95,  # High confidence for direct mentions
+                start_pos=brand_pos if brand_pos >= 0 else 0,
+                end_pos=brand_pos + len(brand_name) if brand_pos >= 0 else len(brand_name),
+                context=f"Mentioned {analysis.brand_analysis.mention_count} times with {analysis.brand_analysis.sentiment.value} sentiment"
+            ))
         
-        # Calculate base SOV
-        base_sov = (brand_mentions / total_mentions) * 100
+        # Add competitors as entities with proper schema
+        for comp in analysis.competitors_analysis:
+            if comp.mentioned:
+                response_text = analysis.metadata.get('response_text', '')
+                comp_pos = response_text.lower().find(comp.competitor_name.lower())
+                
+                all_entities.append(Entity(
+                    text=comp.competitor_name,
+                    type="BRAND",
+                    confidence=0.90,  # Slightly lower confidence for competitor mentions
+                    start_pos=comp_pos if comp_pos >= 0 else 0,
+                    end_pos=comp_pos + len(comp.competitor_name) if comp_pos >= 0 else len(comp.competitor_name),
+                    context=f"Competitor mentioned {comp.mention_count} times with {comp.sentiment.value} sentiment"
+                ))
         
-        # Apply sentiment weighting
-        sentiment_multiplier = {
-            Sentiment.POSITIVE: 1.2,
-            Sentiment.NEUTRAL: 1.0,
-            Sentiment.NEGATIVE: 0.8,
-            Sentiment.MIXED: 0.9
-        }.get(brand.sentiment, 1.0)
+        # Use the dedicated SOV calculator
+        sov_score = self.sov_calculator.calculate(
+            brand_mentions=brand_mentions,
+            all_entities=all_entities,
+            target_brand=brand_name
+        )
         
-        # Apply recommendation bonus
-        if brand.recommendation_strength == RecommendationStrength.STRONG:
-            sentiment_multiplier *= 1.15
-        elif brand.recommendation_strength == RecommendationStrength.MODERATE:
-            sentiment_multiplier *= 1.05
+        # Store detailed SOV metrics in metadata
+        analysis.metadata['sov_metrics'] = {
+            'brand_mentions': len(brand_mentions),
+            'total_entities': len(all_entities),
+            'competitor_count': len(analysis.competitors_analysis)
+        }
         
-        # Check competitive positioning
-        better_than_competitors = sum(
-            1 for comp in competitors 
-            if not comp.positioned_better
-        ) / len(competitors) if competitors else 1.0
-        
-        # Calculate final SOV
-        adjusted_sov = base_sov * sentiment_multiplier * (0.8 + 0.2 * better_than_competitors)
-        
-        return round(min(adjusted_sov, 100.0), 2)
+        return round(sov_score, 2)
     
     async def _calculate_context_completeness_score(
         self,

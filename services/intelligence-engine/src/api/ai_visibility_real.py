@@ -12,6 +12,9 @@ from src.config import settings
 from openai import OpenAI
 import hashlib
 import os
+import redis.asyncio as redis
+import uuid
+import asyncio
 
 logger = logging.getLogger(__name__)
 
@@ -46,6 +49,11 @@ class GenerateQueriesRequest(BaseModel):
     use_enhanced_generation: bool = True
     query_count: int = 48
     include_metadata: bool = False
+
+class AuditRequest(BaseModel):
+    email: str
+    company_name: str
+    company_type: str
 
 @router.post("/generate-queries")
 async def generate_queries(
@@ -183,21 +191,160 @@ async def generate_queries(
                     saved_count += cursor.rowcount
                 
                 conn.commit()
-                logger.info(f"Saved {saved_count} real GPT-4 generated queries for company {request.company_id}")
+                logger.info(f"Saved {saved_count} real GPT-5 generated queries for company {request.company_id}")
+                
+                # Create audit job for processing these queries
+                audit_id = str(uuid.uuid4())
+                report_id = f"gpt5_{request.company_id}_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+                
+                # Create audit record in database
+                cursor.execute(
+                    """INSERT INTO ai_visibility_audits 
+                       (id, company_id, company_name, status, query_count, created_at, report_id)
+                       VALUES (%s, %s, %s, %s, %s, %s, %s)""",
+                    (
+                        audit_id,
+                        request.company_id,
+                        request.company_name,
+                        'pending',
+                        saved_count,
+                        datetime.now(),
+                        report_id
+                    )
+                )
+                conn.commit()
                 
         finally:
             conn.close()
+        
+        # Trigger job processor via Redis queue
+        try:
+            redis_client = await redis.from_url(settings.redis_url or "redis://localhost:6379")
+            
+            job_data = {
+                "auditId": audit_id,
+                "companyId": request.company_id,
+                "userId": "api_user",  # You might want to get this from auth
+                "queryCount": saved_count,
+                "providers": ["openai_gpt5", "anthropic_claude", "google_gemini", "perplexity"],
+                "config": {
+                    "company_name": request.company_name,
+                    "domain": request.domain,
+                    "industry": request.industry
+                }
+            }
+            
+            # Push job to Redis queue in BullMQ format
+            bull_job = {
+                "id": audit_id,
+                "data": job_data,
+                "timestamp": datetime.now().isoformat()
+            }
+            await redis_client.lpush("bull:ai-visibility-audit:wait", json.dumps(bull_job))
+            logger.info(f"Queued audit job {audit_id} for processing in BullMQ format")
+            
+            await redis_client.close()
+            
+        except Exception as redis_error:
+            logger.error(f"Failed to queue job for processing: {redis_error}")
+            # Continue anyway - queries are saved
         
         return {
             "status": "success",
             "message": f"Generated and saved {saved_count} real AI queries",
             "company_id": request.company_id,
-            "model": "gpt-4"
+            "audit_id": audit_id,
+            "report_id": report_id,
+            "model": "gpt-5-chat-latest",
+            "processing": "Job queued for AI platform analysis"
         }
         
     except Exception as e:
         logger.error(f"Error generating queries: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
+@router.post("/audit")
+async def create_audit(request: AuditRequest):
+    """Create and process an AI visibility audit."""
+    logger.info(f"Creating audit for {request.company_name} (email: {request.email})")
+    
+    conn = get_db_connection()
+    try:
+        with conn.cursor() as cursor:
+            # Get or create user
+            cursor.execute(
+                "SELECT id FROM users WHERE email = %s",
+                (request.email,)
+            )
+            user = cursor.fetchone()
+            
+            if not user:
+                cursor.execute(
+                    "INSERT INTO users (email, first_name) VALUES (%s, %s) RETURNING id",
+                    (request.email, request.email.split('@')[0])
+                )
+                user = cursor.fetchone()
+                conn.commit()
+            
+            user_id = user['id']
+            
+            # Get or create company
+            cursor.execute(
+                "SELECT id FROM companies WHERE name = %s",
+                (request.company_name,)
+            )
+            company = cursor.fetchone()
+            
+            if not company:
+                cursor.execute(
+                    "INSERT INTO companies (name, domain, industry) VALUES (%s, %s, %s) RETURNING id",
+                    (request.company_name, f"{request.company_name.lower().replace(' ', '')}.com", request.company_type)
+                )
+                company = cursor.fetchone()
+                conn.commit()
+            
+            company_id = company['id']
+            
+            # Create audit
+            audit_id = f"audit_{request.company_name.lower().replace(' ', '_')}_{uuid.uuid4().hex[:8]}"
+            
+            cursor.execute(
+                """INSERT INTO ai_visibility_audits 
+                   (id, company_id, company_name, status, created_at) 
+                   VALUES (%s, %s, %s, %s, %s)""",
+                (audit_id, company_id, request.company_name, 'processing', datetime.now())
+            )
+            conn.commit()
+            
+            # Generate queries using the existing endpoint logic
+            queries_request = GenerateQueriesRequest(
+                company_id=company_id,
+                company_name=request.company_name,
+                domain=f"{request.company_name.lower().replace(' ', '')}.com",
+                industry=request.company_type,
+                description=f"A company in the {request.company_type} industry",
+                query_count=48
+            )
+            
+            # Call the generate_queries function
+            from fastapi import BackgroundTasks
+            bg_tasks = BackgroundTasks()
+            result = await generate_queries(queries_request, bg_tasks)
+            
+            return {
+                "status": "success",
+                "audit_id": audit_id,
+                "company_id": company_id,
+                "message": f"Audit created and processing started for {request.company_name}",
+                **result
+            }
+            
+    except Exception as e:
+        logger.error(f"Error creating audit: {e}")
+        conn.rollback()
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        conn.close()
 
 @router.get("/health")
 async def health_check():
@@ -206,5 +353,5 @@ async def health_check():
         "status": "healthy",
         "service": "ai-visibility-real",
         "openai_configured": bool(settings.openai_api_key),
-        "model": "gpt-4"
+        "model": "gpt-5-chat-latest"
     }

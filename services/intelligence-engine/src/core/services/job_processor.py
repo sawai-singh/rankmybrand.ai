@@ -24,6 +24,7 @@ from ..analysis.llm_orchestrator import LLMOrchestrator, LLMProvider
 from ..analysis.response_analyzer import UnifiedResponseAnalyzer
 from ..utilities.cache_manager import IntelligentCacheManager, CacheConfig
 from .websocket_manager import WebSocketManager, EventType
+from src.config import settings
 
 logger = logging.getLogger(__name__)
 
@@ -47,10 +48,10 @@ class ProcessorConfig:
     redis_port: int = int(os.getenv('REDIS_PORT', '6379'))
     
     # API Keys
-    openai_key: str = os.getenv('OPENAI_API_KEY', '')
-    anthropic_key: str = os.getenv('ANTHROPIC_API_KEY', '')
-    google_key: str = os.getenv('GOOGLE_API_KEY', '')
-    perplexity_key: str = os.getenv('PERPLEXITY_API_KEY', '')
+    openai_api_key: str = os.getenv('OPENAI_API_KEY', '')
+    anthropic_api_key: str = os.getenv('ANTHROPIC_API_KEY', '')
+    google_ai_api_key: str = os.getenv('GOOGLE_AI_API_KEY', '')
+    perplexity_api_key: str = os.getenv('PERPLEXITY_API_KEY', '')
     
     # Processing
     max_concurrent_queries: int = 10
@@ -99,13 +100,13 @@ class AuditJobProcessor:
         
         # Initialize database connection pool
         self.db_pool = pool.ThreadedConnectionPool(
-            self.config.db_pool_min,
-            self.config.db_pool_max,
-            host=self.config.db_host,
-            port=self.config.db_port,
-            database=self.config.db_name,
-            user=self.config.db_user,
-            password=self.config.db_password,
+            1,  # min connections
+            10, # max connections
+            host=self.config.postgres_host,
+            port=self.config.postgres_port,
+            database=self.config.postgres_db,
+            user=self.config.postgres_user,
+            password=self.config.postgres_password,
             cursor_factory=RealDictCursor
         )
         
@@ -128,25 +129,23 @@ class AuditJobProcessor:
         
         # Initialize service components with correct models
         self.query_generator = IntelligentQueryGenerator(
-            self.config.openai_key,
-            model="gpt-5-chat-latest"  # Updated from gpt-4o
+            self.config.openai_api_key,
+            model=settings.openai_model  # Uses gpt-5-chat-latest from config
         )
         
         self.llm_orchestrator = LLMOrchestrator(
-            openai_key=self.config.openai_key,
-            anthropic_key=self.config.anthropic_key,
-            google_key=self.config.google_key,
-            perplexity_key=self.config.perplexity_key,
-            cache_client=self.cache_manager
+            openai_api_key=self.config.openai_api_key,
+            anthropic_api_key=self.config.anthropic_api_key,
+            google_api_key=self.config.google_ai_api_key,
+            perplexity_api_key=self.config.perplexity_api_key
         )
         
         self.response_analyzer = UnifiedResponseAnalyzer(
-            self.config.openai_key,
+            self.config.openai_api_key,
             model="gpt-5-chat-latest"  # Updated from gpt-4o
         )
         
-        # Warmup providers
-        await self.llm_orchestrator.warmup()
+        # LLMOrchestrator doesn't have warmup method - skip this step
         
         logger.info("Job Processor initialized successfully")
     
@@ -173,34 +172,54 @@ class AuditJobProcessor:
     
     async def process_audit_job(self, job_data: Dict[str, Any]):
         """Process a single audit job"""
+        print(f"DEBUG: process_audit_job called with data: {job_data}")
         
-        audit_id = job_data['auditId']
-        company_id = job_data.get('companyId')
-        user_id = job_data['userId']
-        query_count = job_data.get('queryCount', 48)  # Default 48 queries
+        audit_id = job_data.get('audit_id') or job_data.get('auditId')
+        company_id = job_data.get('company_id') or job_data.get('companyId')
+        user_id = job_data.get('user_id') or job_data.get('userId', 0)
+        query_count = job_data.get('query_count') or job_data.get('queryCount', 48)  # Default 48 queries
         providers = job_data.get('providers', ['openai_gpt5', 'anthropic_claude', 'google_gemini', 'perplexity'])
         config = job_data.get('config', {})
         
-        logger.info(f"Starting audit job: {audit_id}")
-        self.current_jobs[audit_id] = {'status': 'processing', 'started_at': datetime.now()}
+        print(f"DEBUG: Extracted values - audit_id: {audit_id}, company_id: {company_id}, providers: {providers}")
+        
+        try:
+            logger.info(f"Starting audit job: {audit_id}")
+            print(f"DEBUG: After logger.info")
+        except Exception as e:
+            print(f"DEBUG: Logger error: {e}")
+        
+        try:
+            self.current_jobs[audit_id] = {'status': 'processing', 'started_at': datetime.now()}
+            print(f"DEBUG: Updated current_jobs")
+        except Exception as e:
+            print(f"DEBUG: current_jobs error: {e}")
         
         try:
             # Update audit status
+            print(f"DEBUG: About to update audit status")
             await self._update_audit_status(audit_id, 'processing')
+            print(f"DEBUG: Audit status updated")
             
             # Get company context
+            print(f"DEBUG: Getting company context for company_id: {company_id}")
             company_context = await self._get_company_context(company_id)
+            print(f"DEBUG: Got company context: {company_context}")
             
-            # Notify WebSocket clients
-            await self.ws_manager.broadcast_to_audit(
-                audit_id,
-                EventType.AUDIT_STARTED,
-                {
-                    'query_count': query_count,
-                    'provider_count': len(providers),
-                    'company_name': company_context.company_name
-                }
-            )
+            # Notify WebSocket clients (skip if ws_manager not available)
+            try:
+                if self.ws_manager:
+                    await self.ws_manager.broadcast_to_audit(
+                        audit_id,
+                        EventType.AUDIT_STARTED,
+                        {
+                            'query_count': query_count,
+                            'provider_count': len(providers),
+                            'company_name': company_context.company_name
+                        }
+                    )
+            except Exception as e:
+                logger.warning(f"WebSocket broadcast failed: {e}")
             
             # Phase 1: Generate queries
             logger.info(f"Generating {query_count} queries for audit {audit_id}")
@@ -212,7 +231,9 @@ class AuditJobProcessor:
             )
             
             # Phase 2: Execute queries across LLMs
-            logger.info(f"Executing queries across {len(providers)} providers")
+            logger.info(f"Executing {len(queries)} queries across {len(providers)} providers")
+            logger.info(f"Providers: {providers}")
+            logger.info(f"First 3 queries: {[q.get('query_text') if isinstance(q, dict) else (q[1] if len(q) > 1 else str(q)) for q in queries[:3]]}")
             responses = await self._execute_queries(
                 audit_id,
                 queries,
@@ -293,8 +314,8 @@ class AuditJobProcessor:
                 cursor.execute("""
                     SELECT 
                         c.*,
-                        array_agg(DISTINCT comp.name) FILTER (WHERE comp.name IS NOT NULL) as competitors,
-                        array_agg(DISTINCT f.feature) FILTER (WHERE f.feature IS NOT NULL) as features
+                        array_agg(DISTINCT comp.competitor_name) FILTER (WHERE comp.competitor_name IS NOT NULL) as competitors,
+                        array_agg(DISTINCT f.feature_name) FILTER (WHERE f.feature_name IS NOT NULL) as features
                     FROM companies c
                     LEFT JOIN competitors comp ON comp.company_id = c.id
                     LEFT JOIN company_features f ON f.company_id = c.id
@@ -310,6 +331,7 @@ class AuditJobProcessor:
         return QueryContext(
             company_name=company['name'],
             industry=company.get('industry', 'Technology'),
+            sub_industry=company.get('sub_industry', ''),
             description=company.get('description', ''),
             unique_value_propositions=company.get('value_props', []),
             target_audiences=company.get('target_audiences', []),
@@ -333,21 +355,112 @@ class AuditJobProcessor:
         context: QueryContext,
         count: int
     ) -> List[Dict[str, Any]]:
-        """Generate intelligent queries"""
+        """Read existing queries from ai_queries table instead of regenerating"""
         
         start_time = time.time()
+        logger.info(f"Reading existing queries for company {context.company_name}")
         
-        # Generate queries using GPT-5
-        generated_queries = await self.query_generator.generate_queries(
-            context,
-            target_count=count,
-            diversity_threshold=0.7
-        )
-        
-        # Store queries in database
+        # First check if we already have queries in ai_queries table
         async with self.get_db_connection() as conn:
             with conn.cursor() as cursor:
-                for query in generated_queries:
+                # Get company_id from context or query
+                cursor.execute("""
+                    SELECT id FROM companies WHERE name = %s LIMIT 1
+                """, (context.company_name,))
+                company_result = cursor.fetchone()
+                
+                if not company_result:
+                    raise ValueError(f"Company {context.company_name} not found")
+                
+                company_id = company_result['id']
+                
+                # First try audit_queries table (dual table architecture)
+                cursor.execute("""
+                    SELECT 
+                        query_text,
+                        intent,
+                        category,
+                        priority_score as priority
+                    FROM audit_queries 
+                    WHERE audit_id = %s
+                    ORDER BY created_at
+                    LIMIT %s
+                """, (audit_id, count))
+                
+                queries_result = cursor.fetchall()
+                
+                # If no queries in audit_queries, try ai_queries table
+                if not queries_result:
+                    cursor.execute("""
+                        SELECT 
+                            query_text,
+                            intent,
+                            category,
+                        complexity_score,
+                        priority_score,
+                        buyer_journey_stage,
+                        semantic_variations,
+                        expected_serp_features,
+                        persona_alignment
+                    FROM ai_queries
+                    WHERE company_id = %s
+                    ORDER BY priority_score DESC
+                    LIMIT %s
+                """, (company_id, count))
+                
+                existing_queries = cursor.fetchall()
+                
+                if not existing_queries:
+                    logger.warning(f"No existing queries found for company {company_id}, generating new ones")
+                    # Fall back to generating new queries if none exist
+                    generated_queries = await self.query_generator.generate_queries(
+                        context,
+                        target_count=count,
+                        diversity_threshold=0.7
+                    )
+                    
+                    # Store in ai_queries for future use
+                    for query in generated_queries:
+                        cursor.execute("""
+                            INSERT INTO ai_queries 
+                            (company_id, query_text, intent, category, complexity_score, 
+                             priority_score, buyer_journey_stage, semantic_variations,
+                             expected_serp_features, persona_alignment)
+                            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                        """, (
+                            company_id,
+                            query.query_text,
+                            query.intent.value,
+                            query.intent.value,
+                            query.complexity_score,
+                            query.priority_score,
+                            query.buyer_journey_stage,
+                            query.semantic_variations,
+                            query.expected_serp_features,
+                            getattr(query, 'persona_alignment', 'general')
+                        ))
+                    conn.commit()
+                    
+                    # Convert to format expected by rest of code
+                    existing_queries = [
+                        {
+                            'query_text': q.query_text,
+                            'intent': q.intent.value,
+                            'category': q.intent.value,
+                            'complexity_score': q.complexity_score,
+                            'priority_score': q.priority_score,
+                            'buyer_journey_stage': q.buyer_journey_stage,
+                            'semantic_variations': q.semantic_variations,
+                            'expected_serp_features': q.expected_serp_features,
+                            'persona_alignment': getattr(q, 'persona_alignment', 'general')
+                        }
+                        for q in generated_queries
+                    ]
+                else:
+                    logger.info(f"Found {len(existing_queries)} existing queries for company {company_id}")
+                
+                # Copy queries to audit_queries for this audit trail
+                for query in existing_queries:
                     cursor.execute("""
                         INSERT INTO audit_queries 
                         (audit_id, query_text, intent, category, complexity_score, 
@@ -357,15 +470,15 @@ class AuditJobProcessor:
                         RETURNING id
                     """, (
                         audit_id,
-                        query.query_text,
-                        query.intent.value,
-                        query.intent.value,
-                        query.complexity_score,
-                        query.priority_score,
-                        query.buyer_journey_stage,
-                        query.semantic_variations,
-                        query.expected_serp_features,
-                        json.dumps({'query_id': query.query_id})
+                        query['query_text'] if isinstance(query, dict) else query[0],
+                        query['intent'] if isinstance(query, dict) else query[1],
+                        query['category'] if isinstance(query, dict) else query[2],
+                        query['complexity_score'] if isinstance(query, dict) else query[3],
+                        query['priority_score'] if isinstance(query, dict) else query[4],
+                        query['buyer_journey_stage'] if isinstance(query, dict) else query[5],
+                        query['semantic_variations'] if isinstance(query, dict) else query[6],
+                        query['expected_serp_features'] if isinstance(query, dict) else query[7],
+                        json.dumps({'persona_alignment': query['persona_alignment'] if isinstance(query, dict) else (query[8] if len(query) > 8 else 'general')})
                     ))
                     
                     # Notify via WebSocket
@@ -373,24 +486,22 @@ class AuditJobProcessor:
                         audit_id,
                         EventType.QUERY_GENERATED,
                         {
-                            'query_text': query.query_text,
-                            'intent': query.intent.value
+                            'query_text': query['query_text'],
+                            'intent': query['intent']
                         }
                     )
             
             conn.commit()
         
-        logger.info(f"Generated {len(generated_queries)} queries in {time.time() - start_time:.2f}s")
+        logger.info(f"Processed {len(existing_queries)} queries in {time.time() - start_time:.2f}s")
         
-        return [
-            {
-                'id': q.query_id,
-                'text': q.query_text,
-                'intent': q.intent.value,
-                'priority': q.priority_score
-            }
-            for q in generated_queries
-        ]
+        # Return queries in expected format
+        return [{
+            'id': str(i),
+            'text': q[0] if isinstance(q, tuple) else q['query_text'],
+            'intent': q[1] if isinstance(q, tuple) else q['intent'],
+            'priority': float(q[4]) if isinstance(q, tuple) else q['priority_score']
+        } for i, q in enumerate(existing_queries)]
     
     async def _execute_queries(
         self,
@@ -400,6 +511,7 @@ class AuditJobProcessor:
         context: QueryContext
     ) -> Dict[str, List[Any]]:
         """Execute queries across LLM providers"""
+        logger.info(f"_execute_queries called with {len(queries)} queries and providers: {providers}")
         
         # Convert provider strings to LLMProvider enums
         provider_enums = []
@@ -413,23 +525,39 @@ class AuditJobProcessor:
             elif p == 'perplexity':
                 provider_enums.append(LLMProvider.PERPLEXITY)
         
-        # Sort queries by priority
-        sorted_queries = sorted(queries, key=lambda q: q['priority'], reverse=True)
+        # Sort queries by priority (handle both dict and tuple formats)
+        def get_priority(q):
+            if isinstance(q, dict):
+                return q.get('priority_score', q.get('priority', 5)) or 5
+            else:
+                # Tuple format from database
+                return q[4] if len(q) > 4 else 5  # priority_score is at index 4
+        
+        sorted_queries = sorted(queries, key=get_priority, reverse=True)
         
         # Execute in batches
         all_responses = {}
         
         for i in range(0, len(sorted_queries), self.config.batch_size):
             batch = sorted_queries[i:i + self.config.batch_size]
-            batch_queries = [q['text'] for q in batch]
+            # Extract query text (handle both dict and tuple formats)
+            batch_queries = []
+            for q in batch:
+                if isinstance(q, dict):
+                    batch_queries.append(q.get('query_text', q.get('text', '')))
+                else:
+                    # Tuple format: (id, query_text, intent, category, ...)
+                    batch_queries.append(q[1] if len(q) > 1 else '')
             
             # Execute batch across providers
+            logger.info(f"Calling llm_orchestrator with {len(batch_queries)} queries and {len(provider_enums)} providers: {provider_enums}")
+            logger.info(f"Batch queries: {batch_queries[:2]}")
             batch_results = await self.llm_orchestrator.execute_audit_queries(
                 batch_queries,
                 provider_enums,
                 parallel_execution=True,
                 use_cache=True,
-                fallback_on_failure=True
+                use_fallback=True
             )
             
             # Process and store results
@@ -444,15 +572,17 @@ class AuditJobProcessor:
                         query_record = cursor.fetchone()
                         
                         if query_record:
+                            query_id = query_record[0] if isinstance(query_record, tuple) else query_record['id']
                             for response in responses:
                                 if not response.error:
                                     cursor.execute("""
                                         INSERT INTO audit_responses
-                                        (query_id, provider, model_version, response_text,
+                                        (query_id, audit_id, provider, model_version, response_text,
                                          response_time_ms, tokens_used, cache_hit)
-                                        VALUES (%s, %s, %s, %s, %s, %s, %s)
+                                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
                                     """, (
-                                        query_record['id'],
+                                        query_id,
+                                        audit_id,
                                         response.provider.value,
                                         response.model_version,
                                         response.response_text,
@@ -543,13 +673,14 @@ class AuditJobProcessor:
                             sentiment = %s,
                             recommendation_strength = %s,
                             competitors_mentioned = %s,
-                            key_features_mentioned = %s,
+                            key_features_mentioned = to_jsonb(%s::text[]),
                             featured_snippet_potential = %s,
                             voice_search_optimized = %s,
                             analysis_metadata = %s,
                             geo_score = %s,
                             sov_score = %s,
-                            context_completeness_score = %s
+                            context_completeness_score = %s,
+                            recommendations = %s
                         WHERE id = %s
                     """, (
                         analysis.brand_analysis.mentioned,
@@ -560,13 +691,13 @@ class AuditJobProcessor:
                         json.dumps([
                             {
                                 'name': comp.competitor_name,
-                                'mentioned': comp.mention_analysis.mentioned,
-                                'sentiment': comp.mention_analysis.sentiment.value
+                                'mentioned': comp.mentioned,
+                                'sentiment': comp.sentiment.value
                             }
                             for comp in analysis.competitors_analysis
                         ]),
                         analysis.brand_analysis.specific_features_mentioned,
-                        analysis.featured_snippet_potential,
+                        analysis.featured_snippet_potential > 50,  # Convert to boolean (>50% potential)
                         analysis.voice_search_optimized,
                         json.dumps({
                             'processing_time_ms': analysis.processing_time_ms,
@@ -575,6 +706,7 @@ class AuditJobProcessor:
                         analysis.geo_score,
                         analysis.sov_score,
                         analysis.context_completeness_score,
+                        json.dumps(analysis.recommendations) if analysis.recommendations else json.dumps([]),
                         response_data['response_id']
                     ))
                 
@@ -895,12 +1027,101 @@ class AuditJobProcessor:
         except Exception as e:
             logger.warning(f"Failed to send GEO/SOV progress: {e}")
     
+    async def _migrate_audit_to_final_responses(
+        self,
+        audit_id: str
+    ) -> int:
+        """
+        Migrate analyzed results from audit_responses to ai_responses.
+        This is the final step after all analysis is complete.
+        
+        Returns:
+            Number of records migrated
+        """
+        migrated_count = 0
+        
+        async with self.get_db_connection() as conn:
+            with conn.cursor() as cursor:
+                try:
+                    # Begin transaction for atomic operation
+                    cursor.execute("BEGIN")
+                    
+                    # Copy all analyzed responses from audit_responses to ai_responses
+                    cursor.execute("""
+                        INSERT INTO ai_responses (
+                            id, query_id, report_id, company_id, audit_id,
+                            provider, model_version, response_time_ms,
+                            response_text, response_summary,
+                            brand_mentioned, competitor_mentions,
+                            sentiment, sentiment_score,
+                            prominence_score, recommendation_strength,
+                            competitive_advantage, key_phrases,
+                            mentioned_features, mentioned_benefits,
+                            call_to_action, created_at,
+                            geo_score, sov_score, context_completeness_score,
+                            recommendations
+                        )
+                        SELECT 
+                            ar.id, ar.query_id, ar.report_id, ar.company_id, ar.audit_id,
+                            ar.provider, ar.model_version, ar.response_time_ms,
+                            ar.response_text, ar.response_summary,
+                            ar.brand_mentioned, ar.competitor_mentions,
+                            ar.sentiment, ar.sentiment_score,
+                            ar.prominence_score, ar.recommendation_strength,
+                            ar.competitive_advantage, ar.key_phrases,
+                            ar.mentioned_features, ar.mentioned_benefits,
+                            ar.call_to_action, ar.created_at,
+                            ar.geo_score, ar.sov_score, ar.context_completeness_score,
+                            ar.recommendations
+                        FROM audit_responses ar
+                        WHERE ar.audit_id = %s
+                        ON CONFLICT (id) DO UPDATE SET
+                            response_summary = EXCLUDED.response_summary,
+                            brand_mentioned = EXCLUDED.brand_mentioned,
+                            competitor_mentions = EXCLUDED.competitor_mentions,
+                            sentiment = EXCLUDED.sentiment,
+                            sentiment_score = EXCLUDED.sentiment_score,
+                            prominence_score = EXCLUDED.prominence_score,
+                            recommendation_strength = EXCLUDED.recommendation_strength,
+                            competitive_advantage = EXCLUDED.competitive_advantage,
+                            key_phrases = EXCLUDED.key_phrases,
+                            mentioned_features = EXCLUDED.mentioned_features,
+                            mentioned_benefits = EXCLUDED.mentioned_benefits,
+                            call_to_action = EXCLUDED.call_to_action,
+                            geo_score = EXCLUDED.geo_score,
+                            sov_score = EXCLUDED.sov_score,
+                            context_completeness_score = EXCLUDED.context_completeness_score,
+                            recommendations = EXCLUDED.recommendations
+                    """, (audit_id,))
+                    
+                    migrated_count = cursor.rowcount
+                    
+                    # Mark audit_responses as migrated (optional - add a migrated flag if needed)
+                    cursor.execute("""
+                        UPDATE audit_responses 
+                        SET migrated_at = NOW()
+                        WHERE audit_id = %s AND migrated_at IS NULL
+                    """, (audit_id,))
+                    
+                    # Commit transaction
+                    cursor.execute("COMMIT")
+                    
+                    logger.info(f"Successfully migrated {migrated_count} responses from audit_responses to ai_responses for audit {audit_id}")
+                    
+                except Exception as e:
+                    # Rollback on error
+                    cursor.execute("ROLLBACK")
+                    logger.error(f"Failed to migrate audit responses to final table: {e}")
+                    raise
+        
+        return migrated_count
+    
     async def _finalize_audit(
         self,
         audit_id: str,
         scores: Dict[str, float]
     ):
-        """Finalize audit with scores"""
+        """Finalize audit with scores and migrate data to final tables"""
         
         async with self.get_db_connection() as conn:
             with conn.cursor() as cursor:
@@ -922,6 +1143,65 @@ class AuditJobProcessor:
                     pass  # Function might not exist
             
             conn.commit()
+        
+        # Migrate analyzed results to final ai_responses table
+        try:
+            migrated_count = await self._migrate_audit_to_final_responses(audit_id)
+            logger.info(f"Audit {audit_id} finalized with {migrated_count} responses migrated to ai_responses")
+            
+            # Populate dashboard data with aggregated recommendations
+            try:
+                from .dashboard_data_populator import DashboardDataPopulator
+                
+                # Get company_id and user_id for this audit
+                async with self.get_db_connection() as conn:
+                    with conn.cursor() as cursor:
+                        cursor.execute("""
+                            SELECT company_id, user_id 
+                            FROM ai_visibility_audits 
+                            WHERE id = %s
+                        """, (audit_id,))
+                        result = cursor.fetchone()
+                        if result:
+                            company_id, user_id = result
+                            
+                            # Populate dashboard data
+                            populator = DashboardDataPopulator(
+                                db_config={
+                                    'host': self.config.db_host,
+                                    'port': self.config.db_port,
+                                    'database': self.config.db_name,
+                                    'user': self.config.db_user,
+                                    'password': self.config.db_password
+                                },
+                                openai_api_key=getattr(self.config, 'openai_api_key', None) or os.environ.get('OPENAI_API_KEY')
+                            )
+                            
+                            success = await populator.populate_dashboard_data(
+                                audit_id=audit_id,
+                                company_id=company_id,
+                                user_id=user_id
+                            )
+                            
+                            if success:
+                                logger.info(f"Dashboard data populated successfully for audit {audit_id}")
+                                
+                                # Send WebSocket notification that dashboard data is ready
+                                await self.ws_manager.broadcast_to_audit(
+                                    audit_id,
+                                    EventType.DASHBOARD_DATA_READY,
+                                    {'audit_id': audit_id, 'status': 'ready'}
+                                )
+                            else:
+                                logger.warning(f"Dashboard data population failed for audit {audit_id}")
+                                
+            except Exception as e:
+                logger.error(f"Failed to populate dashboard data for audit {audit_id}: {e}")
+                # Don't fail the audit - dashboard data is optional enhancement
+                
+        except Exception as e:
+            logger.error(f"Failed to migrate audit {audit_id} responses to final table: {e}")
+            # Don't fail the audit just because migration failed - data is still in audit_responses
     
     async def _handle_job_failure(
         self,

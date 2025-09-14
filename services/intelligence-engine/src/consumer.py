@@ -78,7 +78,7 @@ class StreamConsumer:
                     stream_length = await self.redis.get_stream_length(
                         settings.redis_stream_input
                     )
-                    metrics_collector.set_stream_lag(stream_length)
+                    metrics_collector.set_stream_lag(settings.redis_stream_input, stream_length)
                     
                     # Process messages
                     for message_id, data in messages:
@@ -95,6 +95,32 @@ class StreamConsumer:
     
     async def process_message(self, message_id: str, data: Dict[str, Any]):
         """Process a single message."""
+        # Extract the actual payload from the 'data' field if it exists
+        # The Redis client may have already parsed it for us
+        if 'data' in data:
+            if isinstance(data['data'], str):
+                # It's a string, try to parse it
+                import json
+                try:
+                    actual_data = json.loads(data['data'])
+                except json.JSONDecodeError:
+                    actual_data = data
+            elif isinstance(data['data'], dict):
+                # It's already a dict (parsed by Redis client)
+                actual_data = data['data']
+            else:
+                actual_data = data
+        else:
+            actual_data = data
+        
+        # Check if this is an AI visibility job message
+        if 'auditId' in actual_data and 'companyId' in actual_data and 'providers' in actual_data:
+            print(f"Processing AI visibility job for audit {actual_data.get('auditId')}")
+            # This is an AI visibility job - delegate to job processor
+            await self._process_audit_job(message_id, actual_data)
+            return
+        
+        # Otherwise, process as a metrics message
         start_time = asyncio.get_event_loop().time()
         brand_id = None
         customer_id = None
@@ -217,6 +243,37 @@ class StreamConsumer:
             else:
                 # Don't acknowledge - let it be retried by claim_abandoned_messages
                 logger.warning(f"Message {message_id} failed (attempt {retry_count + 1}), will retry")
+    
+    async def _process_audit_job(self, message_id: str, data: Dict[str, Any]):
+        """Process an AI visibility audit job."""
+        try:
+            from src.core.services.job_processor import AuditJobProcessor
+            from src.config import settings
+            
+            job_processor = AuditJobProcessor(settings)
+            await job_processor.initialize()
+            
+            # Process the audit job
+            await job_processor.process_audit_job(data)
+            
+            # Acknowledge the message
+            await self.redis.acknowledge_message(message_id)
+            
+            # Clean up
+            await job_processor.cleanup()
+            
+            print(f"Successfully processed audit job: {data.get('auditId')}")
+            
+        except Exception as e:
+            logger.error(f"Failed to process audit job: {e}")
+            await self.redis.send_to_failed_queue(
+                message_id,
+                str(e),
+                data,
+                retry_count=0,
+                is_recoverable=True
+            )
+            await self.redis.acknowledge_message(message_id)
     
     def _parse_response(self, data: Dict[str, Any]) -> AIResponse:
         """Parse message data into AIResponse."""
