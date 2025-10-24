@@ -229,6 +229,99 @@ async def lifespan(app: FastAPI):
                             queries_generated = audit['queries_generated']
                             responses_collected = audit['responses_collected']
 
+                            # ===================================================================
+                            # SAFEGUARD 1: Check if audit already has dashboard data (completed)
+                            # ===================================================================
+                            try:
+                                conn_check = psycopg2.connect(
+                                    host=settings.postgres_host,
+                                    port=settings.postgres_port,
+                                    dbname=settings.postgres_db,
+                                    user=settings.postgres_user,
+                                    password=settings.postgres_password
+                                )
+                                cur_check = conn_check.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+
+                                # Check if dashboard data exists
+                                cur_check.execute("SELECT COUNT(*) as count FROM dashboard_data WHERE audit_id = %s", (audit_id,))
+                                dashboard_result = cur_check.fetchone()
+                                dashboard_exists = dashboard_result['count'] > 0
+
+                                if dashboard_exists:
+                                    # Dashboard exists but status incorrect - auto-fix and skip
+                                    print(f"[STUCK-MONITOR] ⚠️ Audit {audit_id} ({company_name}) has dashboard data but incorrect status - AUTO-FIXING")
+                                    cur_check.execute("""
+                                        UPDATE ai_visibility_audits
+                                        SET
+                                            status = 'completed',
+                                            current_phase = 'completed',
+                                            completed_at = COALESCE(completed_at, NOW())
+                                        WHERE id = %s
+                                        RETURNING id, status, current_phase
+                                    """, (audit_id,))
+                                    fixed = cur_check.fetchone()
+                                    conn_check.commit()
+                                    print(f"[STUCK-MONITOR] ✅ Auto-fixed audit {audit_id}: status={fixed['status']}, phase={fixed['current_phase']}")
+
+                                    cur_check.close()
+                                    conn_check.close()
+                                    continue  # Skip reprocessing - audit is actually complete
+
+                                # ===================================================================
+                                # SAFEGUARD 2: Check reprocess count and enforce max limit
+                                # ===================================================================
+                                cur_check.execute("""
+                                    SELECT phase_details->>'reprocess_count' as reprocess_count
+                                    FROM ai_visibility_audits
+                                    WHERE id = %s
+                                """, (audit_id,))
+                                meta_result = cur_check.fetchone()
+                                reprocess_count = int(meta_result['reprocess_count'] or '0') if meta_result and meta_result['reprocess_count'] else 0
+
+                                if reprocess_count >= 3:
+                                    # Max reprocess limit exceeded - mark as failed
+                                    print(f"[STUCK-MONITOR] ❌ Audit {audit_id} ({company_name}) exceeded max reprocess limit (3) - MARKING AS FAILED")
+                                    cur_check.execute("""
+                                        UPDATE ai_visibility_audits
+                                        SET
+                                            status = 'failed',
+                                            current_phase = 'failed',
+                                            error_message = 'Exceeded maximum reprocess attempts (3) - possible infinite loop or data corruption'
+                                        WHERE id = %s
+                                    """, (audit_id,))
+                                    conn_check.commit()
+
+                                    cur_check.close()
+                                    conn_check.close()
+                                    continue  # Skip reprocessing - audit has failed
+
+                                # Increment reprocess counter
+                                print(f"[STUCK-MONITOR] 📊 Audit {audit_id} reprocess attempt #{reprocess_count + 1}/3")
+                                cur_check.execute("""
+                                    UPDATE ai_visibility_audits
+                                    SET phase_details = jsonb_set(
+                                        jsonb_set(
+                                            COALESCE(phase_details, '{}'::jsonb),
+                                            '{reprocess_count}',
+                                            %s::text::jsonb
+                                        ),
+                                        '{last_reprocess_at}',
+                                        %s::text::jsonb
+                                    )
+                                    WHERE id = %s
+                                """, (str(reprocess_count + 1), datetime.now().isoformat(), audit_id))
+                                conn_check.commit()
+
+                                cur_check.close()
+                                conn_check.close()
+
+                            except Exception as safeguard_error:
+                                print(f"[STUCK-MONITOR] ⚠️ Error in safeguards for audit {audit_id}: {safeguard_error}")
+                                # Continue with reprocessing attempt (fail-safe)
+
+                            # ===================================================================
+                            # Original reprocessing logic (only reached if safeguards pass)
+                            # ===================================================================
                             print(f"[STUCK-AUDIT-MONITOR] Resuming audit {audit_id} ({company_name})")
                             print(f"  - Company ID: {company_id}")
                             print(f"  - Queries: {queries_generated}, Responses: {responses_collected}")

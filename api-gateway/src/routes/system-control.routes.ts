@@ -687,4 +687,214 @@ router.post('/emergency/kill-all-audits', asyncHandler(async (req: Request, res:
   }
 }));
 
+// ========================================
+// INFINITE LOOP DETECTION & AUDIT REPROCESS MONITORING
+// ========================================
+
+/**
+ * Get audit reprocess history (for loop detection)
+ */
+router.get('/audits/reprocess-history', asyncHandler(async (req: Request, res: Response) => {
+  const { db } = req.app.locals;
+  const { audit_id, hours = 24 } = req.query;
+
+  try {
+    let query = `
+      SELECT
+        r.*,
+        a.company_name,
+        a.status as current_status,
+        a.current_phase as current_phase
+      FROM audit_reprocess_log r
+      LEFT JOIN ai_visibility_audits a ON r.audit_id = a.id
+      WHERE r.created_at > NOW() - INTERVAL '${hours} hours'
+    `;
+
+    const params: any[] = [];
+    if (audit_id) {
+      query += ' AND r.audit_id = $1';
+      params.push(audit_id);
+    }
+
+    query += ' ORDER BY r.created_at DESC LIMIT 100';
+
+    const result = await db.query(query, params);
+
+    res.json({
+      success: true,
+      reprocess_history: result.rows,
+      total: result.rows.length
+    });
+  } catch (error: any) {
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+}));
+
+/**
+ * Detect potential infinite loops (audits reprocessed >3 times in last hour)
+ */
+router.get('/audits/infinite-loop-detection', asyncHandler(async (req: Request, res: Response) => {
+  const { db } = req.app.locals;
+
+  try {
+    const result = await db.query(`
+      SELECT
+        r.audit_id,
+        a.company_name,
+        a.status,
+        a.current_phase,
+        COUNT(*) as reprocess_count,
+        MAX(r.created_at) as last_reprocess_at,
+        MIN(r.created_at) as first_reprocess_at,
+        EXTRACT(EPOCH FROM (MAX(r.created_at) - MIN(r.created_at))) / 60 as duration_minutes
+      FROM audit_reprocess_log r
+      JOIN ai_visibility_audits a ON r.audit_id = a.id
+      WHERE r.created_at > NOW() - INTERVAL '1 hour'
+      GROUP BY r.audit_id, a.company_name, a.status, a.current_phase
+      HAVING COUNT(*) >= 3
+      ORDER BY COUNT(*) DESC
+    `);
+
+    const loops = result.rows.map((row: any) => ({
+      ...row,
+      severity: row.reprocess_count >= 5 ? 'critical' : 'warning',
+      is_infinite_loop: row.reprocess_count >= 5,
+      avg_reprocess_interval_minutes: row.duration_minutes / row.reprocess_count
+    }));
+
+    res.json({
+      success: true,
+      potential_loops: loops,
+      count: loops.length,
+      critical_count: loops.filter((l: any) => l.severity === 'critical').length
+    });
+  } catch (error: any) {
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+}));
+
+/**
+ * Get stuck audits that match monitor query (for admin review)
+ */
+router.get('/audits/stuck-candidates', asyncHandler(async (req: Request, res: Response) => {
+  const { db } = req.app.locals;
+
+  try {
+    const result = await db.query(`
+      SELECT
+        a.id as audit_id,
+        a.company_name,
+        a.status,
+        a.current_phase,
+        a.started_at,
+        a.last_heartbeat,
+        a.phase_details->>'reprocess_count' as reprocess_count,
+        (SELECT COUNT(*) FROM audit_responses WHERE audit_id = a.id) as responses_collected,
+        (SELECT COUNT(*) FROM dashboard_data WHERE audit_id = a.id) as dashboard_exists,
+        EXTRACT(EPOCH FROM (NOW() - a.started_at)) / 60 as running_minutes
+      FROM ai_visibility_audits a
+      WHERE a.status IN ('pending', 'processing')
+        AND a.current_phase = 'pending'
+        AND a.started_at < NOW() - INTERVAL '10 minutes'
+        AND (a.last_heartbeat IS NULL OR a.last_heartbeat < NOW() - INTERVAL '10 minutes')
+        AND (SELECT COUNT(*) FROM audit_responses WHERE audit_id = a.id) > 0
+        AND a.completed_at IS NULL
+      ORDER BY a.started_at ASC
+    `);
+
+    const stuck = result.rows.map((row: any) => ({
+      ...row,
+      reprocess_count: parseInt(row.reprocess_count || '0'),
+      dashboard_exists: parseInt(row.dashboard_exists) > 0,
+      should_auto_fix: parseInt(row.dashboard_exists) > 0,
+      risk_level: parseInt(row.reprocess_count || '0') >= 2 ? 'high' : 'medium'
+    }));
+
+    res.json({
+      success: true,
+      stuck_audits: stuck,
+      count: stuck.length,
+      high_risk_count: stuck.filter((s: any) => s.risk_level === 'high').length
+    });
+  } catch (error: any) {
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+}));
+
+/**
+ * Manual intervention: Fix stuck audit (mark as completed if dashboard exists)
+ */
+router.post('/audits/:auditId/fix-stuck', asyncHandler(async (req: Request, res: Response) => {
+  const { db } = req.app.locals;
+  const { auditId } = req.params;
+  const { admin_user, notes } = req.body;
+
+  try {
+    // Check if dashboard exists
+    const dashboardCheck = await db.query(
+      'SELECT COUNT(*) as count FROM dashboard_data WHERE audit_id = $1',
+      [auditId]
+    );
+
+    if (dashboardCheck.rows[0].count === 0) {
+      return res.status(400).json({
+        success: false,
+        error: 'Cannot auto-fix: Dashboard data does not exist. Audit may need full reprocessing.'
+      });
+    }
+
+    // Get current status
+    const currentStatus = await db.query(
+      'SELECT status, current_phase FROM ai_visibility_audits WHERE id = $1',
+      [auditId]
+    );
+
+    // Fix audit status
+    await db.query(`
+      UPDATE ai_visibility_audits
+      SET
+        status = 'completed',
+        current_phase = 'completed',
+        completed_at = COALESCE(completed_at, NOW())
+      WHERE id = $1
+    `, [auditId]);
+
+    // Log to reprocess table
+    await db.query(`
+      INSERT INTO audit_reprocess_log (
+        audit_id, reprocess_attempt, reason, triggered_by,
+        status_before, phase_before, status_after, phase_after,
+        admin_user, notes
+      ) VALUES ($1, 0, 'Manual admin fix via control center', 'admin', $2, $3, 'completed', 'completed', $4, $5)
+    `, [
+      auditId,
+      currentStatus.rows[0]?.status || 'unknown',
+      currentStatus.rows[0]?.current_phase || 'unknown',
+      admin_user || 'unknown',
+      notes || 'Fixed via admin dashboard control center'
+    ]);
+
+    res.json({
+      success: true,
+      message: `Audit ${auditId} fixed successfully`,
+      status_before: currentStatus.rows[0],
+      status_after: { status: 'completed', current_phase: 'completed' }
+    });
+  } catch (error: any) {
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+}));
+
 export default router;

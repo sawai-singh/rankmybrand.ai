@@ -133,6 +133,51 @@ interface FeatureFlag {
   category: string;
 }
 
+interface InfiniteLoop {
+  audit_id: string;
+  company_name: string;
+  status: string;
+  current_phase: string;
+  reprocess_count: number;
+  last_reprocess_at: string;
+  first_reprocess_at: string;
+  duration_minutes: number;
+  severity: 'warning' | 'critical';
+  is_infinite_loop: boolean;
+  avg_reprocess_interval_minutes: number;
+}
+
+interface StuckAudit {
+  audit_id: string;
+  company_name: string;
+  status: string;
+  current_phase: string;
+  reprocess_count: number;
+  responses_collected: number;
+  dashboard_exists: boolean;
+  should_auto_fix: boolean;
+  risk_level: 'high' | 'medium';
+  running_minutes: number;
+}
+
+interface ReprocessHistoryEntry {
+  id: number;
+  audit_id: string;
+  company_name: string;
+  reprocess_attempt: number;
+  reason: string;
+  triggered_by: string;
+  status_before: string;
+  phase_before: string;
+  status_after: string;
+  phase_after: string;
+  admin_user: string;
+  notes: string;
+  created_at: string;
+  current_status: string;
+  current_phase: string;
+}
+
 // ========================================
 // Main Component
 // ========================================
@@ -144,9 +189,9 @@ export default function SystemControlCenter() {
   // State
   const [loading, setLoading] = useState(true);
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
-  const [activeTab, setActiveTab] = useState<'health' | 'queue' | 'cache' | 'logs' | 'audits' | 'performance' | 'settings' | 'emergency'>(() => {
+  const [activeTab, setActiveTab] = useState<'health' | 'queue' | 'cache' | 'logs' | 'audits' | 'performance' | 'settings' | 'emergency' | 'loop-detection'>(() => {
     const tab = searchParams.get('tab');
-    if (tab && ['health', 'queue', 'cache', 'logs', 'audits', 'performance', 'settings', 'emergency'].includes(tab)) {
+    if (tab && ['health', 'queue', 'cache', 'logs', 'audits', 'performance', 'settings', 'emergency', 'loop-detection'].includes(tab)) {
       return tab as any;
     }
     return 'health';
@@ -189,6 +234,13 @@ export default function SystemControlCenter() {
   const [flagsLoading, setFlagsLoading] = useState(false);
   const [restartRequired, setRestartRequired] = useState(false);
   const [saving, setSaving] = useState(false);
+
+  // Loop Detection State
+  const [loopDetection, setLoopDetection] = useState<InfiniteLoop[]>([]);
+  const [stuckCandidates, setStuckCandidates] = useState<StuckAudit[]>([]);
+  const [reprocessHistory, setReprocessHistory] = useState<ReprocessHistoryEntry[]>([]);
+  const [loopLoading, setLoopLoading] = useState(false);
+  const [historyHours, setHistoryHours] = useState(24);
 
   // Auto-refresh interval
   const [autoRefresh, setAutoRefresh] = useState(true);
@@ -384,6 +436,61 @@ export default function SystemControlCenter() {
     } finally {
       setFlagsLoading(false);
     }
+  };
+
+  const fetchLoopDetection = async () => {
+    setLoopLoading(true);
+    try {
+      const response = await fetchWithTimeout(`${API_GATEWAY}/api/admin/control/system/audits/infinite-loop-detection`);
+      if (response.ok) {
+        const data = await response.json();
+        setLoopDetection(data.potential_loops || []);
+      } else {
+        showToast('error', 'Failed to fetch loop detection', `Status: ${response.status}`);
+      }
+    } catch (error: any) {
+      showToast('error', 'Failed to fetch loop detection', error.message);
+    } finally {
+      setLoopLoading(false);
+    }
+  };
+
+  const fetchStuckCandidates = async () => {
+    try {
+      const response = await fetchWithTimeout(`${API_GATEWAY}/api/admin/control/system/audits/stuck-candidates`);
+      if (response.ok) {
+        const data = await response.json();
+        setStuckCandidates(data.stuck_candidates || []);
+      } else {
+        showToast('error', 'Failed to fetch stuck candidates', `Status: ${response.status}`);
+      }
+    } catch (error: any) {
+      showToast('error', 'Failed to fetch stuck candidates', error.message);
+    }
+  };
+
+  const fetchReprocessHistory = async () => {
+    try {
+      const response = await fetchWithTimeout(`${API_GATEWAY}/api/admin/control/system/audits/reprocess-history?hours=${historyHours}`);
+      if (response.ok) {
+        const data = await response.json();
+        setReprocessHistory(data.reprocess_history || []);
+      } else {
+        showToast('error', 'Failed to fetch reprocess history', `Status: ${response.status}`);
+      }
+    } catch (error: any) {
+      showToast('error', 'Failed to fetch reprocess history', error.message);
+    }
+  };
+
+  const fetchAllLoopData = async () => {
+    setLoopLoading(true);
+    await Promise.all([
+      fetchLoopDetection(),
+      fetchStuckCandidates(),
+      fetchReprocessHistory()
+    ]);
+    setLoopLoading(false);
   };
 
   // ========================================
@@ -682,6 +789,36 @@ export default function SystemControlCenter() {
     }
   };
 
+  const fixStuckAudit = async (auditId: string, companyName: string) => {
+    if (!confirm(`Fix stuck audit for "${companyName}"?\n\nThis will:\n• Update status to completed\n• Update phase to completed\n• Log the manual fix\n\nContinue?`)) {
+      return;
+    }
+
+    try {
+      const response = await fetchWithTimeout(
+        `${API_GATEWAY}/api/admin/control/system/audits/${auditId}/fix-stuck`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            admin_user: 'admin',
+            notes: 'Manual fix via Loop Detection dashboard'
+          })
+        }
+      );
+
+      if (response.ok) {
+        showToast('success', 'Audit fixed successfully', `Fixed audit for ${companyName}`);
+        fetchAllLoopData(); // Refresh all loop data
+      } else {
+        const errorData = await response.json().catch(() => ({}));
+        showToast('error', 'Failed to fix audit', errorData.error || `Status: ${response.status}`);
+      }
+    } catch (error: any) {
+      showToast('error', 'Failed to fix audit', error.message);
+    }
+  };
+
   // ========================================
   // Effects
   // ========================================
@@ -708,6 +845,7 @@ export default function SystemControlCenter() {
       if (activeTab === 'audits') fetchActiveAudits();
       if (activeTab === 'performance') fetchPerformanceMetrics();
       if (activeTab === 'settings') fetchFeatureFlags();
+      if (activeTab === 'loop-detection') fetchAllLoopData();
     }, refreshInterval);
 
     return () => clearInterval(interval);
@@ -718,6 +856,12 @@ export default function SystemControlCenter() {
       fetchLogs();
     }
   }, [activeTab, logService, logLevel, logLines]);
+
+  useEffect(() => {
+    if (activeTab === 'loop-detection') {
+      fetchAllLoopData();
+    }
+  }, [activeTab, historyHours]);
 
   // ========================================
   // Helper Functions
@@ -1392,6 +1536,322 @@ export default function SystemControlCenter() {
     </div>
   );
 
+  const renderLoopDetectionTab = () => {
+    const criticalLoops = loopDetection.filter(l => l.severity === 'critical');
+
+    return (
+      <div className="space-y-6">
+        {/* Critical Alert Banner */}
+        {criticalLoops.length > 0 && (
+          <motion.div
+            initial={{ opacity: 0, y: -20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="glassmorphism p-6 rounded-xl border-2 border-red-500/50 bg-red-500/10"
+          >
+            <div className="flex items-start gap-4">
+              <AlertTriangle className="w-8 h-8 text-red-400 flex-shrink-0" />
+              <div className="flex-1">
+                <h3 className="text-xl font-bold text-red-400 mb-2">
+                  Critical: {criticalLoops.length} Infinite Loop{criticalLoops.length > 1 ? 's' : ''} Detected!
+                </h3>
+                <p className="text-sm text-gray-300 mb-3">
+                  {criticalLoops.length} audit{criticalLoops.length > 1 ? 's have' : ' has'} been reprocessed ≥5 times in the last hour. Immediate action required to prevent cost waste.
+                </p>
+                <div className="flex gap-3">
+                  <button
+                    onClick={fetchAllLoopData}
+                    disabled={loopLoading}
+                    className="px-4 py-2 bg-red-500/20 text-red-400 rounded-lg hover:bg-red-500/30 transition-colors flex items-center gap-2 text-sm font-medium"
+                  >
+                    <RefreshCw className={`w-4 h-4 ${loopLoading ? 'animate-spin' : ''}`} />
+                    Refresh Now
+                  </button>
+                </div>
+              </div>
+            </div>
+          </motion.div>
+        )}
+
+        {/* Infinite Loop Detection Section */}
+        <div className="glassmorphism rounded-lg p-6 border border-gray-500/30">
+          <div className="flex items-center justify-between mb-6">
+            <div className="flex items-center gap-3">
+              <RotateCw className="w-6 h-6 text-purple-400" />
+              <div>
+                <h3 className="text-xl font-semibold">Infinite Loop Detection</h3>
+                <p className="text-sm text-gray-400 mt-1">Audits reprocessed ≥3 times in last hour</p>
+              </div>
+            </div>
+            <button
+              onClick={fetchAllLoopData}
+              disabled={loopLoading}
+              className="px-4 py-2 rounded-lg bg-blue-500/20 border border-blue-500/50 hover:bg-blue-500/30 disabled:opacity-50 flex items-center gap-2 text-sm font-medium transition-all"
+            >
+              <RefreshCw className={`w-4 h-4 ${loopLoading ? 'animate-spin' : ''}`} />
+              Refresh
+            </button>
+          </div>
+
+          {loopDetection.length > 0 ? (
+            <div className="space-y-3">
+              {loopDetection.map((loop, index) => (
+                <motion.div
+                  key={loop.audit_id}
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: index * 0.05 }}
+                  className={`glassmorphism rounded-lg p-4 border ${
+                    loop.severity === 'critical'
+                      ? 'border-red-500/50 bg-red-500/5'
+                      : 'border-yellow-500/30 bg-yellow-500/5'
+                  }`}
+                >
+                  <div className="flex items-start justify-between mb-3">
+                    <div className="flex-1">
+                      <div className="flex items-center gap-3 mb-2">
+                        <h4 className="text-lg font-semibold">{loop.company_name}</h4>
+                        <span className={`px-3 py-1 rounded-full text-xs font-bold ${
+                          loop.severity === 'critical'
+                            ? 'bg-red-500/20 text-red-400 border-2 border-red-500/50'
+                            : 'bg-yellow-500/20 text-yellow-400 border border-yellow-500/50'
+                        }`}>
+                          {loop.severity.toUpperCase()}
+                        </span>
+                        <span className="px-2 py-1 rounded bg-gray-700/50 text-xs font-mono">
+                          {loop.reprocess_count} reprocesses
+                        </span>
+                      </div>
+                      <div className="text-sm text-gray-400">
+                        Audit ID: <span className="font-mono text-gray-300">{loop.audit_id}</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-3">
+                    <div>
+                      <div className="text-xs text-gray-400 mb-1">Status</div>
+                      <div className="font-medium">{loop.status}</div>
+                    </div>
+                    <div>
+                      <div className="text-xs text-gray-400 mb-1">Phase</div>
+                      <div className="font-medium">{loop.current_phase}</div>
+                    </div>
+                    <div>
+                      <div className="text-xs text-gray-400 mb-1">Duration</div>
+                      <div className="font-medium">{loop.duration_minutes.toFixed(1)} min</div>
+                    </div>
+                    <div>
+                      <div className="text-xs text-gray-400 mb-1">Avg Interval</div>
+                      <div className="font-medium">{loop.avg_reprocess_interval_minutes.toFixed(1)} min</div>
+                    </div>
+                  </div>
+
+                  <div className="text-xs text-gray-400">
+                    Last reprocess: {new Date(loop.last_reprocess_at).toLocaleString()}
+                  </div>
+                </motion.div>
+              ))}
+            </div>
+          ) : (
+            <div className="text-center py-12 text-gray-500">
+              <CheckCircle className="w-12 h-12 mx-auto mb-3 text-green-400" />
+              <div className="font-medium">No infinite loops detected</div>
+              <div className="text-sm mt-1">All audits are processing normally</div>
+            </div>
+          )}
+        </div>
+
+        {/* Stuck Audit Candidates Section */}
+        <div className="glassmorphism rounded-lg p-6 border border-gray-500/30">
+          <div className="flex items-center gap-3 mb-6">
+            <AlertCircle className="w-6 h-6 text-orange-400" />
+            <div>
+              <h3 className="text-xl font-semibold">Stuck Audit Candidates</h3>
+              <p className="text-sm text-gray-400 mt-1">Audits at risk of becoming infinite loops</p>
+            </div>
+          </div>
+
+          {stuckCandidates.length > 0 ? (
+            <div className="space-y-3">
+              {stuckCandidates.map((audit, index) => (
+                <motion.div
+                  key={audit.audit_id}
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: index * 0.05 }}
+                  className={`glassmorphism rounded-lg p-4 border ${
+                    audit.risk_level === 'high'
+                      ? 'border-orange-500/50'
+                      : 'border-yellow-500/30'
+                  }`}
+                >
+                  <div className="flex items-start justify-between mb-3">
+                    <div className="flex-1">
+                      <div className="flex items-center gap-3 mb-2">
+                        <h4 className="text-lg font-semibold">{audit.company_name}</h4>
+                        <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                          audit.risk_level === 'high'
+                            ? 'bg-orange-500/20 text-orange-400 border border-orange-500/50'
+                            : 'bg-yellow-500/20 text-yellow-400 border border-yellow-500/30'
+                        }`}>
+                          {audit.risk_level.toUpperCase()} RISK
+                        </span>
+                        {audit.dashboard_exists && (
+                          <span className="px-2 py-1 rounded bg-green-500/20 text-green-400 text-xs font-medium border border-green-500/30">
+                            Dashboard Exists
+                          </span>
+                        )}
+                      </div>
+                      <div className="text-sm text-gray-400">
+                        Audit ID: <span className="font-mono text-gray-300">{audit.audit_id}</span>
+                      </div>
+                    </div>
+                    {audit.should_auto_fix && (
+                      <button
+                        onClick={() => fixStuckAudit(audit.audit_id, audit.company_name)}
+                        className="px-4 py-2 rounded-lg bg-green-500/20 border border-green-500/50 hover:bg-green-500/30 flex items-center gap-2 text-sm font-medium transition-all"
+                      >
+                        <CheckCircle className="w-4 h-4" />
+                        Fix Now
+                      </button>
+                    )}
+                  </div>
+
+                  <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+                    <div>
+                      <div className="text-xs text-gray-400 mb-1">Status</div>
+                      <div className="font-medium text-sm">{audit.status}</div>
+                    </div>
+                    <div>
+                      <div className="text-xs text-gray-400 mb-1">Phase</div>
+                      <div className="font-medium text-sm">{audit.current_phase}</div>
+                    </div>
+                    <div>
+                      <div className="text-xs text-gray-400 mb-1">Reprocess Count</div>
+                      <div className="font-medium text-sm">{audit.reprocess_count}</div>
+                    </div>
+                    <div>
+                      <div className="text-xs text-gray-400 mb-1">Responses</div>
+                      <div className="font-medium text-sm">{audit.responses_collected}</div>
+                    </div>
+                    <div>
+                      <div className="text-xs text-gray-400 mb-1">Running Time</div>
+                      <div className="font-medium text-sm">{audit.running_minutes.toFixed(1)} min</div>
+                    </div>
+                  </div>
+                </motion.div>
+              ))}
+            </div>
+          ) : (
+            <div className="text-center py-8 text-gray-500">
+              <Shield className="w-10 h-10 mx-auto mb-2 text-green-400" />
+              <div className="text-sm">No stuck candidates detected</div>
+            </div>
+          )}
+        </div>
+
+        {/* Reprocess History Section */}
+        <div className="glassmorphism rounded-lg p-6 border border-gray-500/30">
+          <div className="flex items-center justify-between mb-6">
+            <div className="flex items-center gap-3">
+              <Clock className="w-6 h-6 text-blue-400" />
+              <div>
+                <h3 className="text-xl font-semibold">Reprocess History</h3>
+                <p className="text-sm text-gray-400 mt-1">Recent audit reprocessing attempts</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-3">
+              <select
+                value={historyHours}
+                onChange={(e) => setHistoryHours(parseInt(e.target.value))}
+                className="px-4 py-2 rounded-lg bg-black/30 border border-gray-500/30 focus:border-blue-500/50 focus:outline-none text-sm"
+              >
+                <option value="1">Last 1 hour</option>
+                <option value="6">Last 6 hours</option>
+                <option value="24">Last 24 hours</option>
+                <option value="72">Last 3 days</option>
+              </select>
+            </div>
+          </div>
+
+          {reprocessHistory.length > 0 ? (
+            <div className="space-y-2">
+              <div className="grid grid-cols-12 gap-4 px-4 py-2 text-xs font-semibold text-gray-400 uppercase border-b border-gray-700">
+                <div className="col-span-2">Time</div>
+                <div className="col-span-2">Company</div>
+                <div className="col-span-1">Attempt</div>
+                <div className="col-span-2">Triggered By</div>
+                <div className="col-span-2">Status Change</div>
+                <div className="col-span-2">Phase Change</div>
+                <div className="col-span-1">Current</div>
+              </div>
+              <div className="max-h-96 overflow-y-auto space-y-1">
+                {reprocessHistory.map((entry, index) => (
+                  <motion.div
+                    key={entry.id}
+                    initial={{ opacity: 0, x: -20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ delay: index * 0.02 }}
+                    className="grid grid-cols-12 gap-4 px-4 py-3 rounded-lg hover:bg-white/5 transition-colors text-sm"
+                  >
+                    <div className="col-span-2 text-gray-400 text-xs">
+                      {new Date(entry.created_at).toLocaleTimeString()}
+                    </div>
+                    <div className="col-span-2 font-medium truncate" title={entry.company_name}>
+                      {entry.company_name || 'Unknown'}
+                    </div>
+                    <div className="col-span-1 text-center">
+                      <span className="px-2 py-1 rounded bg-blue-500/20 text-blue-400 text-xs font-mono">
+                        #{entry.reprocess_attempt}
+                      </span>
+                    </div>
+                    <div className="col-span-2">
+                      <span className={`px-2 py-1 rounded text-xs font-medium ${
+                        entry.triggered_by === 'stuck_monitor'
+                          ? 'bg-purple-500/20 text-purple-400'
+                          : entry.triggered_by === 'manual'
+                          ? 'bg-green-500/20 text-green-400'
+                          : 'bg-gray-500/20 text-gray-400'
+                      }`}>
+                        {entry.triggered_by}
+                      </span>
+                    </div>
+                    <div className="col-span-2 text-xs">
+                      <span className="text-gray-500">{entry.status_before}</span>
+                      <span className="mx-1 text-gray-600">→</span>
+                      <span className="text-gray-300">{entry.status_after || '?'}</span>
+                    </div>
+                    <div className="col-span-2 text-xs">
+                      <span className="text-gray-500">{entry.phase_before}</span>
+                      <span className="mx-1 text-gray-600">→</span>
+                      <span className="text-gray-300">{entry.phase_after || '?'}</span>
+                    </div>
+                    <div className="col-span-1">
+                      <span className={`px-2 py-1 rounded text-xs font-medium ${
+                        entry.current_status === 'completed'
+                          ? 'bg-green-500/20 text-green-400'
+                          : entry.current_status === 'failed'
+                          ? 'bg-red-500/20 text-red-400'
+                          : 'bg-yellow-500/20 text-yellow-400'
+                      }`}>
+                        {entry.current_status || entry.status_after}
+                      </span>
+                    </div>
+                  </motion.div>
+                ))}
+              </div>
+            </div>
+          ) : (
+            <div className="text-center py-8 text-gray-500">
+              <Info className="w-10 h-10 mx-auto mb-2" />
+              <div className="text-sm">No reprocess history in selected timeframe</div>
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  };
+
   const renderEmergencyTab = () => (
     <div className="space-y-6">
       {/* Maintenance Mode */}
@@ -1512,6 +1972,7 @@ export default function SystemControlCenter() {
             { id: 'logs', label: 'Logs', icon: FileText },
             { id: 'audits', label: 'Active Audits', icon: Server },
             { id: 'performance', label: 'Performance', icon: TrendingUp },
+            { id: 'loop-detection', label: 'Loop Detection', icon: RotateCw },
             { id: 'settings', label: 'Settings', icon: Settings },
             { id: 'emergency', label: 'Emergency', icon: ShieldAlert }
           ].map((tab) => (
@@ -1547,6 +2008,7 @@ export default function SystemControlCenter() {
             {activeTab === 'logs' && renderLogsTab()}
             {activeTab === 'audits' && renderAuditsTab()}
             {activeTab === 'performance' && renderPerformanceTab()}
+            {activeTab === 'loop-detection' && renderLoopDetectionTab()}
             {activeTab === 'settings' && renderSettingsTab()}
             {activeTab === 'emergency' && renderEmergencyTab()}
           </motion.div>
