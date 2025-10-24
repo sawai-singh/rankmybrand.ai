@@ -22,26 +22,28 @@ router.get(
     const { companyId } = req.params;
     
     const result = await db.query(
-      `SELECT 
-        category,
+      `SELECT
+        aq.category,
         COUNT(*) as query_count,
         ROUND(COUNT(*) * 100.0 / SUM(COUNT(*)) OVER (), 2) as percentage,
-        SUM(CASE WHEN priority >= 8 THEN 1 ELSE 0 END) as high_priority_count,
-        AVG(priority) as avg_priority
-      FROM ai_queries
-      WHERE company_id = $1 AND category IS NOT NULL
-      GROUP BY category
+        SUM(CASE WHEN aq.priority_score >= 8 THEN 1 ELSE 0 END) as high_priority_count,
+        AVG(aq.priority_score) as avg_priority
+      FROM audit_queries aq
+      JOIN ai_visibility_audits av ON aq.audit_id = av.id
+      WHERE av.company_id = $1 AND aq.category IS NOT NULL
+      GROUP BY aq.category
       ORDER BY query_count DESC`,
       [companyId]
     );
     
     const summary = await db.query(
-      `SELECT 
+      `SELECT
         COUNT(*) as total_queries,
-        AVG(priority) as avg_priority,
-        SUM(CASE WHEN commercial_value = 'high' THEN 1 ELSE 0 END) as high_value_count
-      FROM ai_queries
-      WHERE company_id = $1`,
+        AVG(aq.priority_score) as avg_priority,
+        SUM(CASE WHEN aq.metadata->>'commercial_value' = 'high' THEN 1 ELSE 0 END) as high_value_count
+      FROM audit_queries aq
+      JOIN ai_visibility_audits av ON aq.audit_id = av.id
+      WHERE av.company_id = $1`,
       [companyId]
     );
     
@@ -63,26 +65,27 @@ router.get(
     const { category } = req.query;
     
     let query = `
-      SELECT 
-        query_text as query,
-        category,
-        intent,
-        priority,
-        persona,
-        platform_optimization,
-        commercial_value
-      FROM ai_queries
-      WHERE company_id = $1
+      SELECT
+        aq.query_text as query,
+        aq.category,
+        aq.intent,
+        aq.priority_score as priority,
+        aq.metadata->>'persona' as persona,
+        aq.metadata->>'platform_optimization' as platform_optimization,
+        aq.metadata->>'commercial_value' as commercial_value
+      FROM audit_queries aq
+      JOIN ai_visibility_audits av ON aq.audit_id = av.id
+      WHERE av.company_id = $1
     `;
     
     const params: any[] = [companyId];
-    
+
     if (category) {
-      query += ' AND category = $2';
+      query += ' AND aq.category = $2';
       params.push(category);
     }
-    
-    query += ' ORDER BY priority DESC, category LIMIT 20';
+
+    query += ' ORDER BY aq.priority_score DESC, aq.category LIMIT 20';
     
     const result = await db.query(query, params);
     
@@ -146,7 +149,9 @@ router.post(
     // Check existing queries
     if (!forceRegenerate) {
       const existing = await db.query(
-        'SELECT COUNT(*) as count FROM ai_queries WHERE company_id = $1',
+        `SELECT COUNT(*) as count FROM audit_queries aq
+         JOIN ai_visibility_audits av ON aq.audit_id = av.id
+         WHERE av.company_id = $1`,
         [companyId]
       );
       
@@ -217,19 +222,20 @@ router.get(
     
     // Check coverage across categories
     const coverageResult = await db.query(
-      `SELECT 
-        CASE WHEN SUM(CASE WHEN category = 'problem_unaware' THEN 1 ELSE 0 END) >= 6 THEN true ELSE false END as problem_unaware_covered,
-        CASE WHEN SUM(CASE WHEN category = 'solution_seeking' THEN 1 ELSE 0 END) >= 8 THEN true ELSE false END as solution_seeking_covered,
-        CASE WHEN SUM(CASE WHEN category = 'brand_specific' THEN 1 ELSE 0 END) >= 6 THEN true ELSE false END as brand_specific_covered,
-        CASE WHEN SUM(CASE WHEN category = 'comparison' THEN 1 ELSE 0 END) >= 6 THEN true ELSE false END as comparison_covered,
-        CASE WHEN SUM(CASE WHEN category = 'purchase_intent' THEN 1 ELSE 0 END) >= 6 THEN true ELSE false END as purchase_intent_covered,
-        CASE WHEN SUM(CASE WHEN category = 'use_case' THEN 1 ELSE 0 END) >= 4 THEN true ELSE false END as use_case_covered,
+      `SELECT
+        CASE WHEN SUM(CASE WHEN aq.category = 'problem_unaware' THEN 1 ELSE 0 END) >= 6 THEN true ELSE false END as problem_unaware_covered,
+        CASE WHEN SUM(CASE WHEN aq.category = 'solution_seeking' THEN 1 ELSE 0 END) >= 8 THEN true ELSE false END as solution_seeking_covered,
+        CASE WHEN SUM(CASE WHEN aq.category = 'brand_specific' THEN 1 ELSE 0 END) >= 6 THEN true ELSE false END as brand_specific_covered,
+        CASE WHEN SUM(CASE WHEN aq.category = 'comparison' THEN 1 ELSE 0 END) >= 6 THEN true ELSE false END as comparison_covered,
+        CASE WHEN SUM(CASE WHEN aq.category = 'purchase_intent' THEN 1 ELSE 0 END) >= 6 THEN true ELSE false END as purchase_intent_covered,
+        CASE WHEN SUM(CASE WHEN aq.category = 'use_case' THEN 1 ELSE 0 END) >= 4 THEN true ELSE false END as use_case_covered,
         COUNT(*) as total_queries,
-        COUNT(DISTINCT category) as categories_used,
-        COUNT(DISTINCT intent) as intents_covered,
-        COUNT(DISTINCT persona) as personas_covered
-      FROM ai_queries
-      WHERE company_id = $1`,
+        COUNT(DISTINCT aq.category) as categories_used,
+        COUNT(DISTINCT aq.intent) as intents_covered,
+        COUNT(DISTINCT aq.metadata->>'persona') as personas_covered
+      FROM audit_queries aq
+      JOIN ai_visibility_audits av ON aq.audit_id = av.id
+      WHERE av.company_id = $1`,
       [companyId]
     );
     

@@ -65,7 +65,7 @@ class AIVisibilityService:
         self.config = config
         self.query_generator = IntelligentQueryGenerator(
             openai_api_key=config['openai_api_key'],
-            model=config.get('openai_model', 'gpt-5-chat-latest')  # Flexible with default
+            model=config.get('openai_model', 'gpt-5-nano')  # Flexible with default
         )
         self.llm_orchestrator = MultiLLMOrchestrator(
             OrchestratorConfig(

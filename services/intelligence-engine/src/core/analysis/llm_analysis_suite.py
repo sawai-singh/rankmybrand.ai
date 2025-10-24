@@ -79,13 +79,13 @@ class LLMAnalysisSuite:
     Designed by master product architects and AI specialists
     """
     
-    def __init__(self, openai_api_key: Optional[str] = None, model: str = "gpt-5-chat-latest"):
+    def __init__(self, openai_api_key: Optional[str] = None, model: str = "gpt-5-nano"):
         """
         Initialize the LLM analysis suite
         
         Args:
             openai_api_key: OpenAI API key
-            model: Model to use (default: gpt-5-chat-latest)
+            model: Model to use (default: gpt-5-nano)
         """
         api_key = openai_api_key or os.getenv('OPENAI_API_KEY')
         self.client = AsyncOpenAI(api_key=api_key) if api_key else None
@@ -132,7 +132,7 @@ Focus on SPECIFICS, not generalities. What exact words, features, or comparisons
                     {"role": "system", "content": "You are a sentiment analysis expert. Provide deep, specific insights."},
                     {"role": "user", "content": prompt}
                 ],
-                temperature=0.3,
+                # GPT-5 Nano only supports temperature=1 (default), so we omit it
                 response_format={"type": "json_object"}
             )
             
@@ -199,10 +199,10 @@ Look for:
             response = await self.client.chat.completions.create(
                 model=self.model,
                 messages=[{"role": "user", "content": prompt}],
-                temperature=0.4,
+                # GPT-5 Nano only supports temperature=1 (default), so we omit it
                 response_format={"type": "json_object"}
             )
-            
+
             result = json.loads(response.choices[0].message.content)
             features = result.get('features', [])
             
@@ -233,11 +233,21 @@ Look for:
         """
         if not self.client:
             return self._fallback_position(response_text, brand_name)
-        
+
+        # Handle both string and object formats for competitors
+        competitor_names = []
+        for comp in competitors:
+            if isinstance(comp, str):
+                competitor_names.append(comp)
+            elif isinstance(comp, dict):
+                competitor_names.append(comp.get('name', str(comp)))
+            else:
+                competitor_names.append(str(comp))
+
         prompt = f"""Analyze the positioning and prominence of {brand_name} in this response.
 
 Brand: {brand_name}
-Competitors: {', '.join(competitors)}
+Competitors: {', '.join(competitor_names)}
 Response: {response_text}
 
 Return JSON:
@@ -261,12 +271,12 @@ Scoring guidelines:
             response = await self.client.chat.completions.create(
                 model=self.model,
                 messages=[{"role": "user", "content": prompt}],
-                temperature=0.2,
+                # GPT-5 Nano only supports temperature=1 (default), so we omit it
                 response_format={"type": "json_object"}
             )
-            
+
             result = json.loads(response.choices[0].message.content)
-            
+
             return PositionAnalysis(
                 first_mention_position=result.get('first_mention_position', -1),
                 total_mentions=result.get('total_mentions', 0),
@@ -317,12 +327,12 @@ Be critical but fair. High-quality responses should be comprehensive, accurate, 
             response = await self.client.chat.completions.create(
                 model=self.model,
                 messages=[{"role": "user", "content": prompt}],
-                temperature=0.3,
+                # GPT-5 Nano only supports temperature=1 (default), so we omit it
                 response_format={"type": "json_object"}
             )
-            
+
             result = json.loads(response.choices[0].message.content)
-            
+
             return ResponseQuality(
                 completeness_score=result.get('completeness_score', 50.0),
                 accuracy_score=result.get('accuracy_score', 50.0),
@@ -386,11 +396,11 @@ Return JSON:
             response = await self.client.chat.completions.create(
                 model=self.model,
                 messages=[{"role": "user", "content": prompt}],
-                temperature=0.5,
-                max_tokens=2000,
+                # GPT-5 Nano only supports temperature=1 (default), so we omit it
+                max_completion_tokens=2000,  # GPT-5 Nano requires max_completion_tokens
                 response_format={"type": "json_object"}
             )
-            
+
             return json.loads(response.choices[0].message.content)
             
         except Exception as e:
@@ -481,11 +491,11 @@ Return JSON:
                     {"role": "system", "content": "You are a McKinsey consultant creating executive dashboards. Be concise, specific, and action-oriented."},
                     {"role": "user", "content": prompt}
                 ],
-                temperature=0.4,
-                max_tokens=3000,
+                # GPT-5 Nano only supports temperature=1 (default), so we omit it
+                max_completion_tokens=3000,  # GPT-5 Nano requires max_completion_tokens
                 response_format={"type": "json_object"}
             )
-            
+
             return json.loads(response.choices[0].message.content)
             
         except Exception as e:

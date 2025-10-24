@@ -34,12 +34,18 @@ export function useWebSocket(
   } = options;
 
   const connect = useCallback(() => {
+    // Skip connection if URL is empty (WebSocket disabled)
+    if (!url || url.trim() === '') {
+      setConnectionStatus('disconnected');
+      return;
+    }
+
     if (ws.current?.readyState === WebSocket.OPEN) {
       return;
     }
 
     setConnectionStatus('connecting');
-    
+
     try {
       ws.current = new WebSocket(url);
 

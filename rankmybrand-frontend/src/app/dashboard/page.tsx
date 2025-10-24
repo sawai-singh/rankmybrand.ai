@@ -30,7 +30,8 @@ function DashboardContent() {
     } else {
       // Redirect to actual dashboard (port 3000)
       if (typeof window !== 'undefined') {
-        window.location.href = `http://localhost:3000${window.location.search}`;
+        const dashboardUrl = process.env.NEXT_PUBLIC_DASHBOARD_URL || 'http://localhost:3000';
+        window.location.href = `${dashboardUrl}${window.location.search}`;
       }
     }
   }, [router, searchParams]);

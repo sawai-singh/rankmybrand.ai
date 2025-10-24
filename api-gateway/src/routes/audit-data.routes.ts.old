@@ -1,0 +1,146 @@
+import { Router, Request, Response } from 'express';
+import { db } from '../database/connection';
+import { asyncHandler } from '../utils/async-handler';
+import { logger } from '../utils/logger';
+
+const router = Router();
+
+/**
+ * Get audit responses by audit ID
+ */
+router.get(
+  '/:auditId/responses',
+  asyncHandler(async (req: Request, res: Response) => {
+    const { auditId } = req.params;
+
+    try {
+      const result = await db.query(
+        `SELECT
+          ar.id,
+          ar.provider,
+          ar.response_text,
+          ar.brand_mentioned,
+          ar.sentiment,
+          ar.recommendation_strength,
+          ar.competitors_mentioned,
+          ar.created_at,
+          aq.query_text
+        FROM audit_responses ar
+        JOIN audit_queries aq ON ar.query_id = aq.id
+        WHERE ar.audit_id = $1
+        ORDER BY ar.created_at DESC`,
+        [auditId]
+      );
+
+      res.json({
+        status: 'success',
+        count: result.rows.length,
+        data: result.rows
+      });
+    } catch (error) {
+      logger.error('Error fetching audit responses:', error);
+      res.status(500).json({
+        status: 'error',
+        message: 'Failed to fetch audit responses'
+      });
+    }
+  })
+);
+
+/**
+ * Get audit queries by audit ID
+ */
+router.get(
+  '/:auditId/queries',
+  asyncHandler(async (req: Request, res: Response) => {
+    const { auditId } = req.params;
+
+    try {
+      const result = await db.query(
+        `SELECT
+          id,
+          query_text,
+          intent,
+          category,
+          complexity_score,
+          priority_score,
+          buyer_journey_stage,
+          semantic_variations,
+          expected_serp_features,
+          metadata,
+          created_at
+        FROM audit_queries
+        WHERE audit_id = $1
+        ORDER BY priority_score DESC NULLS LAST, created_at DESC`,
+        [auditId]
+      );
+
+      res.json({
+        status: 'success',
+        count: result.rows.length,
+        data: result.rows
+      });
+    } catch (error) {
+      logger.error('Error fetching audit queries:', error);
+      res.status(500).json({
+        status: 'error',
+        message: 'Failed to fetch audit queries'
+      });
+    }
+  })
+);
+
+/**
+ * Get audit insights by audit ID
+ */
+router.get(
+  '/:auditId/insights',
+  asyncHandler(async (req: Request, res: Response) => {
+    const { auditId } = req.params;
+
+    try {
+      // Get insights from dashboard_data table
+      const dashboardResult = await db.query(
+        `SELECT
+          key_insights,
+          opportunity_areas,
+          risk_areas,
+          strategic_themes
+        FROM dashboard_data
+        WHERE audit_id = $1`,
+        [auditId]
+      );
+
+      if (dashboardResult.rows.length > 0) {
+        const data = dashboardResult.rows[0];
+        res.json({
+          status: 'success',
+          data: {
+            key_insights: data.key_insights || [],
+            opportunities: data.opportunity_areas || [],
+            risks: data.risk_areas || [],
+            themes: data.strategic_themes || []
+          }
+        });
+      } else {
+        res.json({
+          status: 'success',
+          data: {
+            key_insights: [],
+            opportunities: [],
+            risks: [],
+            themes: []
+          }
+        });
+      }
+    } catch (error) {
+      logger.error('Error fetching audit insights:', error);
+      res.status(500).json({
+        status: 'error',
+        message: 'Failed to fetch audit insights'
+      });
+    }
+  })
+);
+
+export default router;

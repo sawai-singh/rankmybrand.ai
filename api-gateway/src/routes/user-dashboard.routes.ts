@@ -70,7 +70,9 @@ router.get(
         ud.created_at as dashboard_created
       FROM user_tracking ut
       LEFT JOIN companies c ON ut.company_id = c.id
-      LEFT JOIN ai_queries aq ON c.id = aq.company_id
+      LEFT JOIN audit_queries aq ON aq.audit_id IN (
+          SELECT id FROM ai_visibility_audits WHERE company_id = c.id
+        )
       LEFT JOIN user_dashboards ud ON ut.email = ud.user_email
       WHERE ut.email = $1
       GROUP BY ut.email, ut.first_visit, ut.last_activity, ut.page_views,
@@ -138,17 +140,18 @@ router.get(
 
     // Fetch AI queries with categories
     const queriesResult = await db.query(
-      `SELECT 
-        query_text,
-        category,
-        intent,
-        priority,
-        commercial_value,
-        persona,
-        platform_optimization
-      FROM ai_queries 
-      WHERE company_id = $1
-      ORDER BY priority DESC, category
+      `SELECT
+        aq.query_text,
+        aq.category,
+        aq.intent,
+        aq.priority_score as priority,
+        aq.metadata->>'commercial_value' as commercial_value,
+        aq.metadata->>'persona' as persona,
+        aq.metadata->>'platform_optimization' as platform_optimization
+      FROM audit_queries aq
+      JOIN ai_visibility_audits av ON aq.audit_id = av.id
+      WHERE av.company_id = $1
+      ORDER BY aq.priority_score DESC, aq.category
       LIMIT 100`,
       [company.id]
     );
@@ -286,14 +289,15 @@ router.get(
 
     // Fallback to original queries if cache miss
     const metricsResult = await db.query(
-      `SELECT 
+      `SELECT
         COUNT(DISTINCT aq.id) as total_queries,
         COUNT(DISTINCT CASE WHEN aq.category = 'brand_specific' THEN aq.id END) as brand_queries,
         COUNT(DISTINCT CASE WHEN aq.category = 'comparison' THEN aq.id END) as comparison_queries,
-        COUNT(DISTINCT CASE WHEN aq.priority >= 8 THEN aq.id END) as high_priority_queries,
+        COUNT(DISTINCT CASE WHEN aq.priority_score >= 8 THEN aq.id END) as high_priority_queries,
         COUNT(DISTINCT c.id) as competitor_count
       FROM companies comp
-      LEFT JOIN ai_queries aq ON comp.id = aq.company_id
+      LEFT JOIN ai_visibility_audits av ON av.company_id = comp.id
+      LEFT JOIN audit_queries aq ON aq.audit_id = av.id
       LEFT JOIN competitors c ON comp.id = c.company_id
       WHERE comp.id = $1
       GROUP BY comp.id`,
@@ -694,13 +698,14 @@ router.get(
 
     // Query-specific recommendations
     const queryAnalysis = await db.query(
-      `SELECT 
-        category,
+      `SELECT
+        aq.category,
         COUNT(*) as count,
-        AVG(priority) as avg_priority
-       FROM ai_queries 
-       WHERE company_id = $1 
-       GROUP BY category`,
+        AVG(aq.priority_score) as avg_priority
+       FROM audit_queries aq
+       JOIN ai_visibility_audits av ON aq.audit_id = av.id
+       WHERE av.company_id = $1
+       GROUP BY aq.category`,
       [company.id]
     );
 
@@ -1209,6 +1214,297 @@ router.get(
         message: error instanceof Error ? error.message : 'Unknown error'
       });
     }
+  })
+);
+
+/**
+ * ========================================
+ * 118-CALL STRATEGIC INTELLIGENCE ENDPOINTS
+ * Layer 1-3 Strategic Intelligence from dashboard_data
+ * ========================================
+ */
+
+/**
+ * Get complete strategic intelligence (all layers)
+ */
+router.get(
+  '/strategic/all',
+  extractUser,
+  asyncHandler(async (req: Request, res: Response) => {
+    const { auditId } = req.query;
+    const userEmail = (req as any).user?.email;
+
+    if (!auditId) {
+      return res.status(400).json({ error: 'Audit ID required' });
+    }
+
+    // Fetch all strategic intelligence from dashboard_data
+    const result = await db.query(
+      `SELECT
+        category_insights,
+        strategic_priorities,
+        executive_summary_v2,
+        buyer_journey_insights,
+        intelligence_metadata,
+        overall_score,
+        company_name
+      FROM dashboard_data
+      WHERE audit_id = $1`,
+      [auditId]
+    );
+
+    if (!result.rows[0]) {
+      return res.status(404).json({ error: 'Strategic intelligence not found for this audit' });
+    }
+
+    const data = result.rows[0];
+
+    res.json({
+      audit_id: auditId,
+      company_name: data.company_name,
+      overall_score: data.overall_score,
+      strategic_intelligence: {
+        category_insights: data.category_insights || {},
+        strategic_priorities: data.strategic_priorities || {},
+        executive_summary: data.executive_summary_v2 || {},
+        buyer_journey_insights: data.buyer_journey_insights || {},
+        metadata: data.intelligence_metadata || {}
+      }
+    });
+  })
+);
+
+/**
+ * Get Layer 1: Category Insights
+ */
+router.get(
+  '/strategic/category-insights',
+  extractUser,
+  asyncHandler(async (req: Request, res: Response) => {
+    const { auditId, category } = req.query;
+
+    if (!auditId) {
+      return res.status(400).json({ error: 'Audit ID required' });
+    }
+
+    const result = await db.query(
+      `SELECT category_insights, company_name
+       FROM dashboard_data
+       WHERE audit_id = $1`,
+      [auditId]
+    );
+
+    if (!result.rows[0]) {
+      return res.status(404).json({ error: 'Category insights not found' });
+    }
+
+    const categoryInsights = result.rows[0].category_insights || {};
+
+    // Filter by category if specified
+    if (category && category !== 'all') {
+      const filtered = categoryInsights[category as string] || {};
+      return res.json({
+        audit_id: auditId,
+        category,
+        insights: filtered
+      });
+    }
+
+    res.json({
+      audit_id: auditId,
+      company_name: result.rows[0].company_name,
+      categories: categoryInsights
+    });
+  })
+);
+
+/**
+ * Get Layer 2: Strategic Priorities
+ */
+router.get(
+  '/strategic/priorities',
+  extractUser,
+  asyncHandler(async (req: Request, res: Response) => {
+    const { auditId, type } = req.query;
+
+    if (!auditId) {
+      return res.status(400).json({ error: 'Audit ID required' });
+    }
+
+    const result = await db.query(
+      `SELECT strategic_priorities, company_name, overall_score
+       FROM dashboard_data
+       WHERE audit_id = $1`,
+      [auditId]
+    );
+
+    if (!result.rows[0]) {
+      return res.status(404).json({ error: 'Strategic priorities not found' });
+    }
+
+    const priorities = result.rows[0].strategic_priorities || {};
+
+    // Filter by type if specified (recommendations, competitive_gaps, content_opportunities)
+    if (type && type !== 'all') {
+      const filtered = priorities[type as string] || [];
+      return res.json({
+        audit_id: auditId,
+        type,
+        priorities: filtered
+      });
+    }
+
+    res.json({
+      audit_id: auditId,
+      company_name: result.rows[0].company_name,
+      overall_score: result.rows[0].overall_score,
+      priorities
+    });
+  })
+);
+
+/**
+ * Get Layer 3: Executive Summary
+ */
+router.get(
+  '/strategic/executive-summary',
+  extractUser,
+  asyncHandler(async (req: Request, res: Response) => {
+    const { auditId } = req.query;
+
+    if (!auditId) {
+      return res.status(400).json({ error: 'Audit ID required' });
+    }
+
+    const result = await db.query(
+      `SELECT
+        executive_summary_v2,
+        company_name,
+        company_domain,
+        industry,
+        overall_score,
+        geo_score,
+        sov_score,
+        created_at
+      FROM dashboard_data
+      WHERE audit_id = $1`,
+      [auditId]
+    );
+
+    if (!result.rows[0]) {
+      return res.status(404).json({ error: 'Executive summary not found' });
+    }
+
+    const data = result.rows[0];
+    const executiveSummary = data.executive_summary_v2 || {};
+
+    res.json({
+      audit_id: auditId,
+      company: {
+        name: data.company_name,
+        domain: data.company_domain,
+        industry: data.industry
+      },
+      scores: {
+        overall: data.overall_score,
+        geo: data.geo_score,
+        sov: data.sov_score
+      },
+      executive_brief: executiveSummary.summary || {},
+      persona: executiveSummary.persona,
+      generated_at: data.created_at
+    });
+  })
+);
+
+/**
+ * Get Buyer Journey Insights (Phase 2 batch insights)
+ */
+router.get(
+  '/strategic/buyer-journey',
+  extractUser,
+  asyncHandler(async (req: Request, res: Response) => {
+    const { auditId, category } = req.query;
+
+    if (!auditId) {
+      return res.status(400).json({ error: 'Audit ID required' });
+    }
+
+    const result = await db.query(
+      `SELECT buyer_journey_insights, company_name
+       FROM dashboard_data
+       WHERE audit_id = $1`,
+      [auditId]
+    );
+
+    if (!result.rows[0]) {
+      return res.status(404).json({ error: 'Buyer journey insights not found' });
+    }
+
+    const buyerJourneyInsights = result.rows[0].buyer_journey_insights || {};
+
+    // Filter by category if specified
+    if (category && category !== 'all') {
+      const filtered = buyerJourneyInsights[category as string] || {};
+      return res.json({
+        audit_id: auditId,
+        category,
+        batches: filtered
+      });
+    }
+
+    res.json({
+      audit_id: auditId,
+      company_name: result.rows[0].company_name,
+      buyer_journey: buyerJourneyInsights
+    });
+  })
+);
+
+/**
+ * Get Intelligence Metadata (performance metrics)
+ */
+router.get(
+  '/strategic/metadata',
+  extractUser,
+  asyncHandler(async (req: Request, res: Response) => {
+    const { auditId } = req.query;
+
+    if (!auditId) {
+      return res.status(400).json({ error: 'Audit ID required' });
+    }
+
+    const result = await db.query(
+      `SELECT intelligence_metadata, processing_time_seconds
+       FROM dashboard_data
+       WHERE audit_id = $1`,
+      [auditId]
+    );
+
+    if (!result.rows[0]) {
+      return res.status(404).json({ error: 'Metadata not found' });
+    }
+
+    const metadata = result.rows[0].intelligence_metadata || {};
+
+    res.json({
+      audit_id: auditId,
+      llm_metrics: {
+        total_calls: metadata.total_llm_calls || 118,
+        phase2_calls: metadata.phase2_calls || 96,
+        layer1_calls: metadata.layer1_calls || 18,
+        layer2_calls: metadata.layer2_calls || 3,
+        layer3_calls: metadata.layer3_calls || 1,
+        total_cost: metadata.total_cost || 0,
+        processing_time: metadata.processing_time_seconds || result.rows[0].processing_time_seconds
+      },
+      timing_breakdown: {
+        phase2_seconds: metadata.phase2_time_seconds || 0,
+        layer1_seconds: metadata.layer1_time_seconds || 0,
+        layer2_seconds: metadata.layer2_time_seconds || 0,
+        layer3_seconds: metadata.layer3_time_seconds || 0
+      }
+    });
   })
 );
 

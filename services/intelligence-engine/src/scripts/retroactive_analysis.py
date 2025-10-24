@@ -210,23 +210,7 @@ class RetroactiveAnalysisEngine:
                     json.dumps(result['analysis_metadata']),
                     result['response_id']
                 ))
-                
-                # Also update ai_responses if it exists
-                cursor.execute("""
-                    UPDATE ai_responses
-                    SET 
-                        geo_score = %s,
-                        sov_score = %s,
-                        recommendations = %s,
-                        updated_at = NOW()
-                    WHERE id = %s
-                """, (
-                    result['geo_score'],
-                    result['sov_score'],
-                    json.dumps(result['recommendations']),
-                    result['response_id']
-                ))
-                
+
                 conn.commit()
                 self.success_count += 1
                 logger.info(f"Updated response {result['response_id']} - GEO: {result['geo_score']:.1f}, SOV: {result['sov_score']:.1f}, Recommendations: {len(result['recommendations'])}")

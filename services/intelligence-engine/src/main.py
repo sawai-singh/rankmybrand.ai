@@ -14,7 +14,7 @@ from src.monitoring.middleware import setup_metrics_middleware
 from src.processors import ResponseProcessor
 from src.models.schemas import AIResponse, ProcessedResponse
 from src.api import analysis_routes
-from src.core.services.job_processor import AuditJobProcessor
+from src.core.services.job_processor import AuditJobProcessor, ProcessorConfig
 
 
 # Global instances
@@ -31,6 +31,11 @@ job_processor: AuditJobProcessor = None
 async def lifespan(app: FastAPI):
     """Manage application lifecycle."""
     global consumer, postgres, redis, cache, health_checker, processor, job_processor
+
+    # Declare task variables
+    consumer_task = None
+    job_consumer_task = None
+    stuck_audit_monitor_task = None
     
     # Startup
     print("Starting Intelligence Engine...")
@@ -56,14 +61,25 @@ async def lifespan(app: FastAPI):
     
     # Start consumer in background task
     consumer_task = asyncio.create_task(consumer.start())
-    
-    # Initialize job_consumer_task variable
-    job_consumer_task = None
-    
+
     # Initialize and start job processor for AI visibility audits
     print("Initializing AI Visibility Job Processor...")
     try:
-        job_processor = AuditJobProcessor(settings)
+        # Create ProcessorConfig from settings
+        processor_config = ProcessorConfig(
+            db_host=settings.postgres_host,
+            db_port=settings.postgres_port,
+            db_name=settings.postgres_db,
+            db_user=settings.postgres_user,
+            db_password=settings.postgres_password,
+            redis_host=settings.redis_host,
+            redis_port=settings.redis_port,
+            openai_api_key=settings.openai_api_key,
+            anthropic_api_key=settings.anthropic_api_key,
+            google_ai_api_key=settings.google_ai_api_key,
+            perplexity_api_key=settings.perplexity_api_key
+        )
+        job_processor = AuditJobProcessor(processor_config)
         await job_processor.initialize()
         
         # Start job consumer loop in background
@@ -72,7 +88,8 @@ async def lifespan(app: FastAPI):
             import redis.asyncio as redis
             import json
             from datetime import datetime
-            
+
+            print("DEBUG: run_job_consumer starting...")
             redis_client = redis.Redis(
                 host=settings.redis_host,
                 port=settings.redis_port,
@@ -80,45 +97,175 @@ async def lifespan(app: FastAPI):
                 password=settings.redis_password,
                 decode_responses=True
             )
-            
+            print(f"DEBUG: Redis client created, listening on bull:ai-visibility-audit:wait")
+
             while True:
                 try:
-                    # Fetch job from queue
+                    # Fetch job from queue (Bull stores complete job objects as JSON)
+                    print(f"DEBUG: Waiting for job from queue...")
                     job_data = await redis_client.blpop('bull:ai-visibility-audit:wait', timeout=5)
-                    
+                    print(f"DEBUG: blpop returned: {job_data}")
+
                     if job_data:
-                        job_json = json.loads(job_data[1])
-                        print(f"Processing audit job: {job_json.get('id')}")
-                        
-                        # Process job
+                        job_id = job_data[1]  # Extract job ID from blpop result (Bull stores just the ID)
+                        print(f"DEBUG: Got job ID from queue: {job_id}")
+
                         try:
-                            await job_processor.process_audit_job(job_json['data'])
-                            
-                            # Mark job as completed
-                            await redis_client.lpush('bull:ai-visibility-audit:completed', job_json['id'])
-                            print(f"Completed audit job: {job_json.get('id')}")
-                            
-                        except Exception as e:
-                            print(f"Failed to process job {job_json.get('id')}: {e}")
-                            # Mark job as failed
-                            await redis_client.lpush('bull:ai-visibility-audit:failed', json.dumps({
-                                'id': job_json['id'],
-                                'error': str(e),
-                                'timestamp': datetime.now().isoformat()
-                            }))
-                    
+                            # Fetch complete job object from Bull hash using the job ID
+                            job_hash_key = f"bull:ai-visibility-audit:{job_id}"
+                            job_hash_data = await redis_client.hgetall(job_hash_key)
+
+                            if not job_hash_data or 'data' not in job_hash_data:
+                                print(f"ERROR: No data found in job hash {job_hash_key}")
+                                print(f"DEBUG: Job may have been removed by Bull, or wrong format was pushed to queue")
+                                continue
+
+                            # Parse job payload from hash
+                            job_payload = json.loads(job_hash_data['data'])
+                            audit_id = job_payload.get('audit_id')
+                            source = job_payload.get('source', 'unknown')
+
+                            print(f"[JOB-START] Processing job {job_id} for audit {audit_id} (source: {source})")
+                            print(f"[JOB-START] Job payload: skip_phase_2={job_payload.get('skip_phase_2')}, force_reanalyze={job_payload.get('force_reanalyze')}")
+
+                            # Process job with comprehensive error handling
+                            try:
+                                await job_processor.process_audit_job(job_payload)
+                                print(f"[JOB-SUCCESS] Completed audit job {job_id} for audit {audit_id}")
+
+                            except Exception as e:
+                                error_msg = str(e)
+                                print(f"[JOB-FAILED] Failed to process job {job_id} for audit {audit_id}: {error_msg}")
+                                import traceback
+                                print(f"[JOB-FAILED] Traceback: {traceback.format_exc()}")
+
+                                # Ensure audit status is updated to failed in database
+                                # job_processor._handle_job_failure already called inside process_audit_job
+                                # but we log it here for visibility
+
+                        except json.JSONDecodeError as e:
+                            print(f"ERROR: Failed to parse job JSON for {job_id}: {e}")
+                            print(f"Raw data from hash 'data' field may be corrupted")
+
                     await asyncio.sleep(0.1)  # Small delay to prevent tight loop
-                    
+
                 except Exception as e:
                     print(f"Error in job consumer loop: {e}")
+                    import traceback
+                    print(f"Traceback: {traceback.format_exc()}")
                     await asyncio.sleep(5)  # Wait before retrying
         
         job_consumer_task = asyncio.create_task(run_job_consumer())
         print("AI Visibility Job Processor started")
-        
+
+        # Start stuck audit monitor in background
+        async def monitor_stuck_audits():
+            """Monitor and automatically resume stuck audits."""
+            import psycopg2
+            import psycopg2.extras
+            import redis.asyncio as redis
+            import json
+            from datetime import datetime
+
+            print("DEBUG: Stuck audit monitor starting...")
+            redis_client = redis.Redis(
+                host=settings.redis_host,
+                port=settings.redis_port,
+                db=settings.redis_db,
+                password=settings.redis_password,
+                decode_responses=True
+            )
+
+            while True:
+                try:
+                    # Connect to PostgreSQL using psycopg2
+                    conn = psycopg2.connect(
+                        host=settings.postgres_host,
+                        port=settings.postgres_port,
+                        dbname=settings.postgres_db,
+                        user=settings.postgres_user,
+                        password=settings.postgres_password
+                    )
+                    cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+
+                    # Query for stuck audits with CORRECTED column names
+                    # Checks for heartbeat to avoid resuming actively processing audits
+                    # CRITICAL: Don't retrigger audits that are already completed
+                    query = """
+                        SELECT
+                            a.id as audit_id,
+                            a.company_id,
+                            a.company_name,
+                            a.status,
+                            a.current_phase,
+                            a.started_at,
+                            a.last_heartbeat,
+                            (SELECT COUNT(*) FROM audit_queries WHERE audit_id = a.id) as queries_generated,
+                            (SELECT COUNT(*) FROM audit_responses WHERE audit_id = a.id) as responses_collected
+                        FROM ai_visibility_audits a
+                        WHERE a.status = 'processing'
+                          AND a.current_phase = 'pending'
+                          AND a.started_at < NOW() - INTERVAL '10 minutes'
+                          AND (a.last_heartbeat IS NULL OR a.last_heartbeat < NOW() - INTERVAL '10 minutes')
+                          AND (SELECT COUNT(*) FROM audit_responses WHERE audit_id = a.id) > 0
+                          AND a.completed_at IS NULL
+                          AND NOT EXISTS (SELECT 1 FROM dashboard_data WHERE audit_id = a.id)
+                        ORDER BY a.started_at ASC
+                    """
+
+                    cur.execute(query)
+                    stuck_audits = cur.fetchall()
+                    cur.close()
+                    conn.close()
+
+                    if stuck_audits:
+                        print(f"[STUCK-AUDIT-MONITOR] Found {len(stuck_audits)} stuck audits")
+
+                        for audit in stuck_audits:
+                            audit_id = audit['audit_id']
+                            company_id = audit['company_id']
+                            company_name = audit['company_name']
+                            queries_generated = audit['queries_generated']
+                            responses_collected = audit['responses_collected']
+
+                            print(f"[STUCK-AUDIT-MONITOR] Resuming audit {audit_id} ({company_name})")
+                            print(f"  - Company ID: {company_id}")
+                            print(f"  - Queries: {queries_generated}, Responses: {responses_collected}")
+
+                            # Create job to resume audit
+                            job_id = f"stuck-audit-{audit_id}-{int(datetime.now().timestamp())}"
+                            job_payload = {
+                                "audit_id": audit_id,
+                                "company_id": company_id,
+                                "skip_phase_2": True,  # Skip query execution, go straight to analysis
+                                "force_reanalyze": True,
+                                "source": "stuck_audit_monitor"
+                            }
+
+                            # Store job in Bull format
+                            job_hash_key = f"bull:ai-visibility-audit:{job_id}"
+                            await redis_client.hset(job_hash_key, "data", json.dumps(job_payload))
+
+                            # Push job ID to queue
+                            await redis_client.rpush("bull:ai-visibility-audit:wait", job_id)
+
+                            print(f"[STUCK-AUDIT-MONITOR] Created resume job {job_id}")
+
+                    await asyncio.sleep(30)  # Check every 30 seconds
+
+                except Exception as e:
+                    print(f"[STUCK-AUDIT-MONITOR] Error: {e}")
+                    import traceback
+                    print(f"[STUCK-AUDIT-MONITOR] Traceback: {traceback.format_exc()}")
+                    await asyncio.sleep(30)  # Wait before retrying
+
+        stuck_audit_monitor_task = asyncio.create_task(monitor_stuck_audits())
+        print("Stuck Audit Monitor started")
+
     except Exception as e:
         print(f"Failed to start job processor: {e}")
         job_consumer_task = None
+        stuck_audit_monitor_task = None
     
     print("Intelligence Engine started successfully")
     
@@ -144,6 +291,14 @@ async def lifespan(app: FastAPI):
         job_consumer_task.cancel()
         try:
             await job_consumer_task
+        except asyncio.CancelledError:
+            pass
+
+    # Cancel stuck audit monitor task
+    if stuck_audit_monitor_task and not stuck_audit_monitor_task.done():
+        stuck_audit_monitor_task.cancel()
+        try:
+            await stuck_audit_monitor_task
         except asyncio.CancelledError:
             pass
     
@@ -211,6 +366,14 @@ try:
     print("Dashboard endpoints loaded successfully")
 except ImportError as e:
     print(f"Dashboard endpoints not available: {e}")
+
+# Include Config/Feature Flags routes
+try:
+    from src.api import config_routes
+    app.include_router(config_routes.router, prefix="/api/config", tags=["config"])
+    print("Config/Feature Flags endpoints loaded successfully")
+except ImportError as e:
+    print(f"Config endpoints not available: {e}")
 
 
 @app.get("/")
@@ -384,11 +547,47 @@ async def invalidate_cache(pattern: str = "*"):
 
 if __name__ == "__main__":
     import uvicorn
-    
+    import logging
+
+    # Configure logging with timestamps - writes to BOTH console and file
+    log_config = {
+        "version": 1,
+        "disable_existing_loggers": False,
+        "formatters": {
+            "default": {
+                "format": "%(asctime)s - %(levelname)s - %(message)s",
+                "datefmt": "%Y-%m-%d %H:%M:%S"
+            },
+        },
+        "handlers": {
+            "console": {
+                "formatter": "default",
+                "class": "logging.StreamHandler",
+                "stream": "ext://sys.stdout",
+            },
+            "file": {
+                "formatter": "default",
+                "class": "logging.FileHandler",
+                "filename": "/tmp/intelligence-engine.log",
+                "mode": "a",  # Append mode
+            },
+        },
+        "loggers": {
+            "uvicorn": {"handlers": ["console", "file"], "level": "INFO"},
+            "uvicorn.error": {"handlers": ["console", "file"], "level": "INFO"},
+            "uvicorn.access": {"handlers": ["console", "file"], "level": "INFO", "propagate": False},
+        },
+        "root": {
+            "handlers": ["console", "file"],
+            "level": "INFO"
+        }
+    }
+
     uvicorn.run(
         "src.main:app",
         host="0.0.0.0",
         port=settings.service_port,
         reload=False,
-        log_level=settings.log_level.lower()
+        log_level=settings.log_level.lower(),
+        log_config=log_config
     )

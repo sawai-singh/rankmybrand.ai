@@ -116,7 +116,7 @@ class UnifiedResponseAnalyzer:
     def __init__(
         self,
         openai_api_key: str,
-        model: str = "gpt-5-chat-latest",
+        model: str = "gpt-5-nano",
         mode: AnalysisMode = AnalysisMode.FULL
     ):
         """
@@ -214,7 +214,12 @@ class UnifiedResponseAnalyzer:
                 # Get competitor context if available
                 competitor_context = None
                 if competitors:
-                    competitor_context = f"Key competitors: {', '.join(competitors[:5])}"
+                    # Handle both string and object formats for competitors
+                    competitor_names = [
+                        comp if isinstance(comp, str) else comp.get('name', str(comp))
+                        for comp in competitors[:5]
+                    ]
+                    competitor_context = f"Key competitors: {', '.join(competitor_names)}"
                 
                 # Extract recommendations using our LLM-powered extractor
                 recommendations = await self.recommendation_extractor.extract_recommendations_async(
@@ -292,7 +297,7 @@ class UnifiedResponseAnalyzer:
                     {"role": "system", "content": "You are an expert at analyzing AI responses for brand visibility and SEO."},
                     {"role": "user", "content": prompt}
                 ],
-                temperature=0.1,
+                # GPT-5 Nano only supports temperature=1 (default), so we omit it
                 response_format={"type": "json_object"}
             )
             
@@ -505,34 +510,40 @@ class UnifiedResponseAnalyzer:
         llm_response_data = [{
             'provider': provider,
             'query': query,
-            'response': analysis.metadata.get('response_text', ''),
+            'response_text': analysis.metadata.get('response_text', ''),  # Fixed: was 'response'
             'brand_mentioned': analysis.brand_analysis.mentioned,
             'mention_count': analysis.brand_analysis.mention_count,
             'sentiment': analysis.brand_analysis.sentiment.value,
-            'position': analysis.brand_analysis.first_position_percentage,
+            'mention_position': analysis.brand_analysis.first_position_percentage,  # Fixed: was 'position'
             'context_quality': analysis.brand_analysis.context_quality.value,
             'recommendation_strength': analysis.brand_analysis.recommendation_strength.value
         }]
         
         # Extract domain from brand name or use default
         domain = analysis.metadata.get('domain', f"{brand_name.lower().replace(' ', '')}.com")
-        
-        # Use the dedicated GEO calculator
-        geo_result = self.geo_calculator.calculate(
-            domain=domain,
-            content=analysis.metadata.get('response_text', ''),
-            brand_terms=[brand_name] + analysis.metadata.get('brand_variations', []),
-            queries=[{'query': query, 'intent': analysis.metadata.get('query_intent', 'informational')}],
-            llm_responses=llm_response_data
-        )
-        
-        # Extract the overall GEO score from calculator result
-        geo_score = geo_result.get('overall_score', 0.0)
-        
-        # Store detailed metrics in metadata for transparency
-        analysis.metadata['geo_metrics'] = geo_result.get('metrics', {})
-        
-        return round(geo_score, 2)
+
+        # Use the dedicated GEO calculator - ASYNC VERSION
+        try:
+            geo_result = await self.geo_calculator.calculate_async(
+                domain=domain,
+                content=analysis.metadata.get('response_text', ''),
+                brand_terms=[brand_name] + analysis.metadata.get('brand_variations', []),
+                queries=[{'query': query, 'intent': analysis.metadata.get('query_intent', 'informational')}],
+                llm_responses=llm_response_data
+            )
+
+            # Extract the overall GEO score from calculator result
+            geo_score = geo_result.get('overall_score', 0.0)
+
+            # Store detailed metrics in metadata for transparency
+            analysis.metadata['geo_metrics'] = geo_result.get('metrics', {})
+
+            return round(geo_score, 2)
+        except Exception as e:
+            logger.error(f"Error calculating GEO score for {domain}: {e}")
+            # Return safe default on error
+            analysis.metadata['geo_error'] = str(e)
+            return 0.0
     
     def _sentiment_to_score(self, sentiment: str) -> float:
         """Convert sentiment label to numerical score"""
@@ -678,11 +689,17 @@ class UnifiedResponseAnalyzer:
     ) -> str:
         """Build the analysis prompt for LLM"""
         
+        # Handle both string and object formats for competitors
+        competitor_names = [
+            comp if isinstance(comp, str) else comp.get('name', str(comp))
+            for comp in (competitors or [])
+        ]
+
         prompt = f"""Analyze this AI response for brand visibility and SEO factors.
 
 Query: {query}
 Brand: {brand_name}
-Competitors: {', '.join(competitors) if competitors else 'None'}
+Competitors: {', '.join(competitor_names) if competitor_names else 'None'}
 Key Features: {', '.join(features) if features else 'None'}
 Value Props: {', '.join(value_props) if value_props else 'None'}
 

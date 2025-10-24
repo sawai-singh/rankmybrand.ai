@@ -15,30 +15,32 @@
  */
 
 import { FuturisticHero } from '@/components/features/futuristic-hero';
-import { ComparisonTable } from '@/components/features/comparison-table';
-import { LiveTicker } from '@/components/features/live-ticker';
 import { TrustBadges } from '@/components/features/trust-badges';
 import { FAQSection } from '@/components/features/faq-section';
+import { Header } from '@/components/layout/header';
 import { Zap, Shield, TrendingUp, Info } from 'lucide-react';
 import { useState } from 'react';
+import { motion } from 'framer-motion';
 
 export default function HomePage() {
 
   return (
     <>
-      
-      <main id="main-content" className="min-h-screen">
+      <Header />
+
+      <main id="main-content" className="min-h-screen pt-16">
         {/* Hero Section - Futuristic AI Visibility Platform */}
         <FuturisticHero />
 
-        {/* Social Proof Ticker - [3:Feedback] Live updates */}
-        <section 
-          className="border-y border-gray-200 dark:border-gray-800 py-4"
-          aria-label="Live activity feed"
+        {/* Social Proof - Static */}
+        <section
+          className="border-y border-gray-200 dark:border-gray-800 py-6"
+          aria-label="Social proof"
         >
-          {/* [43:Keyboard navigation] Pausable ticker */}
-          <div role="status" aria-live="polite" aria-atomic="true">
-            <LiveTicker />
+          <div className="container mx-auto px-4 text-center">
+            <p className="text-sm text-gray-600 dark:text-gray-400">
+              Join <span className="font-semibold text-primary-600 dark:text-primary-400">1,000+ brands</span> tracking their AI visibility across all major platforms
+            </p>
           </div>
         </section>
 
@@ -66,7 +68,7 @@ export default function HomePage() {
               <ValueProp
                 icon={<TrendingUp />}
                 title="Real-time Updates"
-                description="Track your brand mentions across ChatGPT, Claude, Gemini, and Perplexity as they happen"
+                description="Track your brand mentions across all major AI platforms as they happen"
                 highlight="Live Tracking"
                 disclaimer="Updates every 60 seconds during business hours"
               />
@@ -80,15 +82,6 @@ export default function HomePage() {
           </div>
         </div>
       </section>
-
-
-        {/* Comparison Table - [40:Semantic HTML] Proper table structure */}
-        <section className="py-20 px-4" aria-labelledby="comparison-heading">
-          <div className="container mx-auto">
-            <h2 id="comparison-heading" className="sr-only">Feature Comparison</h2>
-            <ComparisonTable />
-          </div>
-        </section>
 
 
         {/* Trust Badges - [41:Alt text] Meaningful descriptions */}
@@ -169,13 +162,13 @@ export default function HomePage() {
   );
 }
 
-function ValueProp({ 
-  icon, 
-  title, 
-  description, 
+function ValueProp({
+  icon,
+  title,
+  description,
   highlight,
   disclaimer
-}: { 
+}: {
   icon: React.ReactNode;
   title: string;
   description: string;
@@ -183,23 +176,32 @@ function ValueProp({
   disclaimer?: string;
 }) {
   const [showTooltip, setShowTooltip] = useState(false);
-  
+
   return (
-    <div className="relative group">
+    <motion.div
+      className="relative group h-full"
+      initial={{ opacity: 0, y: 20 }}
+      whileInView={{ opacity: 1, y: 0 }}
+      viewport={{ once: true }}
+      transition={{ duration: 0.5 }}
+      whileHover={{ y: -8 }}
+    >
       {/* [11:Aesthetic-Usability] Subtle depth with motion */}
-      <div 
+      <div
         className="absolute inset-0 bg-gradient-to-r from-primary-500/10 to-purple-500/10 rounded-2xl blur-xl opacity-0 group-hover:opacity-100 transition-opacity duration-300 motion-reduce:transition-none"
-        aria-hidden="true" 
+        aria-hidden="true"
       />
-      <div className="relative glass rounded-2xl p-8 h-full card-hover">
+      <div className="relative glass rounded-2xl p-8 h-full transition-shadow duration-300 group-hover:shadow-2xl">
         <div className="flex items-center gap-4 mb-4">
           {/* [14:Visual hierarchy] Icon as secondary element */}
-          <div 
+          <motion.div
             className="p-3 bg-primary-100 dark:bg-primary-900/20 rounded-xl text-primary-600 dark:text-primary-400"
             aria-hidden="true"
+            whileHover={{ rotate: 5, scale: 1.1 }}
+            transition={{ type: "spring", stiffness: 300 }}
           >
             {icon}
-          </div>
+          </motion.div>
           <span className="px-3 py-1 bg-green-100 dark:bg-green-900/20 text-green-700 dark:text-green-400 rounded-full text-sm font-medium">
             {highlight}
           </span>
@@ -216,20 +218,27 @@ function ValueProp({
             </button>
           )}
         </div>
-        <h3 className="text-xl font-heading font-bold mb-2">{title}</h3>
-        <p className="text-gray-600 dark:text-gray-400">{description}</p>
-        
+        <h3 className="text-xl font-heading font-bold mb-2 group-hover:text-primary-600 dark:group-hover:text-primary-400 transition-colors">
+          {title}
+        </h3>
+        <p className="text-gray-600 dark:text-gray-400 leading-relaxed">
+          {description}
+        </p>
+
         {/* [57:Tooltip] Disclaimer on hover */}
         {disclaimer && showTooltip && (
-          <div 
-            className="absolute top-0 right-0 mt-12 mr-4 p-2 bg-gray-900 dark:bg-gray-100 text-white dark:text-gray-900 text-xs rounded-lg shadow-lg z-10 max-w-xs"
+          <motion.div
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -10 }}
+            className="absolute top-0 right-0 mt-12 mr-4 p-3 bg-gray-900 dark:bg-gray-100 text-white dark:text-gray-900 text-xs rounded-lg shadow-xl z-10 max-w-xs border border-gray-700 dark:border-gray-300"
             role="tooltip"
           >
             {disclaimer}
-          </div>
+          </motion.div>
         )}
       </div>
-    </div>
+    </motion.div>
   );
 }
 

@@ -463,7 +463,7 @@ async function checkAIVisibilityHealth() {
       : 0;
     
     return {
-      status: data.status || 'degraded',
+      status: (data as any).status || 'degraded',
       responseTime,
       service: data,
       metrics: {

@@ -29,7 +29,7 @@ router.post('/queue',
       return res.status(400).json({ errors: errors.array() });
     }
 
-    const { userId, companyId, sessionId, email, companyName, competitorCount, metadata } = req.body;
+    const { userId, companyId, sessionId, email, companyName, competitorCount, auditId, metadata } = req.body;
 
     const report = await reportQueueService.queueReport({
       userId,
@@ -38,6 +38,7 @@ router.post('/queue',
       email,
       companyName,
       competitorCount,
+      auditId,
       metadata
     });
 

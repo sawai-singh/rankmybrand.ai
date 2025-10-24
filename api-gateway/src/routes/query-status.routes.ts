@@ -19,7 +19,9 @@ router.get(
     
     // Check existing queries
     const result = await db.query(
-      'SELECT COUNT(*) as count FROM ai_queries WHERE company_id = $1',
+      `SELECT COUNT(*) as count FROM audit_queries aq
+       JOIN ai_visibility_audits av ON aq.audit_id = av.id
+       WHERE av.company_id = $1`,
       [companyId]
     );
     
@@ -54,7 +56,9 @@ router.post(
     // Check if queries already exist
     if (!force) {
       const existing = await db.query(
-        'SELECT COUNT(*) as count FROM ai_queries WHERE company_id = $1',
+        `SELECT COUNT(*) as count FROM audit_queries aq
+         JOIN ai_visibility_audits av ON aq.audit_id = av.id
+         WHERE av.company_id = $1`,
         [companyId]
       );
       

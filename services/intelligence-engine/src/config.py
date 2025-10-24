@@ -55,33 +55,52 @@ class Settings(BaseSettings):
     batch_timeout: int = Field(default=5, env="BATCH_TIMEOUT")
     max_retries: int = Field(default=3, env="MAX_RETRIES")
     retry_delay: int = Field(default=1, env="RETRY_DELAY")
-    
+
     # Cache Configuration
     cache_enabled: bool = Field(default=True, env="CACHE_ENABLED")
     cache_ttl_seconds: int = Field(default=86400, env="CACHE_TTL_SECONDS")
     cache_max_size: int = Field(default=1000, env="CACHE_MAX_SIZE")
-    
+
     # Monitoring
     enable_metrics: bool = Field(default=True, env="ENABLE_METRICS")
     health_check_interval: int = Field(default=30, env="HEALTH_CHECK_INTERVAL")
-    
+
     # Performance Tuning
     max_text_length: int = Field(default=512, env="MAX_TEXT_LENGTH")
     similarity_threshold: float = Field(default=0.75, env="SIMILARITY_THRESHOLD")
     confidence_threshold: float = Field(default=0.7, env="CONFIDENCE_THRESHOLD")
     top_k_keywords: int = Field(default=10, env="TOP_K_KEYWORDS")
-    
+
+    # Analysis Strategy Configuration (Migration Path)
+    # FEATURE FLAG: Switch between legacy Phase 1 (individual) and new batched-only analysis
+    use_batched_analysis_only: bool = Field(
+        default=True,  # Default to new batched approach
+        env="USE_BATCHED_ANALYSIS_ONLY",
+        description=(
+            "If True: Skip Phase 1 (144 individual LLM calls) and use ONLY Phase 2 batched Call #4 (96 calls). "
+            "If False: Use legacy Phase 1 + Phase 2 (240 total calls - DEPRECATED). "
+            "Recommendation: Keep True for 87.5% cost reduction and same accuracy."
+        )
+    )
+
+    # Deprecation flag for Phase 1
+    enable_phase1_deprecation_warnings: bool = Field(
+        default=True,
+        env="ENABLE_PHASE1_DEPRECATION_WARNINGS",
+        description="Show warnings when Phase 1 (legacy individual analysis) is used"
+    )
+
     # LLM Configuration for Entity Detection and AI Analysis
-    openai_api_key: str = Field(default="", env="OPENAI_API_KEY")
-    openai_model: str = Field(default="gpt-5-chat-latest", env="OPENAI_MODEL")
+    # Note: openai_api_key already defined at line 50, removed duplicate
+    anthropic_api_key: str = Field(default="", env="ANTHROPIC_API_KEY")
+    google_ai_api_key: str = Field(default="", env="GOOGLE_AI_API_KEY")
+    perplexity_api_key: str = Field(default="", env="PERPLEXITY_API_KEY")
+    openai_model: str = Field(default="gpt-5-nano", env="OPENAI_MODEL")
     openai_timeout: int = Field(default=30, env="OPENAI_TIMEOUT")
     openai_max_calls_per_minute: int = Field(default=60, env="OPENAI_MAX_CALLS_PER_MINUTE")
     openai_max_calls_per_customer: int = Field(default=10, env="OPENAI_MAX_CALLS_PER_CUSTOMER")
     
     # Additional LLM Providers
-    anthropic_api_key: str = Field(default="", env="ANTHROPIC_API_KEY")
-    perplexity_api_key: str = Field(default="", env="PERPLEXITY_API_KEY")
-    gemini_api_key: str = Field(default="", env="GOOGLE_AI_API_KEY")
     cohere_api_key: str = Field(default="", env="COHERE_API_KEY")
     
     # Security Configuration

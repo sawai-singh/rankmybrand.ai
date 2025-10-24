@@ -7,6 +7,10 @@ import axios from 'axios';
 import dns from 'dns/promises';
 import { promisify } from 'util';
 import { llmEnrichmentService } from './llm-enrichment.service';
+import * as dotenv from 'dotenv';
+
+// Load environment variables
+dotenv.config();
 
 // Enrichment API configurations
 const ENRICHMENT_APIS = {
@@ -28,13 +32,42 @@ const ENRICHMENT_APIS = {
 };
 
 export interface CompanyEnrichment {
+  // Basic Information
   name: string;
   domain: string;
   industry?: string;
   size?: string;
   employeeCount?: number;
   logo?: string;
-  description?: string;
+
+  // Structured Description (replaces generic "description")
+  what_they_do?: string;                    // One clear sentence
+  how_they_help?: string;                   // Value proposition in 1-2 sentences
+  description?: string;                     // Legacy field for backwards compatibility
+
+  // Enhanced Products/Services
+  products_services?: Array<{
+    name: string;
+    description: string;
+    key_features: string[];
+  }> | string[];                            // Support both new structured and old string[] format
+
+  // Critical Context Fields for Query Generation
+  unique_value_propositions?: string[];     // What makes them special
+  pain_points_solved?: string[];            // Problems they fix
+  primary_use_cases?: string[];             // How customers use them
+  target_customer_types?: string[];         // Who buys from them
+
+  // Enhanced Competitors
+  competitors?: Array<{
+    name: string;
+    main_product: string;                  // Their flagship offering
+    company_stage?: string;                // startup|growth|enterprise|established
+    domain?: string;                       // Competitor domain
+    logo?: string;                         // Competitor logo URL
+  }> | string[];                            // Support both new structured and old string[] format
+
+  // Location & Social
   location?: {
     city?: string;
     state?: string;
@@ -45,9 +78,32 @@ export interface CompanyEnrichment {
     twitter?: string;
     facebook?: string;
   };
-  tags?: string[];
+
+  // Features & Capabilities
+  key_features?: string[];                  // Specific capabilities (replaces generic "tags")
+  tags?: string[];                          // Legacy field for backwards compatibility
+
+  // Optional Technical Details
   techStack?: string[];
-  competitors?: string[];
+  fundingStage?: string;
+  yearFounded?: string;
+
+  // Quality Tracking
+  qualityMetrics?: {
+    completeness: number;      // 0-1 score for data completeness
+    specificity: number;        // 0-1 score for how specific (not generic) the data is
+    warnings: string[];         // Array of quality warnings
+  };
+
+  // Business Model Classification (NEW)
+  business_model?: 'B2C' | 'B2B' | 'B2B2C';
+  customer_type?: {
+    primary: 'individual_consumers' | 'small_businesses' | 'enterprises' | 'developers' | 'mixed';
+    description: string;
+  };
+  transaction_type?: 'product_purchase' | 'service_subscription' | 'software_license' | 'marketplace';
+
+  // Metadata
   enrichmentSource: string;
   confidence: number;
 }
@@ -420,26 +476,22 @@ export class EnrichmentService {
 
   /**
    * Generate AI description for company
+   * Returns the comprehensive description from enrichment data
    */
-  async generateDescription(company: CompanyEnrichment, crawledContent?: any): Promise<string> {
-    const geoService = process.env.GEO_SERVICE || 'http://localhost:8002';
-    
-    try {
-      const response = await axios.post(`${geoService}/api/v1/geo/generate-description`, {
-        companyName: company.name,
-        website: company.domain,
-        industry: company.industry,
-        currentDescription: company.description,
-        crawledContent: crawledContent,
-        maxWords: 100
-      });
-
-      return response.data.description;
-    } catch (error) {
-      console.error('Failed to generate AI description:', error);
-      // Fallback to existing description or generate a simple one
-      return company.description || `${company.name} is a company in the ${company.industry || 'technology'} industry.`;
+  async generateDescription(company: CompanyEnrichment, _crawledContent?: any): Promise<string> {
+    // The description is already generated during enrichment (100-150 words with full details)
+    // Just return it directly
+    if (company.description && company.description.split(' ').length >= 30) {
+      return company.description;
     }
+
+    // Fallback: Build from structured fields if description is missing
+    if (company.what_they_do && company.how_they_help) {
+      return `${company.what_they_do} ${company.how_they_help}`.trim();
+    }
+
+    // Last resort
+    return company.description || `${company.name} is a${company.industry ? ` ${company.industry}` : ''} company${company.location?.country ? ` based in ${company.location.country}` : ''}.`;
   }
 
   /**

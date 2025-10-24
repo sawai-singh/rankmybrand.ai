@@ -12,9 +12,35 @@ import Redis from 'ioredis';
 import axios from 'axios';
 import { WebSocket } from 'ws';
 import { db } from '../database/connection';
+import Bull from 'bull';
+import { v4 as uuidv4 } from 'uuid';
 
 const router = Router();
 const redis = new Redis(process.env.REDIS_URL || 'redis://localhost:6379');
+
+// Initialize Bull queue for audit processing
+export const auditQueue = new Bull('ai-visibility-audit', {
+  redis: {
+    host: process.env.REDIS_HOST || 'localhost',
+    port: parseInt(process.env.REDIS_PORT || '6379'),
+  },
+  defaultJobOptions: {
+    removeOnComplete: 100,
+    removeOnFail: 50,
+    attempts: 3,
+    backoff: {
+      type: 'exponential',
+      delay: 2000,
+    },
+  },
+});
+
+// NOTE: Worker removed - Intelligence Engine directly consumes from Redis queue
+// The Intelligence Engine has its own job processor that:
+// 1. Reads jobs directly from Redis queue (no HTTP hop needed)
+// 2. Fetches company data from database directly
+// 3. Updates audit status to 'processing'
+// 4. Generates queries and executes full audit pipeline
 
 // WebSocket connections for real-time updates
 const onboardingConnections = new Map<string, WebSocket>();
@@ -170,13 +196,20 @@ router.post('/enrich', async (req: Request, res: Response) => {
     // Validate email first
     const validation = await enrichmentService.validateCorporateEmail(email);
     if (!validation.valid) {
+      console.error(`Email validation failed for ${email}:`, validation.reason);
       return res.status(400).json({
         error: validation.reason || 'Invalid corporate email'
       });
     }
 
     // Enrich company data
+    console.log(`Starting enrichment for ${email}...`);
     const enrichmentData = await enrichmentService.enrichFromEmail(email);
+    console.log(`Enrichment result for ${email}:`, {
+      source: enrichmentData.enrichmentSource,
+      confidence: enrichmentData.confidence,
+      hasBusinessModel: !!enrichmentData.business_model
+    });
     
     // Store in Redis for session
     const sessionId = `onboarding:${Date.now()}:${validation.domain}`;
@@ -190,23 +223,25 @@ router.post('/enrich', async (req: Request, res: Response) => {
     if (db) {
       try {
         // Store company with original data tracking
+        // CRITICAL: Only store enrichment data - NEVER overwrite user-provided descriptions
         const companyResult = await db.query(
           `INSERT INTO companies (
             name, domain, description, industry, website_url, enrichment_data,
             original_name, original_description, original_industry,
             source_type, data_completeness, created_at
           )
-           VALUES ($1, $2, $3, $4, $5, $6, $1, $3, $4, 'enrichment', $7, CURRENT_TIMESTAMP)
-           ON CONFLICT (domain) 
-           DO UPDATE SET 
-             name = $1, description = $3, industry = $4, enrichment_data = $6,
-             original_name = COALESCE(companies.original_name, $1),
-             original_description = COALESCE(companies.original_description, $3),
-             original_industry = COALESCE(companies.original_industry, $4),
-             source_type = 'enrichment',
+           VALUES ($1, $2, $3, $4, $5, $6, NULL, NULL, NULL, 'enrichment', $7, CURRENT_TIMESTAMP)
+           ON CONFLICT (domain)
+           DO UPDATE SET
+             enrichment_data = $6,
+             -- ONLY update these fields if they are NULL (never overwrite user data)
+             name = COALESCE(companies.name, $1),
+             description = COALESCE(companies.description, $3),
+             industry = COALESCE(companies.industry, $4),
+             data_completeness = $7,
              updated_at = CURRENT_TIMESTAMP
            RETURNING id`,
-          [enrichmentData.name, enrichmentData.domain, enrichmentData.description, 
+          [enrichmentData.name, enrichmentData.domain, enrichmentData.description,
            enrichmentData.industry, `https://${enrichmentData.domain}`, JSON.stringify(enrichmentData),
            calculateDataCompleteness(enrichmentData)]
         );
@@ -457,7 +492,7 @@ router.post('/generate-description', async (req: Request, res: Response) => {
         await db.query(
           `INSERT INTO api_usage (user_email, api_provider, endpoint, tokens_used, success, created_at)
            VALUES ($1, 'openai', 'generate_description', $2, true, CURRENT_TIMESTAMP)`,
-          [email, description.length * 0.75] // Rough token estimate
+          [email, Math.round(description.length * 0.75)] // Rough token estimate
         );
       } catch (dbError) {
         console.error('Failed to update database:', dbError);
@@ -472,6 +507,78 @@ router.post('/generate-description', async (req: Request, res: Response) => {
   } catch (error: any) {
     console.error('Description generation error:', error);
     res.status(500).json({ error: 'Failed to generate description' });
+  }
+});
+
+/**
+ * Save description edits
+ */
+router.post('/save-description', async (req: Request, res: Response) => {
+  try {
+    const { sessionId, description, editedDescription, originalDescription } = req.body;
+
+    if (!sessionId) {
+      return res.status(400).json({ error: 'Session ID is required' });
+    }
+
+    // Update session in Redis
+    const sessionData = await redis.get(sessionId);
+    if (sessionData) {
+      const session = JSON.parse(sessionData);
+      session.description = editedDescription || description;
+      session.editedDescription = editedDescription;
+      session.originalDescription = originalDescription;
+      session.descriptionEdited = editedDescription !== originalDescription;
+      await redis.set(sessionId, JSON.stringify(session));
+    }
+
+    // CRITICAL FIX: Update companies table with user's edited description
+    if (db && sessionData) {
+      const session = JSON.parse(sessionData);
+      const companyDomain = session.enrichmentData?.domain;
+      const finalDescription = editedDescription || description;
+
+      if (companyDomain && finalDescription) {
+        try {
+          // Update companies table with user's description
+          await db.query(
+            `UPDATE companies
+             SET description = $1,
+                 original_description = COALESCE(original_description, $1),
+                 final_description = $1,
+                 user_edited = TRUE,
+                 edit_count = COALESCE(edit_count, 0) + 1,
+                 last_edited_at = CURRENT_TIMESTAMP
+             WHERE domain = $2`,
+            [finalDescription, companyDomain]
+          );
+
+          console.log(`✅ Saved user description for ${companyDomain} (${finalDescription.length} chars)`);
+        } catch (companyUpdateError) {
+          console.error('Failed to update companies table:', companyUpdateError);
+        }
+      }
+
+      // Update onboarding_sessions table
+      try {
+        await db.query(
+          `UPDATE onboarding_sessions
+           SET description_text = $2,
+               edited_description = $3,
+               description_edit_count = COALESCE(description_edit_count, 0) + 1,
+               last_activity = CURRENT_TIMESTAMP
+           WHERE session_id = $1`,
+          [sessionId, description, editedDescription]
+        );
+      } catch (dbError) {
+        console.error('Failed to update onboarding_sessions:', dbError);
+      }
+    }
+
+    res.json({ success: true });
+  } catch (error: any) {
+    console.error('Save description error:', error);
+    res.status(500).json({ error: 'Failed to save description' });
   }
 });
 
@@ -533,11 +640,11 @@ router.post('/find-competitors', async (req: Request, res: Response) => {
           // Store each competitor (handle both string and object formats)
           for (const competitor of competitors || []) {
             const competitorName = typeof competitor === 'string' ? competitor : competitor.name;
-            const competitorDomain = typeof competitor === 'string' ? null : competitor.domain;
-            
-            if (competitorName) {
+            const competitorDomain = typeof competitor === 'string' ? 'unknown' : (competitor.domain || 'unknown');
+
+            if (competitorName && competitorDomain) {
               await db.query(
-                `INSERT INTO competitors (company_id, competitor_name, competitor_domain, discovered_method, created_at)
+                `INSERT INTO competitors (company_id, competitor_name, competitor_domain, discovery_source, created_at)
                  VALUES ($1, $2, $3, 'ai_suggested', CURRENT_TIMESTAMP)
                  ON CONFLICT (company_id, competitor_domain) DO NOTHING`,
                 [companyId, competitorName, competitorDomain]
@@ -650,16 +757,19 @@ router.post('/complete', async (req: Request, res: Response) => {
       let companyRecord = await companyRepository.findByDomain(finalCompany.domain);
       
       if (!companyRecord) {
+        // Prioritize user-provided descriptions over enrichment
+        const userDescription = editedDescription || description || finalCompany.originalDescription || finalCompany.description;
+
         companyRecord = await companyRepository.create({
           name: finalCompany.name,
           domain: finalCompany.domain,
           logo_url: finalCompany.logo,
-          description: editedDescription || description || finalCompany.description,
+          description: userDescription,
           original_name: finalCompany.originalName || finalCompany.name,
-          original_description: finalCompany.originalDescription || finalCompany.description,
+          original_description: userDescription,  // Save user's detailed description here
           final_name: finalCompany.name,
-          final_description: editedDescription || description || finalCompany.description,
-          user_edited: !!editedDescription || finalCompany.userEdited,
+          final_description: userDescription,
+          user_edited: !!(editedDescription || description) || finalCompany.userEdited,
           industry: finalCompany.industry,
           sub_industry: finalCompany.sub_industry,
           value_proposition: finalCompany.value_proposition,
@@ -731,26 +841,31 @@ router.post('/complete', async (req: Request, res: Response) => {
       // 4. Save complete onboarding session with all tracking data
       await db.query(`
         INSERT INTO onboarding_sessions (
-          session_id, user_id, email, current_step,
+          session_id, user_id, email, current_step, status,
           email_validated, company_enriched, description_generated,
           competitors_selected, completed, completed_at,
           company_data, description_text,
           final_company_data, edited_description,
+          final_competitors,
           data_quality_score, completeness_score
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)
         ON CONFLICT (session_id) DO UPDATE SET
+          status = 'completed',
+          current_step = 'complete',
           completed = true,
           completed_at = CURRENT_TIMESTAMP,
-          user_id = $2,
-          final_company_data = $13,
-          edited_description = $14,
-          data_quality_score = $15,
-          completeness_score = $16
+          user_id = EXCLUDED.user_id,
+          final_company_data = EXCLUDED.final_company_data,
+          edited_description = EXCLUDED.edited_description,
+          final_competitors = EXCLUDED.final_competitors,
+          data_quality_score = EXCLUDED.data_quality_score,
+          completeness_score = EXCLUDED.completeness_score
       `, [
         sessionId,
         user.id,
         email,
         'complete',
+        'completed',  // status
         true,
         true,
         true,
@@ -761,6 +876,7 @@ router.post('/complete', async (req: Request, res: Response) => {
         description,
         JSON.stringify(company),  // final_company_data
         editedDescription || description,  // edited_description
+        JSON.stringify(competitors || []),  // final_competitors
         Math.min(9.99, calculateDataQuality(company) / 10),  // data_quality_score (scale to 0-9.99)
         Math.min(9.99, calculateDataCompleteness(company) / 10)  // completeness_score (scale to 0-9.99)
       ]);
@@ -807,15 +923,49 @@ router.post('/complete', async (req: Request, res: Response) => {
     // 8. Clear Redis session
     await redis.del(sessionId);
     
-    // 9. Trigger AI query generation for the company (professional async handling)
+    // 9. Trigger full AI Visibility Audit automatically
     const companyId = result?.company?.id;
     if (companyId) {
-      // Schedule query generation asynchronously - will retry if it fails
-      queryGenerationService.scheduleQueryGeneration(companyId).catch(err => {
-        console.error(`Failed to schedule query generation for company ${companyId}:`, err);
-      });
-      console.log(`Query generation scheduled for company ${companyId}`);
-      
+      try {
+        // Create audit record and queue job for background processing
+        const auditId = uuidv4();
+
+        // Create audit record
+        await db.query(
+          `INSERT INTO ai_visibility_audits (
+            id, company_id, company_name, status, query_count, current_phase, created_at
+          )
+          VALUES ($1, $2, $3, $4, $5, $6, CURRENT_TIMESTAMP)`,
+          [
+            auditId,
+            companyId,
+            result.company.name || 'Unknown',
+            'queued',
+            48,
+            'pending'
+          ]
+        );
+
+        // Queue job for background processing (job processor will generate queries)
+        const job = await auditQueue.add('process-audit', {
+          auditId,
+          companyId,
+          userId: result.user.id || 'api_user',
+          queryCount: 48,
+          providers: ['openai_gpt5', 'anthropic_claude', 'google_gemini', 'perplexity'],
+          config: {
+            company_name: result.company.name || 'Unknown',
+            domain: result.company.domain,
+            industry: result.company.industry || 'Technology'
+          }
+        });
+
+        console.log(`[Onboarding] ✅ Audit queued - Audit ID: ${auditId}, Job ID: ${job.id}`);
+      } catch (auditError) {
+        console.error(`Failed to queue audit for company ${companyId}:`, auditError);
+        // Don't fail onboarding if audit queueing fails
+      }
+
       // 10. Generate dashboard URL for the user
       try {
         const crypto = require('crypto');
@@ -866,7 +1016,11 @@ router.post('/complete', async (req: Request, res: Response) => {
       user: {
         id: result.user.id,
         email: result.user.email,
-        company: result.company.name
+        company: {
+          id: result.company.id,
+          name: result.company.name,
+          domain: result.company.domain
+        }
       },
       auth: {
         token: session.session_token,
@@ -878,25 +1032,8 @@ router.post('/complete', async (req: Request, res: Response) => {
     });
   } catch (dbError: any) {
     console.error('Database operation failed, using fallback:', dbError.message);
-    
-    // Even if the main transaction fails, ensure query generation happens
-    try {
-      // Try to find the company that was created
-      const companyResult = await db.query(
-        'SELECT id FROM companies WHERE domain = $1 ORDER BY created_at DESC LIMIT 1',
-        [finalCompany?.domain]
-      );
-      
-      if (companyResult.rows[0]?.id) {
-        const companyId = companyResult.rows[0].id;
-        console.log(`Transaction failed but company ${companyId} exists - scheduling query generation`);
-        queryGenerationService.scheduleQueryGeneration(companyId).catch(err => {
-          console.error(`Failed to schedule query generation for company ${companyId}:`, err);
-        });
-      }
-    } catch (queryScheduleError) {
-      console.error('Failed to schedule query generation in fallback:', queryScheduleError);
-    }
+    // Note: Audit creation is already handled in the main transaction above
+    // This fallback only handles returning response to user
       
       // Fallback response without database
       // Still try to update onboarding status to completed
@@ -941,7 +1078,11 @@ router.post('/complete', async (req: Request, res: Response) => {
         user: {
           id: `user_${Date.now()}`,
           email: finalEmail,
-          company: finalCompany.name || finalCompany.domain
+          company: {
+            id: Date.now(),
+            name: finalCompany.name || finalCompany.domain,
+            domain: finalCompany.domain
+          }
         },
         auth: {
           token: token,
@@ -1254,27 +1395,48 @@ router.post('/track-field-edit', async (req: Request, res: Response) => {
             [companyId, sessionId, field, oldValue || '', newValue || '', step || 'company', ipAddress, userAgent]
           );
           
-          // Update company with edited values
-          const fieldMapping: Record<string, string> = {
-            'name': 'name',
-            'description': 'description',
-            'industry': 'industry'
-          };
-          
-          const dbField = fieldMapping[field];
-          if (dbField) {
+          // Update company with edited values (using safe parameterized queries)
+          if (field === 'name') {
             await db.query(
-              `UPDATE companies 
-               SET ${dbField} = $1,
-                   final_${dbField} = $1,
-                   user_edited = TRUE,
-                   edit_count = COALESCE(edit_count, 0) + 1,
+              `UPDATE companies
+               SET name = $1, final_name = $1, original_name = COALESCE(original_name, $1),
+                   user_edited = TRUE, edit_count = COALESCE(edit_count, 0) + 1,
                    last_edited_at = CURRENT_TIMESTAMP
                WHERE id = $2`,
               [newValue, companyId]
             );
+          } else if (field === 'description') {
+            await db.query(
+              `UPDATE companies
+               SET description = $1, final_description = $1, original_description = COALESCE(original_description, $1),
+                   user_edited = TRUE, edit_count = COALESCE(edit_count, 0) + 1,
+                   last_edited_at = CURRENT_TIMESTAMP
+               WHERE id = $2`,
+              [newValue, companyId]
+            );
+            console.log(`✅ Saved user-edited description for company ${companyId} (${newValue.length} chars)`);
+          } else if (field === 'industry') {
+            await db.query(
+              `UPDATE companies
+               SET industry = $1, final_industry = $1, original_industry = COALESCE(original_industry, $1),
+                   user_edited = TRUE, edit_count = COALESCE(edit_count, 0) + 1,
+                   last_edited_at = CURRENT_TIMESTAMP
+               WHERE id = $2`,
+              [newValue, companyId]
+            );
+          } else if (field === 'business_model') {
+            // Update business_model in enrichment_data JSONB
+            await db.query(
+              `UPDATE companies
+               SET enrichment_data = COALESCE(enrichment_data, '{}'::jsonb) || jsonb_build_object('business_model', $1::text),
+                   user_edited = TRUE, edit_count = COALESCE(edit_count, 0) + 1,
+                   last_edited_at = CURRENT_TIMESTAMP
+               WHERE id = $2`,
+              [newValue, companyId]
+            );
+            console.log(`✅ Updated business_model to ${newValue} for company ${companyId}`);
           }
-          
+
           // Update session tracking
           await db.query(
             `UPDATE onboarding_sessions 
@@ -1373,18 +1535,13 @@ router.post('/track-competitor-change', async (req: Request, res: Response) => {
         // Update the session with current state
         if (action === 'add' || action === 'remove') {
           await db.query(
-            `INSERT INTO onboarding_sessions (
-              session_id, suggested_competitors, user_added_competitors, 
-              removed_competitors, last_activity
-            )
-            VALUES ($1, $2::jsonb, $3::jsonb, $4::jsonb, CURRENT_TIMESTAMP)
-            ON CONFLICT (session_id) 
-            DO UPDATE SET 
-              suggested_competitors = COALESCE(onboarding_sessions.suggested_competitors, $2::jsonb),
-              user_added_competitors = $3::jsonb,
-              removed_competitors = $4::jsonb,
-              last_activity = CURRENT_TIMESTAMP`,
-            [sessionId, 
+            `UPDATE onboarding_sessions
+             SET suggested_competitors = COALESCE(suggested_competitors, $2::jsonb),
+                 user_added_competitors = $3::jsonb,
+                 removed_competitors = $4::jsonb,
+                 last_activity = CURRENT_TIMESTAMP
+             WHERE session_id = $1`,
+            [sessionId,
              JSON.stringify(suggestedCompetitors || currentSuggested),
              JSON.stringify(currentAdded),
              JSON.stringify(currentRemoved)]

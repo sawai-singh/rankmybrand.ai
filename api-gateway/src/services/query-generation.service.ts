@@ -57,7 +57,9 @@ class QueryGenerationService {
 
       // Check if queries already exist
       const existingQueries = await db.query(
-        'SELECT COUNT(*) as count FROM ai_queries WHERE company_id = $1',
+        `SELECT COUNT(*) as count FROM audit_queries aq
+         JOIN ai_visibility_audits av ON aq.audit_id = av.id
+         WHERE av.company_id = $1`,
         [companyId]
       );
 
@@ -140,7 +142,9 @@ class QueryGenerationService {
         
         // Verify queries were saved
         const verifyResult = await db.query(
-          'SELECT COUNT(*) as count FROM ai_queries WHERE company_id = $1',
+          `SELECT COUNT(*) as count FROM audit_queries aq
+           JOIN ai_visibility_audits av ON aq.audit_id = av.id
+           WHERE av.company_id = $1`,
           [companyId]
         );
         

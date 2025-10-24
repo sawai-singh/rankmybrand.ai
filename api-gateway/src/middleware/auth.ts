@@ -1,13 +1,10 @@
 import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
 import { db } from '../database/connection';
+import { User } from '../database/models';
 
-interface AuthRequest extends Request {
-  user?: {
-    id: string;
-    email: string;
-    role: string;
-  };
+export interface AuthRequest extends Request {
+  user?: User;
 }
 
 export const authenticate = async (
@@ -26,7 +23,7 @@ export const authenticate = async (
     
     // Verify user exists in database
     const user = await db.query(
-      'SELECT id, email, role FROM users WHERE id = $1',
+      'SELECT * FROM users WHERE id = $1',
       [decoded.userId]
     );
 
@@ -34,11 +31,7 @@ export const authenticate = async (
       return res.status(401).json({ error: 'Invalid authentication' });
     }
 
-    req.user = {
-      id: user.rows[0].id,
-      email: user.rows[0].email,
-      role: user.rows[0].role
-    };
+    req.user = user.rows[0] as User;
 
     next();
   } catch (error) {

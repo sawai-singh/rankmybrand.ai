@@ -213,12 +213,15 @@ export default function CompetitorsPage() {
 
   const handleContinue = async () => {
     const selected = competitors.filter(c => c.selected);
-    
+
     if (selected.length === 0 && competitors.length > 0) {
       toast.error('Please select at least one competitor');
       return;
     }
-    
+
+    // Start loading state
+    setLoading(true);
+
     // Track final competitor selection and time spent
     const timeSpent = Date.now() - stepStartTime;
     if (sessionId) {
@@ -234,7 +237,7 @@ export default function CompetitorsPage() {
             suggestedCompetitors
           })
         });
-        
+
         // Track time spent on step
         await fetch(`${process.env.NEXT_PUBLIC_API_GATEWAY || 'http://localhost:4000'}/api/onboarding/track-step`, {
           method: 'POST',
@@ -255,9 +258,6 @@ export default function CompetitorsPage() {
     const sessionData = JSON.parse(sessionStorage.getItem('onboarding_session') || '{}');
     sessionData.competitors = selected;
     sessionStorage.setItem('onboarding_session', JSON.stringify(sessionData));
-
-    // Start full analysis and redirect to dashboard
-    setLoading(true);
     
     // TEST MODE DISABLED - Using real API
     // if (true) {
@@ -374,7 +374,8 @@ export default function CompetitorsPage() {
             // Dashboard is on port 3000, redirect with token and user data in URL
             const token = encodeURIComponent(data.auth.token);
             const userData = encodeURIComponent(JSON.stringify(data.user));
-            const redirectUrl = `http://localhost:3001/dashboard?onboarding=complete&token=${token}&user=${userData}`;
+            const dashboardUrl = process.env.NEXT_PUBLIC_DASHBOARD_URL || window.location.origin;
+            const redirectUrl = `${dashboardUrl}/dashboard?onboarding=complete&token=${token}&user=${userData}`;
             console.log('Redirecting to:', redirectUrl);
             window.location.href = redirectUrl;
           }, 2000);
@@ -417,8 +418,8 @@ export default function CompetitorsPage() {
       <div className="max-w-5xl mx-auto">
         {/* Progress Bar */}
         <div className="mb-8">
-          <div className="flex items-center justify-between text-sm text-gray-600 dark:text-gray-400 mb-2">
-            <span>Step 3 of 4</span>
+          <div className="flex items-center justify-between text-sm text-gray-700 dark:text-gray-300 mb-2">
+            <span>Step 3 of 3</span>
             <span>Select Competitors</span>
           </div>
           <div className="h-2 bg-gray-200 dark:bg-gray-700 rounded-full">
@@ -516,13 +517,31 @@ export default function CompetitorsPage() {
                         <div className="flex items-center gap-4">
                           {/* Checkbox */}
                           <div className={`w-6 h-6 rounded-lg border-2 flex items-center justify-center transition-all ${
-                            competitor.selected 
-                              ? 'bg-primary-600 border-primary-600' 
+                            competitor.selected
+                              ? 'bg-primary-600 border-primary-600'
                               : 'border-gray-300 dark:border-gray-600'
                           }`}>
                             {competitor.selected && (
                               <CheckCircle className="w-4 h-4 text-white" />
                             )}
+                          </div>
+
+                          {/* Company Logo */}
+                          <div className="relative w-10 h-10 rounded-lg overflow-hidden bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 flex items-center justify-center flex-shrink-0">
+                            <img
+                              src={(competitor as any).logo || `https://www.google.com/s2/favicons?domain=${competitor.domain}&sz=128`}
+                              alt={`${competitor.name} logo`}
+                              className="w-full h-full object-contain p-1"
+                              onError={(e) => {
+                                const img = e.target as HTMLImageElement;
+                                img.style.display = 'none';
+                                const fallback = img.nextElementSibling as HTMLElement;
+                                if (fallback) fallback.style.display = 'flex';
+                              }}
+                            />
+                            <div className="hidden absolute inset-0 items-center justify-center bg-primary-100 dark:bg-primary-900/20 text-primary-600 dark:text-primary-400 font-bold text-sm">
+                              {competitor.name[0]}
+                            </div>
                           </div>
 
                           {/* Company Info */}

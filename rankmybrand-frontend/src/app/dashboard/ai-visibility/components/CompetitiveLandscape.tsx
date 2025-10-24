@@ -7,28 +7,29 @@ import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
-import { 
-  Trophy, 
-  Target, 
-  Shield, 
-  Swords, 
-  TrendingUp, 
+import {
+  Trophy,
+  Target,
+  Shield,
+  Swords,
+  TrendingUp,
   AlertTriangle,
   ChevronRight,
   Award,
   Users,
   Zap
 } from 'lucide-react';
+import { validateCompetitorData } from '@/lib/dashboard-utils';
 
 interface Competitor {
   name: string;
   mentionCount: number;
   sentiment: number;
-  dominance: number;
-  strengths: string[];
-  weaknesses: string[];
-  threats: string[];
-  opportunities: string[];
+  dominance?: number;
+  strengths?: string[];
+  weaknesses?: string[];
+  threats?: string[];
+  opportunities?: string[];
 }
 
 interface CompetitiveLandscapeProps {
@@ -41,8 +42,8 @@ export default function CompetitiveLandscape({ competitors = [], detailed = fals
   const [selectedCompetitor, setSelectedCompetitor] = useState<Competitor | null>(null);
   const [viewMode, setViewMode] = useState<'bubble' | 'matrix' | 'swot'>('bubble');
 
-  // Mock data if none provided
-  const competitorData: Competitor[] = competitors.length > 0 ? competitors : [
+  // Validate and sanitize competitor data to prevent D3 crashes
+  const rawCompetitors = competitors.length > 0 ? competitors : [
     {
       name: 'Your Brand',
       mentionCount: 145,
@@ -85,6 +86,9 @@ export default function CompetitiveLandscape({ competitors = [], detailed = fals
     }
   ];
 
+  // Apply safe validation to all competitor data
+  const competitorData = validateCompetitorData(rawCompetitors);
+
   const drawBubbleChart = () => {
     if (!svgRef.current) return;
 
@@ -112,8 +116,17 @@ export default function CompetitiveLandscape({ competitors = [], detailed = fals
       .domain([0, d3.max(competitorData, d => d.mentionCount) || 250])
       .range([10, 50]);
 
-    const colorScale = d3.scaleSequential(d3.interpolateViridis)
-      .domain([0, 100]);
+    // Enhanced color palette for different competitors
+    const competitorColors = [
+      '#8b5cf6', // purple (Your Brand - will use gradient)
+      '#3b82f6', // blue
+      '#10b981', // green
+      '#f59e0b', // amber
+      '#ec4899', // pink
+      '#14b8a6', // teal
+      '#f97316', // orange
+      '#6366f1'  // indigo
+    ];
 
     // Add axes
     svg.append('g')
@@ -158,11 +171,13 @@ export default function CompetitiveLandscape({ competitors = [], detailed = fals
       .style('stroke-dasharray', '3,3')
       .style('opacity', 0.3);
 
-    // Create force simulation
+    // Create force simulation - Account for 2x larger "Your Brand" bubble
     const simulation = d3.forceSimulation(competitorData as any)
       .force('x', d3.forceX((d: any) => xScale(d.sentiment)).strength(1))
-      .force('y', d3.forceY((d: any) => yScale(d.dominance)).strength(1))
-      .force('collide', d3.forceCollide((d: any) => sizeScale(d.mentionCount) + 2))
+      .force('y', d3.forceY((d: any) => yScale(d.dominance || 50)).strength(1))
+      .force('collide', d3.forceCollide((d: any) =>
+        (d.name === 'Your Brand' ? sizeScale(d.mentionCount) * 2 : sizeScale(d.mentionCount)) + 2
+      ))
       .stop();
 
     // Run simulation
@@ -176,20 +191,25 @@ export default function CompetitiveLandscape({ competitors = [], detailed = fals
       .attr('class', 'bubble')
       .attr('transform', (d: any) => `translate(${d.x},${d.y})`);
 
-    // Add circles
+    // Add circles - "Your Brand" bubble is 2x larger with diverse colors
     bubbles.append('circle')
       .attr('r', 0)
-      .attr('fill', d => d.name === 'Your Brand' 
-        ? 'url(#brandGradient)' 
-        : `rgba(139, 92, 246, ${0.3 + (d.dominance / 100) * 0.5})`)
-      .attr('stroke', d => d.name === 'Your Brand' ? '#8b5cf6' : '#e5e7eb')
-      .attr('stroke-width', d => d.name === 'Your Brand' ? 3 : 1)
+      .attr('fill', (d, i) => {
+        if (d.name === 'Your Brand') return 'url(#brandGradient)';
+        const color = competitorColors[i % competitorColors.length];
+        return `${color}66`; // 40% opacity
+      })
+      .attr('stroke', (d, i) => {
+        if (d.name === 'Your Brand') return '#8b5cf6';
+        return competitorColors[i % competitorColors.length];
+      })
+      .attr('stroke-width', d => d.name === 'Your Brand' ? 3 : 2)
       .style('cursor', 'pointer')
       .on('click', (event, d) => setSelectedCompetitor(d as Competitor))
       .transition()
       .duration(800)
       .delay((d, i) => i * 100)
-      .attr('r', d => sizeScale(d.mentionCount));
+      .attr('r', d => d.name === 'Your Brand' ? sizeScale(d.mentionCount) * 2 : sizeScale(d.mentionCount));
 
     // Add gradient for brand
     const gradient = svg.append('defs')
@@ -231,6 +251,46 @@ export default function CompetitiveLandscape({ competitors = [], detailed = fals
       .duration(800)
       .delay((d, i) => i * 100 + 400)
       .style('opacity', 1);
+
+    // Add "You're here" annotation for Your Brand
+    const yourBrandData = competitorData.find((d: any) => d.name === 'Your Brand');
+    if (yourBrandData) {
+      const annotation = svg.append('g')
+        .attr('class', 'your-brand-annotation')
+        .attr('transform', `translate(${(yourBrandData as any).x},${(yourBrandData as any).y})`)
+        .style('opacity', 0);
+
+      // Arrow pointing down to the bubble
+      annotation.append('path')
+        .attr('d', `M 0,${-sizeScale(yourBrandData.mentionCount) * 2 - 40} L -8,${-sizeScale(yourBrandData.mentionCount) * 2 - 25} L 8,${-sizeScale(yourBrandData.mentionCount) * 2 - 25} Z`)
+        .attr('fill', '#8b5cf6')
+        .attr('opacity', 0.8);
+
+      // Background for text
+      annotation.append('rect')
+        .attr('x', -45)
+        .attr('y', -sizeScale(yourBrandData.mentionCount) * 2 - 70)
+        .attr('width', 90)
+        .attr('height', 24)
+        .attr('rx', 12)
+        .attr('fill', '#8b5cf6')
+        .attr('opacity', 0.95);
+
+      // "You're here" text
+      annotation.append('text')
+        .attr('y', -sizeScale(yourBrandData.mentionCount) * 2 - 53)
+        .attr('text-anchor', 'middle')
+        .style('font-size', '12px')
+        .style('font-weight', 'bold')
+        .style('fill', 'white')
+        .text("👋 You're here");
+
+      // Animate annotation
+      annotation.transition()
+        .duration(600)
+        .delay(1200)
+        .style('opacity', 1);
+    }
   };
 
   const drawMatrixView = () => {
@@ -258,8 +318,9 @@ export default function CompetitiveLandscape({ competitors = [], detailed = fals
       { x: margin.left + quadrantWidth, y: margin.top + quadrantHeight, label: 'Visionaries', color: '#8b5cf6' }
     ];
 
-    // Draw quadrant backgrounds
+    // Draw quadrant backgrounds with enhanced shading
     quadrants.forEach((q, i) => {
+      // Gradient background
       svg.append('rect')
         .attr('x', q.x)
         .attr('y', q.y)
@@ -270,18 +331,33 @@ export default function CompetitiveLandscape({ competitors = [], detailed = fals
         .transition()
         .duration(500)
         .delay(i * 100)
-        .attr('opacity', 0.05);
+        .attr('opacity', 0.08);
 
-      svg.append('text')
+      // Label background with enhanced styling
+      const labelGroup = svg.append('g')
+        .style('opacity', 0);
+
+      labelGroup.append('rect')
+        .attr('x', q.x + quadrantWidth / 2 - 60)
+        .attr('y', q.y + 8)
+        .attr('width', 120)
+        .attr('height', 28)
+        .attr('rx', 14)
+        .attr('fill', 'white')
+        .attr('stroke', q.color)
+        .attr('stroke-width', 2)
+        .attr('opacity', 0.95);
+
+      labelGroup.append('text')
         .attr('x', q.x + quadrantWidth / 2)
-        .attr('y', q.y + 20)
+        .attr('y', q.y + 26)
         .attr('text-anchor', 'middle')
-        .style('font-size', '14px')
+        .style('font-size', '13px')
         .style('font-weight', 'bold')
         .style('fill', q.color)
-        .style('opacity', 0)
-        .text(q.label)
-        .transition()
+        .text(q.label);
+
+      labelGroup.transition()
         .duration(500)
         .delay(i * 100 + 200)
         .style('opacity', 1);
@@ -319,7 +395,7 @@ export default function CompetitiveLandscape({ competitors = [], detailed = fals
       .enter()
       .append('g')
       .attr('class', 'competitor-dot')
-      .attr('transform', d => `translate(${xScale(d.sentiment)},${yScale(d.dominance)})`);
+      .attr('transform', d => `translate(${xScale(d.sentiment)},${yScale(d.dominance || 50)})`);
 
     dots.append('circle')
       .attr('r', 0)
@@ -345,6 +421,46 @@ export default function CompetitiveLandscape({ competitors = [], detailed = fals
       .duration(500)
       .delay((d, i) => i * 150 + 400)
       .style('opacity', 1);
+
+    // Add "You're here" annotation for Your Brand in matrix view
+    const yourBrandData = competitorData.find((d: any) => d.name === 'Your Brand');
+    if (yourBrandData) {
+      const annotation = svg.append('g')
+        .attr('class', 'your-brand-annotation-matrix')
+        .attr('transform', `translate(${xScale(yourBrandData.sentiment)},${yScale(yourBrandData.dominance || 50)})`)
+        .style('opacity', 0);
+
+      // Arrow pointing down
+      annotation.append('path')
+        .attr('d', 'M 0,-35 L -6,-22 L 6,-22 Z')
+        .attr('fill', '#8b5cf6')
+        .attr('opacity', 0.8);
+
+      // Background
+      annotation.append('rect')
+        .attr('x', -45)
+        .attr('y', -58)
+        .attr('width', 90)
+        .attr('height', 22)
+        .attr('rx', 11)
+        .attr('fill', '#8b5cf6')
+        .attr('opacity', 0.95);
+
+      // Text
+      annotation.append('text')
+        .attr('y', -43)
+        .attr('text-anchor', 'middle')
+        .style('font-size', '11px')
+        .style('font-weight', 'bold')
+        .style('fill', 'white')
+        .text("👋 You're here");
+
+      // Animate
+      annotation.transition()
+        .duration(600)
+        .delay(1000)
+        .style('opacity', 1);
+    }
   };
 
   useEffect(() => {
@@ -366,7 +482,7 @@ export default function CompetitiveLandscape({ competitors = [], detailed = fals
           <Shield className="w-4 h-4 text-green-500" />
           <span className="font-semibold text-green-700">Strengths</span>
         </div>
-        {competitor.strengths.map((s, i) => (
+        {(competitor.strengths || []).map((s, i) => (
           <motion.div
             key={i}
             initial={{ opacity: 0, x: -20 }}
@@ -385,7 +501,7 @@ export default function CompetitiveLandscape({ competitors = [], detailed = fals
           <AlertTriangle className="w-4 h-4 text-red-500" />
           <span className="font-semibold text-red-700">Weaknesses</span>
         </div>
-        {competitor.weaknesses.map((w, i) => (
+        {(competitor.weaknesses || []).map((w, i) => (
           <motion.div
             key={i}
             initial={{ opacity: 0, x: -20 }}
@@ -404,7 +520,7 @@ export default function CompetitiveLandscape({ competitors = [], detailed = fals
           <Zap className="w-4 h-4 text-blue-500" />
           <span className="font-semibold text-blue-700">Opportunities</span>
         </div>
-        {competitor.opportunities.map((o, i) => (
+        {(competitor.opportunities || []).map((o, i) => (
           <motion.div
             key={i}
             initial={{ opacity: 0, x: -20 }}
@@ -423,7 +539,7 @@ export default function CompetitiveLandscape({ competitors = [], detailed = fals
           <Swords className="w-4 h-4 text-orange-500" />
           <span className="font-semibold text-orange-700">Threats</span>
         </div>
-        {competitor.threats.map((t, i) => (
+        {(competitor.threats || []).map((t, i) => (
           <motion.div
             key={i}
             initial={{ opacity: 0, x: -20 }}
@@ -526,7 +642,7 @@ export default function CompetitiveLandscape({ competitors = [], detailed = fals
                   </div>
                   <div>
                     <p className="text-xs text-gray-500">Dominance</p>
-                    <p className="text-lg font-bold">{selectedCompetitor.dominance}%</p>
+                    <p className="text-lg font-bold">{selectedCompetitor.dominance || 50}%</p>
                   </div>
                 </div>
               </motion.div>

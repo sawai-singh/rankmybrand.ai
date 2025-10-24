@@ -24,6 +24,7 @@ export const rateLimiter = (options: RateLimiterOptions = {}) => {
 
   return rateLimit({
     store: new RedisStore({
+      // @ts-ignore - rate-limit-redis v3 compatibility
       client: redisClient,
       prefix: 'rate-limit:',
     }),
@@ -33,7 +34,7 @@ export const rateLimiter = (options: RateLimiterOptions = {}) => {
     standardHeaders: true,
     legacyHeaders: false,
     keyGenerator: keyGenerator || ((req) => {
-      return req.user?.id || req.ip;
+      return (req.user?.id?.toString() || req.ip) as string;
     }),
   });
 };

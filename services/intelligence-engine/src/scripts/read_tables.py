@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-Script to read and display data from audit_responses and ai_responses tables
-Shows the structure and relationship between the two tables
+Script to read and display data from audit_responses table
+Shows the structure and analysis data
 """
 
 import asyncio
@@ -53,83 +53,53 @@ async def show_table_structure(conn):
                   f"Default: {str(col['column_default'])[:30] if col['column_default'] else 'None'}")
     else:
         print("Table not found or empty")
-    
-    # Get ai_responses structure
-    ai_cols = await conn.fetch("""
-        SELECT 
-            column_name,
-            data_type,
-            character_maximum_length,
-            is_nullable,
-            column_default
-        FROM information_schema.columns
-        WHERE table_name = 'ai_responses'
-        ORDER BY ordinal_position
-    """)
-    
-    print("\n📊 AI_RESPONSES TABLE:")
-    print("-" * 60)
-    if ai_cols:
-        for col in ai_cols:
-            print(f"  {col['column_name']:<30} {col['data_type']:<15} "
-                  f"Nullable: {col['is_nullable']:<5} "
-                  f"Default: {str(col['column_default'])[:30] if col['column_default'] else 'None'}")
-    else:
-        print("Table not found or empty")
 
 async def show_data_summary(conn):
-    """Show summary of data in both tables."""
+    """Show summary of data in audit_responses table."""
     print("\n" + "="*80)
     print("DATA SUMMARY")
     print("="*80)
-    
+
     # Count records in audit_responses
     audit_count = await conn.fetchval("SELECT COUNT(*) FROM audit_responses")
     print(f"\n📈 audit_responses: {audit_count} records")
-    
-    # Count records in ai_responses
-    ai_count = await conn.fetchval("SELECT COUNT(*) FROM ai_responses")
-    print(f"📈 ai_responses: {ai_count} records")
-    
+
+    # Count analyzed responses
+    analyzed_count = await conn.fetchval("SELECT COUNT(*) FROM audit_responses WHERE geo_score IS NOT NULL")
+    print(f"📈 analyzed responses: {analyzed_count} records ({analyzed_count*100//audit_count if audit_count > 0 else 0}%)")
+
     # Show breakdown by provider
     print("\n🔍 Records by Provider:")
     provider_stats = await conn.fetch("""
-        SELECT 
-            'audit_responses' as table_name,
+        SELECT
             provider,
-            COUNT(*) as count
+            COUNT(*) as count,
+            COUNT(CASE WHEN geo_score IS NOT NULL THEN 1 END) as analyzed
         FROM audit_responses
         GROUP BY provider
-        UNION ALL
-        SELECT 
-            'ai_responses' as table_name,
-            provider,
-            COUNT(*) as count
-        FROM ai_responses
-        GROUP BY provider
-        ORDER BY table_name, provider
+        ORDER BY provider
     """)
-    
+
     if provider_stats:
-        print("\n  {:<20} {:<20} {:>10}".format("Table", "Provider", "Count"))
-        print("  " + "-" * 52)
+        print("\n  {:<20} {:>10} {:>10}".format("Provider", "Total", "Analyzed"))
+        print("  " + "-" * 42)
         for stat in provider_stats:
-            print("  {:<20} {:<20} {:>10}".format(
-                stat['table_name'], 
-                stat['provider'] or 'None', 
-                stat['count']
+            print("  {:<20} {:>10} {:>10}".format(
+                stat['provider'] or 'None',
+                stat['count'],
+                stat['analyzed']
             ))
 
 async def show_sample_data(conn):
-    """Show sample records from both tables."""
+    """Show sample records from audit_responses."""
     print("\n" + "="*80)
     print("SAMPLE DATA")
     print("="*80)
-    
+
     # Sample from audit_responses
     print("\n📋 Sample from audit_responses (latest 3):")
     audit_samples = await conn.fetch("""
-        SELECT 
+        SELECT
             id,
             query_id,
             audit_id,
@@ -138,13 +108,19 @@ async def show_sample_data(conn):
             response_time_ms,
             tokens_used,
             cache_hit,
+            brand_mentioned,
+            sentiment,
+            sentiment_score,
+            geo_score,
+            sov_score,
+            recommendations,
             created_at,
             LEFT(response_text, 100) as response_preview
         FROM audit_responses
         ORDER BY created_at DESC
         LIMIT 3
     """)
-    
+
     for i, sample in enumerate(audit_samples, 1):
         print(f"\n  Record {i}:")
         print(f"    ID: {sample['id']}")
@@ -155,38 +131,6 @@ async def show_sample_data(conn):
         print(f"    Response Time: {sample['response_time_ms']}ms")
         print(f"    Tokens: {sample['tokens_used']}")
         print(f"    Cache Hit: {sample['cache_hit']}")
-        print(f"    Created: {sample['created_at']}")
-        print(f"    Response: {sample['response_preview']}...")
-    
-    # Sample from ai_responses
-    print("\n📋 Sample from ai_responses (latest 3):")
-    ai_samples = await conn.fetch("""
-        SELECT 
-            id,
-            query_id,
-            audit_id,
-            provider,
-            model_version,
-            brand_mentioned,
-            sentiment,
-            sentiment_score,
-            geo_score,
-            sov_score,
-            recommendations,
-            created_at,
-            LEFT(response_text, 100) as response_preview
-        FROM ai_responses
-        ORDER BY created_at DESC
-        LIMIT 3
-    """)
-    
-    for i, sample in enumerate(ai_samples, 1):
-        print(f"\n  Record {i}:")
-        print(f"    ID: {sample['id']}")
-        print(f"    Query ID: {sample['query_id']}")
-        print(f"    Audit ID: {sample['audit_id']}")
-        print(f"    Provider: {sample['provider']}")
-        print(f"    Model: {sample['model_version']}")
         print(f"    Brand Mentioned: {sample['brand_mentioned']}")
         print(f"    Sentiment: {sample['sentiment']} (score: {sample['sentiment_score']})")
         print(f"    GEO Score: {sample['geo_score']}")
@@ -195,58 +139,47 @@ async def show_sample_data(conn):
         print(f"    Created: {sample['created_at']}")
         print(f"    Response: {sample['response_preview']}...")
 
-async def show_relationship(conn):
-    """Show the relationship between the two tables."""
+async def show_audit_stats(conn):
+    """Show statistics about audits."""
     print("\n" + "="*80)
-    print("TABLE RELATIONSHIP")
+    print("AUDIT STATISTICS")
     print("="*80)
-    
-    print("\n🔗 Relationship: audit_responses -> ai_responses")
-    print("   Migration happens after analysis is complete")
-    print("   Key linking fields: audit_id, query_id")
-    
-    # Check for records in audit_responses not in ai_responses
-    unprocessed = await conn.fetchval("""
-        SELECT COUNT(*)
-        FROM audit_responses ar
-        LEFT JOIN ai_responses ai ON ar.id = ai.id
-        WHERE ai.id IS NULL
-    """)
-    
-    print(f"\n   📊 Unprocessed records (in audit_responses but not ai_responses): {unprocessed}")
-    
-    # Show a sample audit with its processed responses
+
+    # Show a sample audit with its responses
     sample_audit = await conn.fetchrow("""
         SELECT DISTINCT audit_id
-        FROM ai_responses
+        FROM audit_responses
         WHERE audit_id IS NOT NULL
+        ORDER BY created_at DESC
         LIMIT 1
     """)
-    
+
     if sample_audit:
         audit_id = sample_audit['audit_id']
-        print(f"\n   📁 Sample Audit ID: {audit_id}")
-        
+        print(f"\n📁 Most Recent Audit ID: {audit_id}")
+
         # Count responses for this audit
-        audit_resp_count = await conn.fetchval("""
+        resp_count = await conn.fetchval("""
             SELECT COUNT(*) FROM audit_responses WHERE audit_id = $1
         """, audit_id)
-        
-        ai_resp_count = await conn.fetchval("""
-            SELECT COUNT(*) FROM ai_responses WHERE audit_id = $1
+
+        analyzed_count = await conn.fetchval("""
+            SELECT COUNT(*) FROM audit_responses WHERE audit_id = $1 AND geo_score IS NOT NULL
         """, audit_id)
-        
-        print(f"      - Records in audit_responses: {audit_resp_count}")
-        print(f"      - Records in ai_responses: {ai_resp_count}")
-        
-        # Show the analysis added in ai_responses
-        print("\n   ✨ Analysis fields added in ai_responses:")
-        print("      - geo_score: Geographic visibility score")
-        print("      - sov_score: Share of Voice score")
-        print("      - sentiment & sentiment_score: Sentiment analysis")
-        print("      - recommendations: Extracted recommendations (JSON)")
-        print("      - competitor_mentions: Competitor analysis")
-        print("      - brand_mentioned: Brand presence detection")
+
+        print(f"   - Total responses: {resp_count}")
+        print(f"   - Analyzed responses: {analyzed_count} ({analyzed_count*100//resp_count if resp_count > 0 else 0}%)")
+
+        # Show the analysis fields in audit_responses
+        print("\n✨ Analysis fields in audit_responses:")
+        print("   - geo_score: Geographic visibility score")
+        print("   - sov_score: Share of Voice score")
+        print("   - sentiment & sentiment_score: Sentiment analysis")
+        print("   - recommendations: Extracted recommendations (JSON)")
+        print("   - competitor_mentions: Competitor analysis")
+        print("   - brand_mentioned: Brand presence detection")
+    else:
+        print("\nNo audits found.")
 
 async def main():
     """Main execution."""
@@ -264,9 +197,9 @@ async def main():
         
         # Show sample data
         await show_sample_data(conn)
-        
-        # Show relationship
-        await show_relationship(conn)
+
+        # Show audit statistics
+        await show_audit_stats(conn)
         
         print("\n" + "="*80)
         print("✅ Analysis Complete!")

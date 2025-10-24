@@ -176,7 +176,10 @@ async def get_detailed_dashboard(audit_id: str) -> Dict[str, Any]:
             'persona_context', 'response_details', 'content_gaps',
             'content_opportunities', 'keyword_performance', 'seo_recommendations',
             'key_insights', 'market_trends', 'opportunity_areas', 'risk_areas',
-            'error_messages', 'audit_config'
+            'error_messages', 'audit_config',
+            # 118-call architecture strategic intelligence
+            'category_insights', 'strategic_priorities', 'executive_summary_v2',
+            'buyer_journey_insights', 'intelligence_metadata'
         ]
         
         for field in json_fields:

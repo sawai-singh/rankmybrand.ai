@@ -6,7 +6,7 @@ const API_GATEWAY = process.env.NEXT_PUBLIC_API_GATEWAY || (isDocker ? 'http://a
 const GEO_CALCULATOR = process.env.NEXT_PUBLIC_GEO_CALCULATOR || (isDocker ? 'http://intelligence-engine:8002' : 'http://localhost:8002');  // Now using Intelligence Engine
 const WEB_CRAWLER = process.env.NEXT_PUBLIC_WEB_CRAWLER || (isDocker ? 'http://web-crawler:3002' : 'http://localhost:3002');
 const INTELLIGENCE_ENGINE = process.env.NEXT_PUBLIC_INTELLIGENCE_ENGINE || (isDocker ? 'http://intelligence-engine:8002' : 'http://localhost:8002');
-const ACTION_CENTER = process.env.NEXT_PUBLIC_ACTION_CENTER || (isDocker ? 'http://action-center:8082' : 'http://localhost:8082');
+const ACTION_CENTER = process.env.NEXT_PUBLIC_ACTION_CENTER || (isDocker ? 'http://action-center:8002' : 'http://localhost:8002');
 
 // Request types
 export interface RequestConfig extends RequestInit {

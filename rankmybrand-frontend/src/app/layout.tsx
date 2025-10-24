@@ -26,17 +26,17 @@ const jetbrainsMono = JetBrains_Mono({
 
 export const metadata: Metadata = {
   title: 'RankMyBrand - AI Visibility Analytics Platform',
-  description: 'Track and optimize your brand visibility across AI platforms like ChatGPT, Claude, Gemini, and Perplexity',
-  keywords: 'AI visibility, brand tracking, ChatGPT optimization, AI analytics',
+  description: 'Track and optimize your brand visibility across all major AI platforms',
+  keywords: 'AI visibility, brand tracking, AI optimization, AI analytics',
   openGraph: {
     title: 'RankMyBrand - AI Visibility Analytics Platform',
-    description: 'Track and optimize your brand visibility across AI platforms',
+    description: 'Track and optimize your brand visibility across all major AI platforms',
     type: 'website',
   },
   twitter: {
     card: 'summary_large_image',
     title: 'RankMyBrand - AI Visibility Analytics Platform',
-    description: 'Track and optimize your brand visibility across AI platforms',
+    description: 'Track and optimize your brand visibility across all major AI platforms',
   },
 };
 

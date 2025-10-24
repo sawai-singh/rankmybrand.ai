@@ -33,12 +33,21 @@ interface CompanyData {
   };
   tags?: string[];
   techStack?: string[];
+  products_services?: string[];
   enrichmentSource: string;
   confidence: number;
   userEdited?: boolean;
   originalName?: string;
   originalDescription?: string;
   originalIndustry?: string;
+
+  // Business Model Classification (NEW)
+  business_model?: 'B2C' | 'B2B' | 'B2B2C';
+  customer_type?: {
+    primary: 'individual_consumers' | 'small_businesses' | 'enterprises' | 'developers' | 'mixed';
+    description: string;
+  };
+  transaction_type?: 'product_purchase' | 'service_subscription' | 'software_license' | 'marketplace';
 }
 
 export default function CompanyDetailsPage() {
@@ -127,6 +136,7 @@ export default function CompanyDetailsPage() {
       size: companyData.size,
       employeeCount: companyData.employeeCount,
       techStack: companyData.techStack,
+      products_services: companyData.products_services,
       socialProfiles: companyData.socialProfiles,
       tags: companyData.tags,
       competitors: companyData.competitors,
@@ -225,10 +235,10 @@ export default function CompanyDetailsPage() {
 
   const handleContinue = async () => {
     setSaving(true);
-    
+
     // Track time spent on this step
     const timeSpent = Date.now() - stepStartTime;
-    
+
     try {
       // Generate description with the edited company data
       const response = await fetch(`${process.env.NEXT_PUBLIC_API_GATEWAY || 'http://localhost:4000'}/api/onboarding/generate-description`, {
@@ -247,7 +257,7 @@ export default function CompanyDetailsPage() {
       }
 
       const data = await response.json();
-      
+
       // Save company data to session
       const sessionData = JSON.parse(sessionStorage.getItem('onboarding_session') || '{}');
       sessionData.company = company;
@@ -255,13 +265,12 @@ export default function CompanyDetailsPage() {
       sessionData.userEditedCompany = company?.userEdited;
       sessionData.enrichmentData = company;
       sessionStorage.setItem('onboarding_session', JSON.stringify(sessionData));
-      
+
       // Navigate to description page
       router.push('/onboarding/description');
     } catch (error) {
       console.error('Failed to continue:', error);
       toast.error('Something went wrong. Please try again.');
-    } finally {
       setSaving(false);
     }
   };
@@ -295,7 +304,7 @@ export default function CompanyDetailsPage() {
       <div className="max-w-4xl mx-auto">
         {/* Progress Bar - [14:Visual hierarchy] Clear progress indication */}
         <nav aria-label="Progress" className="mb-8">
-          <div className="flex items-center justify-between text-sm text-gray-600 dark:text-gray-400 mb-2">
+          <div className="flex items-center justify-between text-sm text-gray-700 dark:text-gray-300 mb-2">
             <span>Step 1 of 3</span>
             <span>Company Details</span>
           </div>
@@ -374,6 +383,112 @@ export default function CompanyDetailsPage() {
               </div>
             )}
 
+            {/* Business Model Section - NEW */}
+            <div className="mb-8 p-6 bg-gradient-to-br from-primary-50 to-purple-50 dark:from-primary-900/20 dark:to-purple-900/20 rounded-xl border-2 border-primary-200 dark:border-primary-800">
+              <div className="flex items-start justify-between mb-4">
+                <div>
+                  <h3 className="text-lg font-semibold mb-1 flex items-center gap-2">
+                    <Sparkles className="w-5 h-5 text-primary-600" />
+                    Business Model
+                  </h3>
+                  <p className="text-sm text-gray-600 dark:text-gray-400">
+                    This determines what type of queries we'll track for your AI visibility
+                  </p>
+                </div>
+              </div>
+
+              {/* Business Model Selector */}
+              <div className="mb-4">
+                <label className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2 block">
+                  Who are your customers?
+                </label>
+                <select
+                  value={company.business_model || 'B2B'}
+                  onChange={(e) => handleFieldEdit('business_model', e.target.value as 'B2C' | 'B2B' | 'B2B2C')}
+                  className="w-full px-4 py-3 border-2 border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-900 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent text-base"
+                >
+                  <option value="B2C">🛍️  B2C - We sell to individual consumers (e.g., shoppers, families)</option>
+                  <option value="B2B">🏢 B2B - We sell to businesses and enterprises</option>
+                  <option value="B2B2C">🔀 B2B2C - We sell to businesses who serve consumers (e.g., Shopify, Stripe)</option>
+                </select>
+              </div>
+
+              {/* Business Model Explanation */}
+              <div className="p-4 bg-white dark:bg-gray-900/50 rounded-lg">
+                {company.business_model === 'B2C' && (
+                  <div>
+                    <p className="font-medium text-gray-900 dark:text-gray-100 mb-2">
+                      🛍️  Consumer Shopping Queries
+                    </p>
+                    <p className="text-sm text-gray-600 dark:text-gray-400 mb-3">
+                      {company.customer_type?.description || "Your customers are individual people shopping for products or services."}
+                    </p>
+                    <div className="text-sm">
+                      <p className="text-gray-500 dark:text-gray-400 mb-2">Example queries we'll track:</p>
+                      <ul className="space-y-1 text-gray-700 dark:text-gray-300">
+                        <li>• "best {(() => {
+                          const product = company.products_services?.[0];
+                          return (typeof product === 'string' ? product : product?.name) || company.industry || 'products';
+                        })()} for consumers"</li>
+                        <li>• "where to buy {company.name} products"</li>
+                        <li>• "{company.name} reviews 2025"</li>
+                        <li>• "{company.name} near me"</li>
+                      </ul>
+                    </div>
+                  </div>
+                )}
+
+                {company.business_model === 'B2B' && (
+                  <div>
+                    <p className="font-medium text-gray-900 dark:text-gray-100 mb-2">
+                      🏢 Enterprise & Business Queries
+                    </p>
+                    <p className="text-sm text-gray-600 dark:text-gray-400 mb-3">
+                      {company.customer_type?.description || "Your customers are businesses, enterprises, or developers."}
+                    </p>
+                    <div className="text-sm">
+                      <p className="text-gray-500 dark:text-gray-400 mb-2">Example queries we'll track:</p>
+                      <ul className="space-y-1 text-gray-700 dark:text-gray-300">
+                        <li>• "best {company.industry || 'enterprise'} platform for businesses"</li>
+                        <li>• "{company.name} API documentation"</li>
+                        <li>• "{company.name} vs competitors comparison"</li>
+                        <li>• "{company.name} enterprise pricing"</li>
+                      </ul>
+                    </div>
+                  </div>
+                )}
+
+                {company.business_model === 'B2B2C' && (
+                  <div>
+                    <p className="font-medium text-gray-900 dark:text-gray-100 mb-2">
+                      🔀 Hybrid Business & Consumer Queries
+                    </p>
+                    <p className="text-sm text-gray-600 dark:text-gray-400 mb-3">
+                      {company.customer_type?.description || "You sell to businesses who then serve end consumers."}
+                    </p>
+                    <div className="text-sm">
+                      <p className="text-gray-500 dark:text-gray-400 mb-2">Example queries we'll track:</p>
+                      <ul className="space-y-1 text-gray-700 dark:text-gray-300">
+                        <li>• "platform to sell products online" (B2C-influenced)</li>
+                        <li>• "{company.name} for small businesses"</li>
+                        <li>• "{company.name} merchant API"</li>
+                        <li>• "how to start online store with {company.name}"</li>
+                      </ul>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Warning if LLM confidence is low */}
+              {company.confidence < 0.7 && (
+                <div className="mt-4 p-3 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg">
+                  <p className="text-sm text-yellow-800 dark:text-yellow-200">
+                    ⚠️ We're not 100% sure about this classification. Please verify it's correct for your business.
+                  </p>
+                </div>
+              )}
+            </div>
+
             {/* Company Info Grid - [66:Mobile-first] Responsive layout */}
             <div className="grid sm:grid-cols-2 gap-6">
               {/* Industry */}
@@ -450,7 +565,7 @@ export default function CompanyDetailsPage() {
                 <div className="flex flex-wrap gap-2">
                   {company.techStack && company.techStack.length > 0 ? (
                     company.techStack.slice(0, 5).map((tech, index) => (
-                      <span 
+                      <span
                         key={index}
                         className="px-3 py-1 bg-primary-100 dark:bg-primary-900/20 text-primary-700 dark:text-primary-300 rounded-full text-sm"
                       >
@@ -459,6 +574,27 @@ export default function CompanyDetailsPage() {
                     ))
                   ) : (
                     <span className="text-gray-500">Not detected</span>
+                  )}
+                </div>
+              </div>
+
+              {/* Products & Services */}
+              <div className="sm:col-span-2">
+                <label className="text-sm text-gray-500 dark:text-gray-400 mb-1 block">
+                  Products & Services
+                </label>
+                <div className="flex flex-wrap gap-2">
+                  {company.products_services && company.products_services.length > 0 ? (
+                    company.products_services.map((product, index) => (
+                      <span
+                        key={index}
+                        className="px-3 py-1 bg-purple-100 dark:bg-purple-900/20 text-purple-700 dark:text-purple-300 rounded-full text-sm"
+                      >
+                        {typeof product === 'string' ? product : product.name}
+                      </span>
+                    ))
+                  ) : (
+                    <span className="text-gray-500">Not specified</span>
                   )}
                 </div>
               </div>

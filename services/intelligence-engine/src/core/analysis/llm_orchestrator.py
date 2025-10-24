@@ -469,38 +469,43 @@ class LLMOrchestrator:
                     # Process results as they complete, not waiting for all
                     completed_count = 0
                     failed_providers = set()
-                    
+                    provider_failure_counts = defaultdict(int)  # Track failures per provider
+
                     for completed_task in asyncio.as_completed(task_map.keys()):
                         try:
                             query, provider, result, error = await completed_task
-                            
+
                             if error:
-                                logger.error(f"Provider {provider} execution failed: {error}")
+                                logger.error(f"Provider {provider.value} failed for query '{query[:50]}...': {error}")
                                 failed_providers.add(provider)
-                                
-                                # Skip failing providers after multiple failures
-                                if provider in failed_providers:
-                                    provider_fail_count = sum(1 for _, p in tasks if p == provider)
-                                    if provider_fail_count > 3:
-                                        logger.warning(f"Skipping remaining queries for {provider} due to repeated failures")
-                                        continue
-                            
+                                provider_failure_counts[provider] += 1
+
+                                # Skip failing providers after multiple consecutive failures
+                                if provider_failure_counts[provider] >= 3:
+                                    logger.warning(f"Provider {provider.value} has {provider_failure_counts[provider]} failures - continuing with other providers")
+
+                                # Don't block other providers - continue processing
+                                continue
+
                             elif result:
                                 results[query].append(result)
                                 if self.deduplicator:
                                     self.deduplicator.store_response(query, provider, result)
                                 completed_count += 1
-                                logger.debug(f"✓ {provider} completed query {completed_count}/{len(tasks)}")
-                                
+                                logger.debug(f"✓ {provider.value} completed query {completed_count}/{len(tasks)}")
+
                                 # Call the callback to save response immediately
+                                # Don't let callback failures stop processing
                                 if response_callback:
                                     try:
                                         await response_callback(query, provider, result)
                                     except Exception as cb_error:
-                                        logger.error(f"Callback failed for {provider}: {cb_error}")
-                                        
+                                        logger.error(f"Callback failed for {provider.value} (non-fatal): {cb_error}")
+                                        # Continue processing - callback failure shouldn't stop the audit
+
                         except Exception as e:
-                            logger.error(f"Task processing error: {e}")
+                            logger.error(f"Task processing error (non-fatal): {e}")
+                            # Continue processing other tasks
                                 
                     logger.info(f"Batch completed: {completed_count} successful, {len(failed_providers)} providers with failures")
         else:
@@ -591,13 +596,13 @@ class LLMOrchestrator:
         try:
             if provider == LLMProvider.OPENAI_GPT5:
                 # Use GPT-5 model from settings
-                model = settings.openai_model  # Should be gpt-5-chat-latest
+                model = settings.openai_model  # Should be gpt-5-nano
                 
+                # GPT-5 Nano only supports temperature=1 (default), so we omit it
                 response = await self.clients[provider].chat.completions.create(
                     model=model,
                     messages=[{"role": "user", "content": query}],
-                    temperature=0.7,
-                    max_tokens=1500,
+                    max_completion_tokens=1500,
                     timeout=self.request_timeout
                 )
                 
@@ -613,19 +618,19 @@ class LLMOrchestrator:
             
             elif provider == LLMProvider.ANTHROPIC_CLAUDE:
                 response = await self.clients[provider].messages.create(
-                    model="claude-sonnet-4-20250514",
+                    model="claude-3-haiku-20240307",
                     messages=[{"role": "user", "content": query}],
                     max_tokens=1500,
                     temperature=0.7
                 )
-                
+
                 return LLMResponse(
                     provider=provider,
                     query=query,
                     response_text=response.content[0].text,
                     response_time_ms=(time.time() - start_time) * 1000,
                     tokens_used=None,
-                    model_version="claude-sonnet-4-20250514",
+                    model_version="claude-3-haiku-20240307",
                     request_id=request_id
                 )
             

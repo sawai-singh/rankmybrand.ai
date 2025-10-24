@@ -1,8 +1,8 @@
-import { Router, Request, Response } from 'express';
+import { Router, Response } from 'express';
 import { db } from '../database/connection';
 import { asyncHandler } from '../utils/async-handler';
 import { logger } from '../utils/logger';
-import { authenticate, requireAdmin } from '../middleware/auth';
+import { authenticate, requireAdmin, AuthRequest } from '../middleware/auth';
 
 const router = Router();
 
@@ -14,7 +14,7 @@ router.get(
   '/company/:companyId/historical-queries',
   authenticate,
   requireAdmin, // Only admins can view this data
-  asyncHandler(async (req: Request, res: Response) => {
+  asyncHandler(async (req: AuthRequest, res: Response) => {
     const { companyId } = req.params;
     const { limit = 50, offset = 0, reportId } = req.query;
 
@@ -35,7 +35,7 @@ router.get(
             ) ORDER BY r.provider
           ) FILTER (WHERE r.id IS NOT NULL) as responses
         FROM admin_historical_queries q
-        LEFT JOIN ai_responses r ON q.query_id = r.query_id
+        LEFT JOIN audit_responses r ON q.query_id = r.query_id
         WHERE q.company_id = $1
       `;
 
@@ -139,7 +139,7 @@ router.get(
   '/company/:companyId/reports',
   authenticate,
   requireAdmin,
-  asyncHandler(async (req: Request, res: Response) => {
+  asyncHandler(async (req: AuthRequest, res: Response) => {
     const { companyId } = req.params;
 
     const reportsResult = await db.query(
@@ -177,7 +177,7 @@ router.get(
   '/report/:reportId',
   authenticate,
   requireAdmin,
-  asyncHandler(async (req: Request, res: Response) => {
+  asyncHandler(async (req: AuthRequest, res: Response) => {
     const { reportId } = req.params;
 
     const reportResult = await db.query(
@@ -193,21 +193,23 @@ router.get(
 
     // Get queries for this report
     const queriesResult = await db.query(
-      `SELECT * FROM ai_queries 
-       WHERE report_id = $1 
-       ORDER BY priority_score DESC`,
+      `SELECT aq.* FROM audit_queries aq
+       JOIN report_audit_mapping ram ON aq.audit_id = ram.audit_id
+       WHERE ram.report_id = $1
+       ORDER BY aq.priority_score DESC`,
       [reportId]
     );
 
     // Get response statistics
     const responseStatsResult = await db.query(
-      `SELECT 
+      `SELECT
         provider,
         COUNT(*) as total_responses,
         SUM(CASE WHEN brand_mentioned THEN 1 ELSE 0 END) as brand_mentions,
         AVG(sentiment_score) as avg_sentiment
-       FROM ai_responses
-       WHERE report_id = $1
+       FROM audit_responses ar
+       JOIN audit_queries aq ON ar.query_id = aq.id
+       WHERE aq.audit_id = (SELECT audit_id FROM report_audit_mapping WHERE report_id = $1)
        GROUP BY provider`,
       [reportId]
     );
@@ -227,7 +229,7 @@ router.get(
   '/company/:companyId/competitive-visibility',
   authenticate,
   requireAdmin,
-  asyncHandler(async (req: Request, res: Response) => {
+  asyncHandler(async (req: AuthRequest, res: Response) => {
     const { companyId } = req.params;
 
     const competitiveResult = await db.query(

@@ -225,8 +225,8 @@ export class CompanyRepository {
       data.competitor_domain,
       data.discovery_source || null,
       data.discovery_reason || null,
-      data.similarity_score || null,
-      data.confidence_score || null,
+      data.similarity_score ? Math.min(9.99, Math.max(0, data.similarity_score)) : null,
+      data.confidence_score ? Math.min(9.99, Math.max(0, data.confidence_score)) : null,
       data.added_by_user_id || null
     ];
 

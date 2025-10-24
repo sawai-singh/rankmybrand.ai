@@ -12,7 +12,7 @@ const GEO_API = API_GATEWAY; // Use API Gateway
 const CRAWLER_API = API_GATEWAY; // Use API Gateway
 const SEARCH_API = API_GATEWAY; // Use API Gateway
 const WS_URL = process.env.NEXT_PUBLIC_WS_URL || 'ws://localhost:4000/ws';
-const DASHBOARD_WS = 'ws://localhost:4000/ws';
+const DASHBOARD_WS = process.env.NEXT_PUBLIC_WS_URL || 'ws://localhost:4000/ws';
 
 // Types
 export interface GEOScore {
@@ -411,6 +411,368 @@ class RankMyBrandAPI {
     if (this.wsConnection) {
       this.wsConnection.disconnect();
       this.wsConnection = null;
+    }
+  }
+
+  // ========================================
+  // Dashboard Data Methods
+  // ========================================
+
+  /**
+   * Get dashboard data by audit ID
+   */
+  async getDashboardData(auditId: string): Promise<any> {
+    // Fetch from Intelligence Engine API
+    const intelligenceUrl = process.env.NEXT_PUBLIC_INTELLIGENCE_ENGINE || 'http://localhost:8002';
+    const { data } = await axios.get(`${intelligenceUrl}/api/dashboard/detailed/${auditId}`);
+    return data.data || data;
+  }
+
+  /**
+   * Get audit responses by audit ID
+   */
+  async getAuditResponses(auditId: string): Promise<any> {
+    const { data } = await axios.get(`${API_GATEWAY}/api/audit/${auditId}/responses`);
+    return data;
+  }
+
+  /**
+   * Get audit insights by audit ID
+   */
+  async getAuditInsights(auditId: string): Promise<any> {
+    const { data} = await axios.get(`${API_GATEWAY}/api/audit/${auditId}/insights`);
+    return data;
+  }
+
+  /**
+   * Get audit queries by audit ID
+   */
+  async getAuditQueries(auditId: string): Promise<any> {
+    const { data } = await axios.get(`${API_GATEWAY}/api/audit/${auditId}/queries`);
+    return data;
+  }
+
+  /**
+   * Get current audit data
+   */
+  async getCurrentAudit(): Promise<any> {
+    // Get the latest audit for the current user/company
+    const { data } = await this.geoClient.get('/api/audit/current');
+    return data;
+  }
+
+  // ========================================
+  // Strategic Intelligence Methods (118-Call Architecture)
+  // ========================================
+
+  /**
+   * Get complete strategic intelligence (all layers)
+   * Uses dashboard endpoint which contains all strategic intelligence data
+   */
+  async getStrategicIntelligence(auditId: string): Promise<any> {
+    try {
+      const dashboardData = await this.getDashboardData(auditId);
+
+      if (!dashboardData) {
+        console.warn(`No dashboard data found for audit ${auditId}`);
+        return {
+          category_insights: {},
+          strategic_priorities: {},
+          executive_summary_v2: {},
+          buyer_journey_insights: {},
+          intelligence_metadata: {},
+          error: 'Dashboard data not found'
+        };
+      }
+
+      return {
+        category_insights: dashboardData.category_insights || {},
+        strategic_priorities: dashboardData.strategic_priorities || {},
+        executive_summary_v2: dashboardData.executive_summary_v2 || {},
+        buyer_journey_insights: dashboardData.buyer_journey_insights || {},
+        intelligence_metadata: dashboardData.intelligence_metadata || {}
+      };
+    } catch (error) {
+      console.error('Failed to fetch strategic intelligence:', error);
+      return {
+        category_insights: {},
+        strategic_priorities: {},
+        executive_summary_v2: {},
+        buyer_journey_insights: {},
+        intelligence_metadata: {},
+        error: error instanceof Error ? error.message : 'Unknown error'
+      };
+    }
+  }
+
+  /**
+   * Get Layer 1: Category Insights
+   */
+  async getCategoryInsights(auditId: string, category?: string): Promise<any> {
+    try {
+      const dashboardData = await this.getDashboardData(auditId);
+      if (!dashboardData) {
+        return {
+          audit_id: auditId,
+          company_name: 'Unknown',
+          categories: {}
+        };
+      }
+
+      const categoryInsights = dashboardData.category_insights || {};
+
+      // Transform insights to match component expectations
+      const transformInsight = (insight: any) => ({
+        title: insight.title || '',
+        priority: insight.impact?.toLowerCase() || insight.priority || 'medium', // "High" -> "high"
+        implementation_complexity: insight.difficulty?.toLowerCase() || insight.implementation_complexity || 'medium',
+        estimated_impact: insight.expected_roi || insight.estimated_impact || '',
+        rationale: insight.description || insight.competitive_advantage || insight.rationale || '',
+        budget_estimate: insight.implementation?.budget || insight.budget_estimate,
+        timeline: insight.timeline || '',
+        personalized_for: insight.persona_message ? {
+          company_size: 'Enterprise',
+          persona: 'Marketing Director'
+        } : undefined
+      });
+
+      // Transform each category
+      const transformedCategories: any = {};
+      for (const [categoryKey, categoryData] of Object.entries(categoryInsights)) {
+        if (typeof categoryData === 'object' && categoryData !== null) {
+          transformedCategories[categoryKey] = {
+            recommendations: Array.isArray((categoryData as any).recommendations)
+              ? (categoryData as any).recommendations.map(transformInsight)
+              : [],
+            competitive_gaps: Array.isArray((categoryData as any).competitive_gaps)
+              ? (categoryData as any).competitive_gaps.map(transformInsight)
+              : [],
+            content_opportunities: Array.isArray((categoryData as any).content_opportunities)
+              ? (categoryData as any).content_opportunities.map(transformInsight)
+              : []
+          };
+        }
+      }
+
+      // If requesting single category
+      if (category && category !== 'all') {
+        return {
+          audit_id: auditId,
+          category: category,
+          insights: transformedCategories[category] || {}
+        };
+      }
+
+      // Return in CategoryInsightsResponse format
+      return {
+        audit_id: auditId,
+        company_name: dashboardData.company_name || 'Unknown',
+        categories: transformedCategories
+      };
+    } catch (error) {
+      console.error('Failed to fetch category insights:', error);
+      return {
+        audit_id: auditId,
+        company_name: 'Unknown',
+        categories: {}
+      };
+    }
+  }
+
+  /**
+   * Get Layer 2: Strategic Priorities
+   */
+  async getStrategicPriorities(auditId: string, type?: string): Promise<any> {
+    try {
+      const dashboardData = await this.getDashboardData(auditId);
+      if (!dashboardData) {
+        return {
+          audit_id: auditId,
+          company_name: 'Unknown',
+          overall_score: 0,
+          priorities: {}
+        };
+      }
+
+      const strategicPriorities = dashboardData.strategic_priorities || {};
+
+      // Transform priorities to match component expectations
+      const transformPriority = (item: any) => {
+        const p = item.priority || {};
+        return {
+          ...item,
+          priority: {
+            ...p,
+            // Map database fields to expected component fields
+            why_strategic: p.strategic_rationale || p.why_strategic || '',
+            combined_impact: p.business_impact?.pipeline_impact || p.business_impact?.revenue_impact || p.combined_impact || '',
+            roi_estimate: p.expected_roi?.return || p.roi_estimate || '',
+            implementation: {
+              budget: p.implementation?.budget || p.expected_roi?.investment || '',
+              timeline: p.implementation?.timeline || '',
+              team_required: p.implementation?.team_required || [],
+              key_milestones: p.quick_wins || p.implementation?.key_milestones || []
+            }
+          }
+        };
+      };
+
+      // Transform each priority type
+      const transformedPriorities: any = {};
+      for (const [key, value] of Object.entries(strategicPriorities)) {
+        if (Array.isArray(value)) {
+          transformedPriorities[key] = value.map(transformPriority);
+        }
+      }
+
+      // Return in StrategicPrioritiesResponse format
+      return {
+        audit_id: auditId,
+        company_name: dashboardData.company_name || 'Unknown',
+        overall_score: parseFloat(dashboardData.overall_score) || 0,
+        priorities: transformedPriorities
+      };
+    } catch (error) {
+      console.error('Failed to fetch strategic priorities:', error);
+      return {
+        audit_id: auditId,
+        company_name: 'Unknown',
+        overall_score: 0,
+        priorities: {}
+      };
+    }
+  }
+
+  /**
+   * Get Layer 3: Executive Summary
+   * Returns formatted data for ExecutiveSummaryCard component
+   */
+  async getExecutiveSummary(auditId: string): Promise<any> {
+    try {
+      const dashboardData = await this.getDashboardData(auditId);
+      if (!dashboardData) return {};
+
+      const executiveSummary = dashboardData.executive_summary_v2 || {};
+      const summary = executiveSummary.summary || {};
+      const situation = summary.situation_assessment || {};
+      const roadmap = summary.implementation_roadmap || {};
+      const outcomes = summary.expected_outcomes || {};
+      const priorities = summary.strategic_priorities || [];
+
+      // Transform database structure to match ExecutiveBrief interface
+      const executive_brief = {
+        current_state: {
+          overall_score: parseFloat(dashboardData.overall_score) || 0,
+          key_strengths: [situation.current_state || 'Analysis in progress'],
+          critical_weaknesses: [situation.strategic_gap || 'Analyzing competitive gaps']
+        },
+        strategic_roadmap: {
+          quick_wins: roadmap.phase_1_30_days || [],
+          q1_priorities: roadmap.phase_2_90_days || [],
+          q2_priorities: roadmap.phase_3_6_months || []
+        },
+        resource_allocation: {
+          budget_required: priorities[0]?.investment || 'Analysis in progress',
+          timeline: priorities[0]?.timeline || 'TBD',
+          team_needs: ['Marketing', 'Content', 'Analytics']
+        },
+        expected_outcomes: {
+          score_improvement: outcomes['12_months'] || 'Calculating projections',
+          revenue_impact: priorities[0]?.business_impact || 'Analysis in progress',
+          competitive_position: situation.competitive_position || 'Analyzing market position'
+        },
+        board_presentation: {
+          key_messages: [summary.executive_brief || 'Generating insights'],
+          risk_assessment: [situation.strategic_gap || 'Assessing risks'],
+          success_metrics: summary.success_metrics || []
+        }
+      };
+
+      // Format response to match ExecutiveSummaryResponse
+      return {
+        executive_brief,
+        persona: executiveSummary.persona || 'Marketing Director',
+        company: {
+          name: dashboardData.company_name || 'Unknown Company',
+          domain: dashboardData.company_domain || '',
+          industry: dashboardData.industry || 'Unknown Industry',
+        },
+        scores: {
+          overall: parseFloat(dashboardData.overall_score) || 0,
+          geo: parseFloat(dashboardData.geo_score) || 0,
+          sov: parseFloat(dashboardData.sov_score) || 0,
+        }
+      };
+    } catch (error) {
+      console.error('Failed to fetch executive summary:', error);
+      return {
+        executive_brief: {
+          current_state: { overall_score: 0, key_strengths: [], critical_weaknesses: [] },
+          strategic_roadmap: { quick_wins: [], q1_priorities: [], q2_priorities: [] },
+          resource_allocation: { budget_required: 'N/A', timeline: 'N/A', team_needs: [] },
+          expected_outcomes: { score_improvement: 'N/A', revenue_impact: 'N/A', competitive_position: 'N/A' },
+          board_presentation: { key_messages: [], risk_assessment: [], success_metrics: [] }
+        },
+        persona: 'Marketing Director',
+        company: { name: 'Unknown', domain: '', industry: 'Unknown' },
+        scores: { overall: 0, geo: 0, sov: 0 }
+      };
+    }
+  }
+
+  /**
+   * Get Phase 2: Buyer Journey Insights
+   */
+  async getBuyerJourneyInsights(auditId: string, category?: string): Promise<any> {
+    try {
+      const dashboardData = await this.getDashboardData(auditId);
+      if (!dashboardData) {
+        return {
+          audit_id: auditId,
+          company_name: 'Unknown',
+          buyer_journey: {}
+        };
+      }
+
+      const buyerJourneyInsights = dashboardData.buyer_journey_insights || {};
+
+      // If requesting single category
+      if (category && category !== 'all') {
+        return {
+          audit_id: auditId,
+          category: category,
+          batches: buyerJourneyInsights[category] || {}
+        };
+      }
+
+      // Return in BuyerJourneyInsightsResponse format
+      return {
+        audit_id: auditId,
+        company_name: dashboardData.company_name || 'Unknown',
+        buyer_journey: buyerJourneyInsights
+      };
+    } catch (error) {
+      console.error('Failed to fetch buyer journey insights:', error);
+      return {
+        audit_id: auditId,
+        company_name: 'Unknown',
+        buyer_journey: {}
+      };
+    }
+  }
+
+  /**
+   * Get Intelligence Metadata (performance metrics)
+   */
+  async getIntelligenceMetadata(auditId: string): Promise<any> {
+    try {
+      const dashboardData = await this.getDashboardData(auditId);
+      if (!dashboardData) return {};
+
+      return dashboardData.intelligence_metadata || {};
+    } catch (error) {
+      console.error('Failed to fetch intelligence metadata:', error);
+      return {};
     }
   }
 

@@ -64,7 +64,7 @@ const StartAuditSchema = z.object({
       generateInsights: z.boolean().default(true),
       prewarmCache: z.boolean().default(false),
     }).optional(),
-    metadata: z.record(z.any()).optional(),
+    metadata: z.record(z.string(), z.any()).optional(),
   }),
 });
 
@@ -73,8 +73,8 @@ const GetAuditSchema = z.object({
     auditId: z.string().uuid(),
   }),
   query: z.object({
-    includeDetails: z.enum(['full', 'summary', 'minimal']).default('summary'),
-  }),
+    includeDetails: z.enum(['full', 'summary', 'minimal']).optional().default('summary'),
+  }).optional(),
 });
 
 const QueryAnalysisSchema = z.object({
@@ -178,7 +178,7 @@ const handleAuditError = (error: any, req: Request, res: Response) => {
     return res.status(400).json({
       error: 'Validation Error',
       message: 'Invalid request data',
-      details: error.errors,
+      details: error.issues,
     });
   }
 

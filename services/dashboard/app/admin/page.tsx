@@ -2,13 +2,14 @@
 
 import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
-import { 
-  Users, Database, Activity, Mail, Building, 
+import {
+  Users, Database, Activity, Mail, Building,
   Target, Brain, Calendar, RefreshCw, Search,
   Filter, Download, Eye, ChevronRight, Edit3,
   Clock, TrendingUp, Shield, Zap, CheckCircle,
   XCircle, AlertCircle, FileText, GitBranch,
-  Sparkles, MessageSquare, Hash, Layers
+  Sparkles, MessageSquare, Hash, Layers,
+  Trash2, Pause, RotateCcw, Settings
 } from "lucide-react";
 
 interface CompanyJourneyData {
@@ -52,6 +53,7 @@ interface CompanyJourneyData {
   time_on_company_step: number;
   time_on_description_step: number;
   time_on_competitor_step: number;
+  onboarding_completed?: boolean;
   
   // Competitor tracking
   competitor_journey: {
@@ -85,6 +87,9 @@ interface CompanyJourneyData {
     last_audit_date?: string;
     audit_status?: string;
   };
+
+  // Additional fields
+  query_count?: number;
 }
 
 interface AIQuery {
@@ -119,7 +124,7 @@ export default function EnhancedAdminPage() {
   const [filterStatus, setFilterStatus] = useState("all");
   const [selectedCompany, setSelectedCompany] = useState<CompanyJourneyData | null>(null);
   const [editHistory, setEditHistory] = useState<EditHistory[]>([]);
-  const [activeTab, setActiveTab] = useState<"overview" | "journey" | "edits" | "competitors" | "enrichment" | "queries">("overview");
+  const [activeTab, setActiveTab] = useState<"overview" | "journey" | "edits" | "competitors" | "enrichment" | "queries" | "audits">("overview");
   const [aiQueries, setAiQueries] = useState<AIQuery[]>([]);
   const [loadingQueries, setLoadingQueries] = useState(false);
   const [queryStats, setQueryStats] = useState({
@@ -138,16 +143,32 @@ export default function EnhancedAdminPage() {
     completedJourneys: 0
   });
 
+  // Audit control states
+  const [audits, setAudits] = useState<any[]>([]);
+  const [systemHealth, setSystemHealth] = useState<any>(null);
+  const [loadingAudits, setLoadingAudits] = useState(false);
+  const [auditActionLoading, setAuditActionLoading] = useState<string | null>(null);
+
   useEffect(() => {
     fetchEnhancedData();
-    
+
     // Auto-refresh every 30 seconds
     const interval = setInterval(() => {
       fetchEnhancedData();
     }, 30000);
-    
+
     return () => clearInterval(interval);
   }, []);
+
+  // Fetch audits when audits tab is selected
+  useEffect(() => {
+    if (activeTab === "audits") {
+      fetchAudits();
+      // Auto-refresh audits every 10 seconds when tab is active
+      const interval = setInterval(fetchAudits, 10000);
+      return () => clearInterval(interval);
+    }
+  }, [activeTab]);
 
   const fetchEnhancedData = async () => {
     setLoading(true);
@@ -160,16 +181,27 @@ export default function EnhancedAdminPage() {
         
         // Calculate stats
         const companies = data.companies || [];
+
+        // Calculate averages only for companies that have valid values
+        const companiesWithCompleteness = companies.filter((c: CompanyJourneyData) => c.data_completeness && c.data_completeness > 0);
+        const companiesWithGeoScore = companies.filter((c: CompanyJourneyData) => c.latest_geo_score && c.latest_geo_score > 0);
+
+        const avgCompleteness = companiesWithCompleteness.length > 0
+          ? companiesWithCompleteness.reduce((acc: number, c: CompanyJourneyData) => acc + (c.data_completeness || 0), 0) / companiesWithCompleteness.length
+          : 0;
+
+        const avgGeoScore = companiesWithGeoScore.length > 0
+          ? companiesWithGeoScore.reduce((acc: number, c: CompanyJourneyData) => acc + (c.latest_geo_score || 0), 0) / companiesWithGeoScore.length
+          : 0;
+
         setStats({
           totalCompanies: companies.length,
           editedCompanies: companies.filter((c: CompanyJourneyData) => c.user_edited).length,
-          averageCompleteness: companies.reduce((acc: number, c: CompanyJourneyData) => 
-            acc + (c.data_completeness || 0), 0) / (companies.length || 1),
-          averageGeoScore: companies.reduce((acc: number, c: CompanyJourneyData) => 
-            acc + (c.latest_geo_score || 0), 0) / (companies.length || 1),
-          totalEdits: companies.reduce((acc: number, c: CompanyJourneyData) => 
+          averageCompleteness: avgCompleteness,
+          averageGeoScore: avgGeoScore,
+          totalEdits: companies.reduce((acc: number, c: CompanyJourneyData) =>
             acc + (c.edit_count || 0), 0),
-          completedJourneys: companies.filter((c: CompanyJourneyData) => 
+          completedJourneys: companies.filter((c: CompanyJourneyData) =>
             c.onboarding_completed).length
         });
       }
@@ -241,6 +273,135 @@ export default function EnhancedAdminPage() {
 
   // Admin dashboard only views historical queries - no generation
 
+  // Fetch audit data
+  const fetchAudits = async () => {
+    setLoadingAudits(true);
+    try {
+      const [auditsRes, healthRes] = await Promise.all([
+        fetch(`${process.env.NEXT_PUBLIC_API_GATEWAY || 'http://localhost:4000'}/api/admin/control/audits`),
+        fetch(`${process.env.NEXT_PUBLIC_API_GATEWAY || 'http://localhost:4000'}/api/admin/control/system/health`)
+      ]);
+
+      if (auditsRes.ok) {
+        const data = await auditsRes.json();
+        setAudits(data.audits || []);
+      }
+
+      if (healthRes.ok) {
+        const data = await healthRes.json();
+        setSystemHealth(data);
+      }
+    } catch (error) {
+      console.error('Failed to fetch audit data:', error);
+    } finally {
+      setLoadingAudits(false);
+    }
+  };
+
+  // Audit control actions
+  const handleStopAudit = async (auditId: string) => {
+    if (!confirm("Stop this audit?")) return;
+    setAuditActionLoading(auditId);
+    try {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_GATEWAY || 'http://localhost:4000'}/api/admin/control/audits/${auditId}/stop`, {
+        method: "POST",
+      });
+      if (response.ok) await fetchAudits();
+      else alert("Failed to stop audit");
+    } catch (error) {
+      console.error("Failed to stop audit:", error);
+    } finally {
+      setAuditActionLoading(null);
+    }
+  };
+
+  const handleDeleteAudit = async (auditId: string) => {
+    if (!confirm("DELETE this audit? Cannot be undone.")) return;
+    setAuditActionLoading(auditId);
+    try {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_GATEWAY || 'http://localhost:4000'}/api/admin/control/audits/${auditId}`, {
+        method: "DELETE",
+      });
+
+      if (response.ok) {
+        await fetchAudits();
+        alert("Audit deleted successfully");
+      } else {
+        const errorText = await response.text();
+        console.error("Delete failed:", response.status, errorText);
+        alert(`Failed to delete audit: ${response.status} - ${errorText.substring(0, 100)}`);
+      }
+    } catch (error) {
+      console.error("Failed to delete audit:", error);
+      alert(`Failed to delete audit: ${error instanceof Error ? error.message : String(error)}`);
+    } finally {
+      setAuditActionLoading(null);
+    }
+  };
+
+  const handleRetryAudit = async (auditId: string) => {
+    if (!confirm("Retry this audit?")) return;
+    setAuditActionLoading(auditId);
+    try {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_GATEWAY || 'http://localhost:4000'}/api/admin/control/audits/${auditId}/retry`, {
+        method: "POST",
+      });
+      if (response.ok) await fetchAudits();
+      else alert("Failed to retry audit");
+    } catch (error) {
+      console.error("Failed to retry audit:", error);
+    } finally {
+      setAuditActionLoading(null);
+    }
+  };
+
+  const handlePopulateDashboard = async (auditId: string) => {
+    if (!confirm("Trigger dashboard population?")) return;
+    setAuditActionLoading(auditId);
+    try {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_GATEWAY || 'http://localhost:4000'}/api/admin/control/audits/${auditId}/populate-dashboard`, {
+        method: "POST",
+      });
+      if (response.ok) {
+        await fetchAudits();
+        alert("Dashboard population triggered");
+      } else alert("Failed to populate dashboard");
+    } catch (error) {
+      console.error("Failed to populate dashboard:", error);
+    } finally {
+      setAuditActionLoading(null);
+    }
+  };
+
+  const handleDeleteFailed = async () => {
+    if (!confirm("DELETE ALL FAILED AUDITS? Cannot be undone.")) return;
+    setAuditActionLoading("bulk-delete");
+    try {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_GATEWAY || 'http://localhost:4000'}/api/admin/control/audits/bulk/failed`, {
+        method: "DELETE",
+      });
+      if (response.ok) {
+        const data = await response.json();
+        alert(`Deleted ${data.deleted_count} failed audits`);
+        await fetchAudits();
+      } else alert("Failed to delete failed audits");
+    } catch (error) {
+      console.error("Failed to delete failed audits:", error);
+    } finally {
+      setAuditActionLoading(null);
+    }
+  };
+
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case "completed": return "text-green-400 bg-green-500/20";
+      case "processing": return "text-blue-400 bg-blue-500/20";
+      case "failed": return "text-red-400 bg-red-500/20";
+      case "stopped": return "text-gray-400 bg-gray-500/20";
+      default: return "text-gray-400 bg-gray-500/20";
+    }
+  };
+
   const filteredCompanies = companies.filter(company => {
     const matchesSearch = 
       company.user_email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -309,12 +470,28 @@ export default function EnhancedAdminPage() {
               <h1 className="text-2xl font-bold">Company Journey Admin</h1>
               <span className="text-sm text-muted-foreground">Enhanced Tracking Dashboard</span>
             </div>
-            <button
-              onClick={fetchEnhancedData}
-              className="p-2 rounded-lg glassmorphism glassmorphism-hover"
-            >
-              <RefreshCw className="w-4 h-4" />
-            </button>
+            <div className="flex items-center gap-3">
+              <a
+                href="/admin/audits"
+                className="px-4 py-2 rounded-lg glassmorphism glassmorphism-hover flex items-center gap-2 text-sm font-medium"
+              >
+                <Activity className="w-4 h-4" />
+                View Audits
+              </a>
+              <a
+                href="/admin/control"
+                className="px-4 py-2 rounded-lg bg-gradient-to-r from-blue-600/20 to-purple-600/20 border border-blue-500/50 hover:from-blue-600/30 hover:to-purple-600/30 hover:border-blue-500/70 transition-all flex items-center gap-2 text-sm font-medium shadow-lg shadow-blue-500/10"
+              >
+                <Settings className="w-4 h-4" />
+                Controls
+              </a>
+              <button
+                onClick={fetchEnhancedData}
+                className="p-2 rounded-lg glassmorphism glassmorphism-hover"
+              >
+                <RefreshCw className="w-4 h-4" />
+              </button>
+            </div>
           </div>
         </div>
       </header>
@@ -359,7 +536,9 @@ export default function EnhancedAdminPage() {
               <TrendingUp className="w-8 h-8 text-blue-400" />
               <span className="text-xs text-muted-foreground">Quality</span>
             </div>
-            <div className="text-3xl font-bold">{stats.averageCompleteness.toFixed(0)}%</div>
+            <div className="text-3xl font-bold">
+              {stats.averageCompleteness > 0 ? `${stats.averageCompleteness.toFixed(0)}%` : '-'}
+            </div>
             <div className="text-sm text-muted-foreground">Avg Complete</div>
           </motion.div>
 
@@ -373,7 +552,9 @@ export default function EnhancedAdminPage() {
               <Brain className="w-8 h-8 text-orange-400" />
               <span className="text-xs text-muted-foreground">GEO</span>
             </div>
-            <div className="text-3xl font-bold">{stats.averageGeoScore.toFixed(0)}</div>
+            <div className="text-3xl font-bold">
+              {stats.averageGeoScore > 0 ? stats.averageGeoScore.toFixed(0) : '-'}
+            </div>
             <div className="text-sm text-muted-foreground">Avg Score</div>
           </motion.div>
 
@@ -562,12 +743,12 @@ export default function EnhancedAdminPage() {
                           <>
                             <div className="flex items-center gap-1">
                               <Target className="w-3 h-3 text-purple-400" />
-                              <span className="text-xs">{company.competitor_journey.final.length} selected</span>
+                              <span className="text-xs">{company.competitor_journey.final?.length || 0} selected</span>
                             </div>
-                            {company.competitor_journey.added?.length > 0 && (
+                            {company.competitor_journey.added && company.competitor_journey.added.length > 0 && (
                               <span className="text-xs text-green-400">+{company.competitor_journey.added.length} added</span>
                             )}
-                            {company.competitor_journey.removed?.length > 0 && (
+                            {company.competitor_journey.removed && company.competitor_journey.removed.length > 0 && (
                               <span className="text-xs text-red-400">-{company.competitor_journey.removed.length} removed</span>
                             )}
                           </>
@@ -669,7 +850,7 @@ export default function EnhancedAdminPage() {
 
               {/* Tabs */}
               <div className="flex gap-2 mb-6 flex-wrap">
-                {["overview", "journey", "edits", "competitors", "enrichment", "queries"].map((tab) => (
+                {["overview", "journey", "edits", "competitors", "enrichment", "queries", "audits"].map((tab) => (
                   <button
                     key={tab}
                     onClick={() => setActiveTab(tab as any)}
@@ -842,9 +1023,9 @@ export default function EnhancedAdminPage() {
                             <div>
                               <h5 className="text-sm font-medium text-gray-400 mb-2">AI Suggested Competitors</h5>
                               <div className="flex flex-wrap gap-2">
-                                {selectedCompany.competitor_journey.suggested.map((comp: string, idx: number) => (
+                                {selectedCompany.competitor_journey.suggested.map((comp: any, idx: number) => (
                                   <span key={idx} className="px-3 py-1 bg-blue-500/20 text-blue-400 rounded-lg text-sm">
-                                    {comp}
+                                    {typeof comp === 'string' ? comp : comp.name || comp.domain || comp}
                                   </span>
                                 ))}
                               </div>
@@ -855,9 +1036,9 @@ export default function EnhancedAdminPage() {
                             <div>
                               <h5 className="text-sm font-medium text-green-400 mb-2">Manually Added</h5>
                               <div className="flex flex-wrap gap-2">
-                                {selectedCompany.competitor_journey.added.map((comp: string, idx: number) => (
+                                {selectedCompany.competitor_journey.added.map((comp: any, idx: number) => (
                                   <span key={idx} className="px-3 py-1 bg-green-500/20 text-green-400 rounded-lg text-sm">
-                                    + {comp}
+                                    + {typeof comp === 'string' ? comp : comp.name || comp.domain || comp}
                                   </span>
                                 ))}
                               </div>
@@ -868,9 +1049,9 @@ export default function EnhancedAdminPage() {
                             <div>
                               <h5 className="text-sm font-medium text-red-400 mb-2">Removed</h5>
                               <div className="flex flex-wrap gap-2">
-                                {selectedCompany.competitor_journey.removed.map((comp: string, idx: number) => (
+                                {selectedCompany.competitor_journey.removed.map((comp: any, idx: number) => (
                                   <span key={idx} className="px-3 py-1 bg-red-500/20 text-red-400 rounded-lg text-sm line-through">
-                                    {comp}
+                                    {typeof comp === 'string' ? comp : comp.name || comp.domain || comp}
                                   </span>
                                 ))}
                               </div>
@@ -881,9 +1062,9 @@ export default function EnhancedAdminPage() {
                             <div>
                               <h5 className="text-sm font-medium text-purple-400 mb-2">Final Selection</h5>
                               <div className="flex flex-wrap gap-2">
-                                {selectedCompany.competitor_journey.final.map((comp: string, idx: number) => (
+                                {selectedCompany.competitor_journey.final.map((comp: any, idx: number) => (
                                   <span key={idx} className="px-3 py-1 bg-purple-500/20 text-purple-400 rounded-lg text-sm font-medium">
-                                    ✓ {comp}
+                                    ✓ {typeof comp === 'string' ? comp : comp.name || comp.domain || comp}
                                   </span>
                                 ))}
                               </div>
@@ -1106,9 +1287,250 @@ export default function EnhancedAdminPage() {
                     )}
                   </div>
                 )}
+
+                {activeTab === "audits" && selectedCompany && (
+                  <div className="space-y-4">
+                    <div className="glassmorphism p-4 rounded-lg">
+                      <h4 className="font-medium mb-3">AI Visibility Audit Status</h4>
+                      {selectedCompany.ai_visibility?.audit_id ? (
+                        <div className="space-y-3">
+                          <div className="flex justify-between">
+                            <span className="text-sm">Audit ID:</span>
+                            <span className="font-mono text-xs">{selectedCompany.ai_visibility.audit_id}</span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span className="text-sm">Status:</span>
+                            <span className={`px-2 py-1 rounded text-xs ${getStatusColor(selectedCompany.ai_visibility.audit_status || 'unknown')}`}>
+                              {selectedCompany.ai_visibility.audit_status || 'Unknown'}
+                            </span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span className="text-sm">Queries Generated:</span>
+                            <span className="font-medium">{selectedCompany.ai_visibility.queries_generated || 0}</span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span className="text-sm">Last Audit:</span>
+                            <span className="text-xs">
+                              {selectedCompany.ai_visibility.last_audit_date
+                                ? new Date(selectedCompany.ai_visibility.last_audit_date).toLocaleString()
+                                : 'Never'
+                              }
+                            </span>
+                          </div>
+                          <div className="mt-4 pt-4 border-t border-white/10">
+                            <a
+                              href={`/admin/audits?highlight=${selectedCompany.ai_visibility.audit_id}`}
+                              className="w-full px-4 py-2 rounded-lg bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-500 hover:to-purple-500 transition-all flex items-center justify-center gap-2 text-sm font-medium"
+                            >
+                              <Eye className="w-4 h-4" />
+                              View Audit Details
+                            </a>
+                          </div>
+                        </div>
+                      ) : (
+                        <p className="text-sm text-gray-400">No audit data available for this company</p>
+                      )}
+                    </div>
+                  </div>
+                )}
               </div>
             </motion.div>
           </motion.div>
+        )}
+
+        {/* Global Audits View (no company selected) */}
+        {!selectedCompany && activeTab === "audits" && (
+          <div className="space-y-6">
+            {/* System Health Stats */}
+            {systemHealth && (
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                <motion.div
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="glassmorphism p-6 rounded-xl"
+                >
+                  <div className="flex items-center justify-between mb-2">
+                    <Database className="w-8 h-8 text-purple-400" />
+                    <span className="text-xs text-muted-foreground">Total</span>
+                  </div>
+                  <div className="text-3xl font-bold">{systemHealth.audit_stats.total_audits}</div>
+                  <div className="text-sm text-muted-foreground">Audits</div>
+                </motion.div>
+
+                <motion.div
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.1 }}
+                  className="glassmorphism p-6 rounded-xl"
+                >
+                  <div className="flex items-center justify-between mb-2">
+                    <Activity className="w-8 h-8 text-blue-400" />
+                    <span className="text-xs text-muted-foreground">Active</span>
+                  </div>
+                  <div className="text-3xl font-bold text-blue-400">{systemHealth.audit_stats.running_audits}</div>
+                  <div className="text-sm text-muted-foreground">Running</div>
+                </motion.div>
+
+                <motion.div
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.2 }}
+                  className="glassmorphism p-6 rounded-xl"
+                >
+                  <div className="flex items-center justify-between mb-2">
+                    <CheckCircle className="w-8 h-8 text-green-400" />
+                    <span className="text-xs text-muted-foreground">Done</span>
+                  </div>
+                  <div className="text-3xl font-bold text-green-400">{systemHealth.audit_stats.completed_audits}</div>
+                  <div className="text-sm text-muted-foreground">Completed</div>
+                </motion.div>
+
+                <motion.div
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.3 }}
+                  className="glassmorphism p-6 rounded-xl"
+                >
+                  <div className="flex items-center justify-between mb-2">
+                    <XCircle className="w-8 h-8 text-red-400" />
+                    <span className="text-xs text-muted-foreground">Issues</span>
+                  </div>
+                  <div className="text-3xl font-bold text-red-400">{systemHealth.audit_stats.failed_audits}</div>
+                  <div className="text-sm text-muted-foreground">Failed</div>
+                </motion.div>
+              </div>
+            )}
+
+            {/* Audits Table */}
+            <div className="glassmorphism rounded-xl overflow-hidden">
+              <div className="p-6 border-b border-white/10 flex justify-between items-center">
+                <h2 className="text-xl font-semibold">All Audits</h2>
+                <button
+                  onClick={handleDeleteFailed}
+                  disabled={auditActionLoading === "bulk-delete"}
+                  className="px-4 py-2 bg-red-600/20 text-red-400 rounded-lg hover:bg-red-600/30 disabled:opacity-50 text-sm"
+                >
+                  Delete Failed
+                </button>
+              </div>
+
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead className="bg-white/5">
+                    <tr>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase">Company</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase">Status</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase">Pipeline</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase">Progress</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase">Data</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase">Created</th>
+                      <th className="px-6 py-3 text-right text-xs font-medium text-gray-400 uppercase">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-white/5">
+                    {loadingAudits ? (
+                      <tr>
+                        <td colSpan={7} className="px-6 py-12 text-center">
+                          <div className="w-8 h-8 border-4 border-purple-500 border-t-transparent rounded-full animate-spin mx-auto" />
+                        </td>
+                      </tr>
+                    ) : audits.length === 0 ? (
+                      <tr>
+                        <td colSpan={7} className="px-6 py-12 text-center text-gray-400">
+                          No audits found. All audits have been cleaned up.
+                        </td>
+                      </tr>
+                    ) : (
+                      audits.map((audit: any) => (
+                        <tr key={audit.audit_id} className="hover:bg-white/5">
+                          <td className="px-6 py-4">
+                            <div>
+                              <p className="font-medium">{audit.company_name}</p>
+                              <p className="text-sm text-gray-400">{audit.domain || audit.industry}</p>
+                            </div>
+                          </td>
+                          <td className="px-6 py-4">
+                            <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(audit.status)}`}>
+                              {audit.is_stuck && <AlertCircle className="w-3 h-3" />}
+                              {audit.status}
+                            </span>
+                          </td>
+                          <td className="px-6 py-4">
+                            <span className="text-sm text-purple-400 font-medium">
+                              {audit.pipeline_stage}
+                            </span>
+                          </td>
+                          <td className="px-6 py-4">
+                            <div className="flex items-center gap-2">
+                              <div className="flex-1 bg-white/10 rounded-full h-2 max-w-[100px]">
+                                <div
+                                  className="bg-purple-500 h-2 rounded-full transition-all"
+                                  style={{ width: `${audit.pipeline_progress}%` }}
+                                />
+                              </div>
+                              <span className="text-xs text-gray-400">{audit.pipeline_progress}%</span>
+                            </div>
+                          </td>
+                          <td className="px-6 py-4">
+                            <div className="text-xs text-gray-400 space-y-1">
+                              <div>Q: {audit.queries_generated}/{audit.query_count || 0}</div>
+                              <div>R: {audit.responses_collected}</div>
+                              <div>M: {audit.responses_migrated}</div>
+                            </div>
+                          </td>
+                          <td className="px-6 py-4 text-sm text-gray-400">
+                            {new Date(audit.created_at).toLocaleString()}
+                          </td>
+                          <td className="px-6 py-4">
+                            <div className="flex items-center justify-end gap-2">
+                              {audit.status === "processing" && (
+                                <button
+                                  onClick={() => handleStopAudit(audit.audit_id)}
+                                  disabled={auditActionLoading === audit.audit_id}
+                                  className="p-2 text-yellow-400 hover:bg-yellow-500/10 rounded-lg disabled:opacity-50"
+                                  title="Stop"
+                                >
+                                  <Pause className="w-4 h-4" />
+                                </button>
+                              )}
+                              {(audit.status === "failed" || audit.status === "stopped") && (
+                                <button
+                                  onClick={() => handleRetryAudit(audit.audit_id)}
+                                  disabled={auditActionLoading === audit.audit_id}
+                                  className="p-2 text-blue-400 hover:bg-blue-500/10 rounded-lg disabled:opacity-50"
+                                  title="Retry"
+                                >
+                                  <RotateCcw className="w-4 h-4" />
+                                </button>
+                              )}
+                              {audit.responses_migrated > 0 && audit.dashboard_populated === 0 && (
+                                <button
+                                  onClick={() => handlePopulateDashboard(audit.audit_id)}
+                                  disabled={auditActionLoading === audit.audit_id}
+                                  className="p-2 text-purple-400 hover:bg-purple-500/10 rounded-lg disabled:opacity-50"
+                                  title="Populate"
+                                >
+                                  <Zap className="w-4 h-4" />
+                                </button>
+                              )}
+                              <button
+                                onClick={() => handleDeleteAudit(audit.audit_id)}
+                                disabled={auditActionLoading === audit.audit_id}
+                                className="p-2 text-red-400 hover:bg-red-500/10 rounded-lg disabled:opacity-50"
+                                title="Delete"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
         )}
       </main>
     </div>

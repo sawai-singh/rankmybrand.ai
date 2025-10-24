@@ -34,6 +34,9 @@ import userDashboardRoutes from './routes/user-dashboard.routes';
 import cacheRoutes from './routes/cache.routes';
 import webhookRoutes from './routes/webhook.routes';
 import feedbackRoutes from './routes/feedback.routes';
+import auditDataRoutes from './routes/audit-data.routes';
+import adminRoutes from './routes/admin.routes';
+import systemControlRoutes from './routes/system-control.routes';
 
 // Import middleware
 import { 
@@ -128,6 +131,11 @@ app.use(sanitizeRequest);
 // Metrics collection middleware
 app.use(metricsMiddleware);
 
+// Make db, redis, and config available to all routes via app.locals
+app.locals.db = db;
+app.locals.redis = redis;
+app.locals.config = config;
+
 // Rate limiting
 const limiter = rateLimit(config.rateLimit);
 const strictLimiter = rateLimit({
@@ -217,23 +225,23 @@ app.use('/api/intelligence', limiter, createProxyMiddleware({
   },
 } as any));
 
-// Action Center routes
-app.use('/api/actions', limiter, createProxyMiddleware({
-  target: config.services.action,
-  changeOrigin: true,
-  pathRewrite: {
-    '^/api/actions': '/api',
-  },
-  on: {
-    proxyReq: (proxyReq: any, req: any) => {
-      console.log(`[Actions] ${req.method} ${req.path}`);
-    },
-    error: (err: any, req: any, res: any) => {
-      console.error('[Actions] Proxy error:', err);
-      res.status(502).json({ error: 'Action service unavailable' });
-    },
-  },
-} as any));
+// Action Center routes - Disabled (service not configured)
+// app.use('/api/actions', limiter, createProxyMiddleware({
+//   target: config.services.action,
+//   changeOrigin: true,
+//   pathRewrite: {
+//     '^/api/actions': '/api',
+//   },
+//   on: {
+//     proxyReq: (proxyReq: any, req: any) => {
+//       console.log(`[Actions] ${req.method} ${req.path}`);
+//     },
+//     error: (err: any, req: any, res: any) => {
+//       console.error('[Actions] Proxy error:', err);
+//       res.status(502).json({ error: 'Action service unavailable' });
+//     },
+//   },
+// } as any));
 
 // ========================================
 // Authentication Routes
@@ -245,18 +253,24 @@ app.use('/api/auth', limiter, authRoutes);
 // ========================================
 app.use('/api/onboarding', limiter, onboardingRoutes);
 
+// NOTE: Worker removed - Intelligence Engine directly consumes from Redis queue
+// Jobs are now processed directly by the Intelligence Engine's job processor
+
 // ========================================
 // AI Visibility Routes
 // ========================================
 app.use('/api/ai-visibility', limiter, aiVisibilityRoutes);
 app.use('/api/reports', limiter, reportGenerationRoutes);
 app.use('/api/admin', limiter, adminAIVisibilityRoutes);
+app.use('/api/admin/control', limiter, adminRoutes); // Full admin control over audits
+app.use('/api/admin/control/system', limiter, systemControlRoutes); // System control center
 app.use('/api/test', testQueriesRoutes); // Test route without auth
 app.use('/api/query-status', queryStatusRoutes); // Query generation status
 app.use('/api/enhanced-query', enhancedQueryRoutes); // Enhanced query generation
 app.use('/api/cache', cacheRoutes); // Cache management
 app.use('/api/webhooks', webhookRoutes); // Webhook management
 app.use('/api/feedback', feedbackRoutes); // User feedback system
+app.use('/api/audit', auditDataRoutes); // Audit data routes
 app.use('/api', userDashboardRoutes); // User dashboard endpoints
 
 // ========================================
@@ -385,8 +399,9 @@ app.post('/api/analyze/instant', limiter, asyncHandler(async (req: any, res: any
     // Count citations from queries
     const citationResult = await db.query(
       `SELECT COUNT(*) as citations
-       FROM ai_queries aq
-       JOIN companies c ON aq.company_id = c.id
+       FROM audit_queries aq
+       JOIN ai_visibility_audits av ON aq.audit_id = av.id
+       JOIN companies c ON av.company_id = c.id
        WHERE c.domain = $1 AND aq.category = 'brand_specific'`,
       [domain]
     );
@@ -410,7 +425,7 @@ app.post('/api/analyze/instant', limiter, asyncHandler(async (req: any, res: any
         authority: 0,
         ai_visibility: 0
       },
-      recommendations: [],
+      recommendations: [] as string[],
       isDemo: false, // This is REAL data
       timestamp: new Date().toISOString()
     };
@@ -831,141 +846,8 @@ app.get('/api/metrics/current', limiter, asyncHandler(async (req: any, res: any)
   }
 }));
 
-// Onboarding complete endpoint
-app.post('/api/onboarding/complete', limiter, asyncHandler(async (req: any, res: any) => {
-  const { sessionId, email, company, competitors, description } = req.body;
-  
-  console.log('Onboarding complete request:', { sessionId, email, company: company?.name });
-  
-  try {
-    // Generate a token for the user
-    const userId = `user_${Date.now()}`;
-    const token = jwt.sign(
-      { 
-        userId: userId,
-        email: email,
-        role: 'user',
-        sessionId: sessionId
-      },
-      config.jwt.secret,
-      { expiresIn: '7d' }
-    );
-    
-    const user = {
-      id: userId,
-      email: email,
-      firstName: '',
-      lastName: '',
-      company: company,
-      onboardingCompleted: true
-    };
-    
-    // Trigger REAL GEO analysis for the company
-    const analysisJobs = [];
-    
-    try {
-      // Start GEO analysis
-      const geoResponse = await fetch(`${config.services.geo}/api/v1/geo/analyze`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          content: description || `${company?.name} - ${company?.description}`,
-          brand_terms: [company?.name || email.split('@')[0]],
-          target_queries: company?.keywords || []
-        })
-      });
-      
-      if (geoResponse.ok) {
-        const geoData: any = await geoResponse.json();
-        analysisJobs.push({
-          type: 'geo',
-          status: 'completed',
-          score: geoData.analysis?.overall_score,
-          data: geoData
-        });
-        
-        // Store GEO score in Redis for quick access
-        if (redis) {
-          await redis.set(
-            `geo:${userId}`,
-            JSON.stringify(geoData),
-            'EX',
-            3600 // Cache for 1 hour
-          );
-          
-          // Also store competitors if provided
-          if (competitors && competitors.length > 0) {
-            const competitorData = competitors.map((c: any, idx: number) => ({
-              id: idx + 1,
-              name: c.name,
-              domain: c.domain,
-              geoScore: Math.round(50 + Math.random() * 40), // Will be replaced with real analysis
-              shareOfVoice: Math.round(15 + Math.random() * 30)
-            }));
-            
-            await redis.set(
-              `competitors:${userId}`,
-              JSON.stringify(competitorData),
-              'EX',
-              3600 // Cache for 1 hour
-            );
-          }
-        }
-      }
-    } catch (geoError) {
-      console.error('GEO analysis error:', geoError);
-      analysisJobs.push({
-        type: 'geo',
-        status: 'failed',
-        error: 'Analysis service unavailable'
-      });
-    }
-    
-    // Store in database if available
-    if (db) {
-      try {
-        const result = await db.query(
-          `INSERT INTO users (email, onboarding_completed, company_id) 
-           VALUES ($1, true, 1) 
-           ON CONFLICT (email) 
-           DO UPDATE SET onboarding_completed = true
-           RETURNING id`,
-          [email]
-        );
-        
-        if (result.rows[0]) {
-          user.id = result.rows[0].id;
-        }
-      } catch (dbError) {
-        console.error('Database error during onboarding:', dbError);
-      }
-    }
-    
-    res.json({
-      success: true,
-      message: 'Onboarding completed successfully',
-      auth: {
-        token: token,
-        refreshToken: token,
-        expiresIn: '7d'
-      },
-      user: user,
-      analysis: {
-        jobs: analysisJobs,
-        geoScore: analysisJobs.find(j => j.type === 'geo')?.score || null
-      },
-      redirectUrl: '/dashboard?onboarding=complete'
-    });
-    
-  } catch (error: any) {
-    console.error('Onboarding complete error:', error);
-    res.status(500).json({ 
-      success: false,
-      error: 'Failed to complete onboarding', 
-      message: error.message 
-    });
-  }
-}));
+// NOTE: /api/onboarding/complete endpoint is now handled by onboarding.routes.ts
+// DO NOT add a duplicate endpoint here - it will override the correct one that queues audits
 
 // ========================================
 // WebSocket Handling

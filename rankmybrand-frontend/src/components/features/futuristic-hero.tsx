@@ -206,7 +206,7 @@ export function FuturisticHero() {
             animate={{ opacity: 1 }}
             transition={{ delay: 0.6, duration: 0.8 }}
           >
-            Monitor your visibility across ChatGPT, Claude, Gemini, and Perplexity.
+            Monitor your visibility across all major AI platforms.
             Get real-time insights and optimize your AI presence.
           </motion.p>
           
@@ -338,7 +338,7 @@ export function FuturisticHero() {
                   disabled={!domain || isAnalyzing}
                   className="px-8 py-4 rounded-2xl bg-gradient-to-r from-violet-600 to-pink-600 text-white font-semibold shadow-lg hover:shadow-xl transition-all hover:scale-105 active:scale-95 flex items-center gap-2 group disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  {isAnalyzing ? 'Analyzing...' : 'Get Report'}
+                  {isAnalyzing ? 'Analyzing...' : 'Start Free Analysis'}
                   <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
                 </button>
               ) : (
@@ -347,10 +347,32 @@ export function FuturisticHero() {
                   disabled
                   className="px-8 py-4 rounded-2xl bg-gradient-to-r from-violet-600/50 to-pink-600/50 text-white/50 font-semibold shadow-lg cursor-not-allowed flex items-center gap-2 group inline-flex text-center"
                 >
-                  Get Report
+                  Start Free Analysis
                   <ArrowRight className="w-4 h-4" />
                 </button>
               )}
+            </div>
+
+            {/* Trust Signals */}
+            <div className="flex items-center justify-center gap-4 mt-4 text-sm text-gray-600 dark:text-gray-400">
+              <span className="flex items-center gap-1">
+                <svg className="w-4 h-4 text-green-500" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                </svg>
+                Free
+              </span>
+              <span className="flex items-center gap-1">
+                <svg className="w-4 h-4 text-green-500" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                </svg>
+                No signup required
+              </span>
+              <span className="flex items-center gap-1">
+                <svg className="w-4 h-4 text-green-500" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                </svg>
+                Results in 60 minutes
+              </span>
             </div>
           </div>
           

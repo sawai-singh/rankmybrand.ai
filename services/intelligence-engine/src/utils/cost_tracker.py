@@ -30,6 +30,7 @@ class CostTracker:
         'claude-3-opus': 0.015,  # $15 per 1M tokens
         'claude-3-sonnet': 0.003,  # $3 per 1M tokens
         'claude-3-haiku': 0.00025,  # $0.25 per 1M tokens
+        'claude-3-5-haiku-20241022': 0.0008,  # $0.80 per 1M input tokens
     }
     
     def __init__(self, postgres_client=None):

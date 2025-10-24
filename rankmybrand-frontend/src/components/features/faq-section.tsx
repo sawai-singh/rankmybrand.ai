@@ -6,8 +6,8 @@ import { Plus, Minus } from 'lucide-react';
 
 const faqs = [
   {
-    question: 'How is RankMyBrand different from AthenaHQ?',
-    answer: 'RankMyBrand provides instant results in 10 seconds vs 30+ seconds, costs 73% less ($79 vs $295), offers real-time updates instead of batch processing, and includes a free tier with 5 checks per month. We also support 8+ AI platforms compared to their 5.',
+    question: 'How is RankMyBrand different from other tools?',
+    answer: 'RankMyBrand provides instant results in under 10 seconds, offers affordable pricing starting at $79/month, includes real-time updates, and has a free tier with 5 checks per month. We track all major AI platforms and provide comprehensive competitor analysis.',
   },
   {
     question: 'Which AI platforms do you track?',

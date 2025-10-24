@@ -98,14 +98,14 @@ export default function DescriptionPage() {
 
   const handleContinue = async () => {
     setSaving(true);
-    
+
     try {
       // Save description to session
       const sessionData = JSON.parse(sessionStorage.getItem('onboarding_session') || '{}');
       sessionData.description = description;
       sessionData.descriptionEdited = description !== originalDescription;
       sessionStorage.setItem('onboarding_session', JSON.stringify(sessionData));
-      
+
       // Track the description save
       await fetch(`${process.env.NEXT_PUBLIC_API_GATEWAY || 'http://localhost:4000'}/api/onboarding/save-description`, {
         method: 'POST',
@@ -116,13 +116,12 @@ export default function DescriptionPage() {
           wasEdited: description !== originalDescription
         })
       });
-      
+
       // Navigate to competitors page
       router.push('/onboarding/competitors');
     } catch (error) {
       console.error('Failed to save description:', error);
       toast.error('Failed to save. Please try again.');
-    } finally {
       setSaving(false);
     }
   };
@@ -151,7 +150,7 @@ export default function DescriptionPage() {
       <div className="max-w-4xl mx-auto">
         {/* Progress Bar */}
         <nav aria-label="Progress" className="mb-8">
-          <div className="flex items-center justify-between text-sm text-gray-600 dark:text-gray-400 mb-2">
+          <div className="flex items-center justify-between text-sm text-gray-700 dark:text-gray-300 mb-2">
             <span>Step 2 of 3</span>
             <span>Company Description</span>
           </div>

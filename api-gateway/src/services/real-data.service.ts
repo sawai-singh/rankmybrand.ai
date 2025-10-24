@@ -27,10 +27,11 @@ export class RealDataService {
       
       // Get AI queries for this company
       const queriesResult = await this.db.query(
-        `SELECT category, intent, priority, COUNT(*) as count
-         FROM ai_queries 
-         WHERE company_id = $1
-         GROUP BY category, intent, priority`,
+        `SELECT aq.category, aq.intent, aq.priority_score as priority, COUNT(*) as count
+         FROM audit_queries aq
+         JOIN ai_visibility_audits av ON aq.audit_id = av.id
+         WHERE av.company_id = $1
+         GROUP BY aq.category, aq.intent, aq.priority_score`,
         [companyId]
       );
       
@@ -70,10 +71,10 @@ export class RealDataService {
       });
       
       // Normalize scores to 0-100 range
-      const maxScore = Math.max(...Object.values(platforms));
+      const maxScore = Math.max(...Object.values(platforms).map(v => Number(v)));
       if (maxScore > 0) {
         Object.keys(platforms).forEach(platform => {
-          platforms[platform] = Math.round((platforms[platform] / maxScore) * 100);
+          platforms[platform] = Math.round((Number(platforms[platform]) / maxScore) * 100);
         });
       }
       
@@ -128,15 +129,16 @@ export class RealDataService {
       
       // Get query statistics
       const statsResult = await this.db.query(
-        `SELECT 
+        `SELECT
           COUNT(*) as total_queries,
-          COUNT(DISTINCT category) as category_diversity,
-          AVG(priority) as avg_priority,
-          COUNT(CASE WHEN category = 'brand_specific' THEN 1 END) as brand_queries,
-          COUNT(CASE WHEN intent = 'commercial' THEN 1 END) as commercial_queries,
-          COUNT(CASE WHEN intent = 'transactional' THEN 1 END) as transactional_queries
-         FROM ai_queries
-         WHERE company_id = $1`,
+          COUNT(DISTINCT aq.category) as category_diversity,
+          AVG(aq.priority_score) as avg_priority,
+          COUNT(CASE WHEN aq.category = 'brand_specific' THEN 1 END) as brand_queries,
+          COUNT(CASE WHEN aq.intent = 'commercial' THEN 1 END) as commercial_queries,
+          COUNT(CASE WHEN aq.intent = 'transactional' THEN 1 END) as transactional_queries
+         FROM audit_queries aq
+         JOIN ai_visibility_audits av ON aq.audit_id = av.id
+         WHERE av.company_id = $1`,
         [companyId]
       );
       
@@ -164,11 +166,12 @@ export class RealDataService {
     try {
       // For now, calculate based on query intent distribution
       const result = await this.db.query(
-        `SELECT intent, COUNT(*) as count
-         FROM ai_queries aq
-         JOIN companies c ON aq.company_id = c.id
+        `SELECT aq.intent, COUNT(*) as count
+         FROM audit_queries aq
+         JOIN ai_visibility_audits av ON aq.audit_id = av.id
+         JOIN companies c ON av.company_id = c.id
          WHERE c.domain = $1
-         GROUP BY intent`,
+         GROUP BY aq.intent`,
         [domain]
       );
       
@@ -209,12 +212,13 @@ export class RealDataService {
     
     try {
       const result = await this.db.query(
-        `SELECT 
+        `SELECT
           COUNT(*) as total_queries,
-          COUNT(DISTINCT category) as categories,
-          AVG(priority) as avg_priority
-         FROM ai_queries aq
-         JOIN companies c ON aq.company_id = c.id
+          COUNT(DISTINCT aq.category) as categories,
+          AVG(aq.priority_score) as avg_priority
+         FROM audit_queries aq
+         JOIN ai_visibility_audits av ON aq.audit_id = av.id
+         JOIN companies c ON av.company_id = c.id
          WHERE c.domain = $1`,
         [domain]
       );

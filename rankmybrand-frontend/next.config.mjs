@@ -65,6 +65,11 @@ const nextConfig = {
         source: '/api/search/:path*',
         destination: `${process.env.NEXT_PUBLIC_SEARCH_API || 'http://localhost:3002'}/api/search-intelligence/:path*`,
       },
+      // Catch-all for all other /api/* routes to API Gateway
+      {
+        source: '/api/:path*',
+        destination: `${process.env.NEXT_PUBLIC_API_GATEWAY || 'http://localhost:4000'}/api/:path*`,
+      },
     ];
   },
 };

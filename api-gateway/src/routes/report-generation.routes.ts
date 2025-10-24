@@ -6,6 +6,7 @@ import { authenticate } from '../middleware/auth';
 import Bull from 'bull';
 import Redis from 'ioredis';
 import { v4 as uuidv4 } from 'uuid';
+import crypto from 'crypto';
 
 const router = Router();
 
@@ -39,6 +40,131 @@ interface ReportGenerationRequest {
   includeCompetitorAnalysis: boolean;
   reportType: 'instant' | 'comprehensive' | 'detailed';
 }
+
+/**
+ * Public endpoint: Verify shareable report token
+ * No authentication required - tokens are self-verifying via HMAC signature
+ */
+router.post('/verify-token', asyncHandler(async (req: Request, res: Response) => {
+  const { token } = req.body;
+
+  if (!token) {
+    return res.status(400).json({ success: false, error: 'Token is required' });
+  }
+
+  try {
+    const tokenSecret = process.env.REPORT_TOKEN_SECRET || crypto.randomBytes(32).toString('hex');
+
+    // Decode and verify token signature
+    const decoded = Buffer.from(token, 'base64url').toString('utf-8');
+    const [message, signature] = decoded.split('.');
+
+    if (!message || !signature) {
+      return res.status(401).json({ success: false, error: 'Invalid token format' });
+    }
+
+    const expectedSignature = crypto
+      .createHmac('sha256', tokenSecret)
+      .update(message)
+      .digest('hex');
+
+    if (signature !== expectedSignature) {
+      return res.status(401).json({ success: false, error: 'Invalid token signature' });
+    }
+
+    // Parse payload
+    const payload = JSON.parse(message);
+    const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
+
+    // Check token in database
+    const reportRequest = await db.query(
+      `SELECT * FROM report_requests WHERE email_token_hash = $1`,
+      [tokenHash]
+    );
+
+    if (reportRequest.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Token not found' });
+    }
+
+    const report = reportRequest.rows[0];
+
+    // Check expiration
+    if (report.token_expires_at && new Date() > new Date(report.token_expires_at)) {
+      return res.status(401).json({ success: false, error: 'Token has expired' });
+    }
+
+    // Mark as used
+    await db.query(
+      `UPDATE report_requests SET token_used = true, token_used_at = NOW() WHERE id = $1`,
+      [report.id]
+    );
+
+    logger.info(`Token verified successfully for audit ${payload.auditId}`);
+
+    res.json({
+      success: true,
+      auditId: payload.auditId,
+      companyId: payload.companyId,
+      reportId: report.id,
+    });
+  } catch (error) {
+    logger.error('Token verification failed:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Token verification failed',
+      message: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+}));
+
+/**
+ * Public endpoint: Get dashboard data for verified audit
+ * No authentication required - called after token verification
+ */
+router.get('/dashboard/data/:auditId', asyncHandler(async (req: Request, res: Response) => {
+  const { auditId } = req.params;
+
+  try {
+    const result = await db.query(`
+      SELECT dd.*, av.company_name, av.status as audit_status
+      FROM dashboard_data dd
+      LEFT JOIN ai_visibility_audits av ON av.id = dd.audit_id
+      WHERE dd.audit_id = $1
+    `, [auditId]);
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        error: 'Dashboard data not found for this audit'
+      });
+    }
+
+    const data = result.rows[0];
+
+    res.json({
+      audit_id: data.audit_id,
+      company_name: data.company_name,
+      overall_score: data.overall_score,
+      geo_score: data.geo_score,
+      sov_score: data.sov_score,
+      brand_mention_rate: data.brand_mention_rate,
+      total_queries: data.total_queries,
+      total_responses: data.total_responses,
+      main_competitors: data.main_competitors || [],
+      provider_scores: data.provider_scores || {},
+      competitor_mentions: data.competitor_mentions || {},
+      score_breakdown: data.score_breakdown || {},
+      top_recommendations: data.top_recommendations || [],
+      key_insights: data.key_insights || [],
+    });
+  } catch (error) {
+    logger.error('Failed to fetch dashboard data:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch dashboard data'
+    });
+  }
+}));
 
 /**
  * Generate comprehensive report including AI Visibility analysis
@@ -354,10 +480,10 @@ reportQueue.process('generate-report', async (job) => {
     logger.error(`Failed to generate report ${reportId}:`, error);
     
     await db.query(
-      `UPDATE reports 
+      `UPDATE reports
        SET status = 'failed', error = $1
        WHERE id = $2`,
-      [error.message, reportId]
+      [(error as Error).message, reportId]
     );
     
     throw error;
@@ -401,12 +527,13 @@ async function triggerAIVisibilityAnalysis(params: {
     // 4. Calculate visibility scores
     // 5. Store everything in the database for admin tracking
     
+    const typedResult = result as any;
     return {
-      reportId: result.report_id,
-      overallScore: result.overall_visibility_score,
-      queriesGenerated: result.queries_generated,
-      llmCalls: result.total_llm_calls,
-      insights: result.insights,
+      reportId: typedResult.report_id,
+      overallScore: typedResult.overall_visibility_score,
+      queriesGenerated: typedResult.queries_generated,
+      llmCalls: typedResult.total_llm_calls,
+      insights: typedResult.insights,
     };
     
   } catch (error) {

@@ -157,7 +157,7 @@ router.post(
       userId,
       companyId: companyId || 0,
       scoreType,
-      feedbackType,
+      feedbackType: feedbackType as 'helpful' | 'confusing' | 'incorrect' | 'suggestion',
       message: `Quick reaction: ${reaction}`
     });
 
