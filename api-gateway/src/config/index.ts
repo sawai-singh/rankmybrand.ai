@@ -39,7 +39,12 @@ const envSchema = z.object({
   GEO_SERVICE: z.string().url().default('http://localhost:8000'),
   CRAWLER_SERVICE: z.string().url().default('http://localhost:3002'),
   SEARCH_SERVICE: z.string().url().default('http://localhost:3002'),
-  DASHBOARD_SERVICE: z.string().url().default('http://localhost:3000'),
+  // Port Standardization - Split dashboard into frontend and admin
+  FRONTEND_SERVICE: z.string().url().default('http://localhost:3000'),
+  ADMIN_DASHBOARD_SERVICE: z.string().url().default('http://localhost:3003'),
+  DASHBOARD_SERVICE: z.string().url().default('http://localhost:3003'),  // Backward compat -> admin
+  DASHBOARD_BASE_URL: z.string().url().default('http://localhost:3000'),
+  ADMIN_DASHBOARD_URL: z.string().url().default('http://localhost:3003'),
   // WEBSOCKET_SERVICE removed - using integrated WebSocket
   INTELLIGENCE_SERVICE: z.string().url().default('http://localhost:8002'),
   // ACTION_SERVICE removed - service not in use
@@ -156,7 +161,11 @@ export const config = {
     geo: env.GEO_SERVICE,
     crawler: env.CRAWLER_SERVICE,
     search: env.SEARCH_SERVICE,
-    dashboard: env.DASHBOARD_SERVICE,
+    frontend: env.FRONTEND_SERVICE,              // User-facing frontend (port 3000)
+    adminDashboard: env.ADMIN_DASHBOARD_SERVICE, // Admin dashboard (port 3003)
+    dashboard: env.DASHBOARD_SERVICE,            // Backward compat -> admin (port 3003)
+    dashboardBaseUrl: env.DASHBOARD_BASE_URL,    // For user dashboard links (port 3000)
+    adminDashboardUrl: env.ADMIN_DASHBOARD_URL,  // For admin links (port 3003)
     // websocket: removed - using integrated WebSocket
     intelligence: env.INTELLIGENCE_SERVICE,
     // action: removed - service not in use

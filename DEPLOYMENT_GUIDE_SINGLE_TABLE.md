@@ -1,5 +1,12 @@
 # Deployment Guide: Single Table Architecture Migration
 
+> **⚠️ PORT CONFIGURATION NOTE (2025-10-24)**
+> Some port references in this document may be outdated.
+> For current port assignments, see: **PORT_ARCHITECTURE_MASTER_PLAN.md**
+> - Admin Dashboard: http://localhost:3003
+> - User Frontend: http://localhost:3000
+> - API Gateway: http://localhost:4000
+
 ## Overview
 
 This guide provides step-by-step instructions for deploying the single table architecture migration that eliminates dual writes and reduces database operations by 50%.

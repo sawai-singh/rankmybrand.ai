@@ -236,7 +236,7 @@ class ReportQueueService {
   private async sendReportEmail(report: any, token: string) {
     try {
       const metadata = report.metadata || {};
-      const dashboardUrl = process.env.DASHBOARD_URL || 'http://localhost:3000';
+      const dashboardUrl = process.env.ADMIN_DASHBOARD_URL || 'http://localhost:3003';
       const signedUrl = `${dashboardUrl}/r/${token}`;
       
       // TODO: Implement sendReportReadyEmail in EmailService

@@ -1,7 +1,17 @@
 # End-to-End System Readiness Check
 
+> **⚠️ PORT CONFIGURATION OUTDATED (2025-10-24)**
+> **This document has incorrect port assignments throughout.**
+> **For correct port configuration, see: PORT_ARCHITECTURE_MASTER_PLAN.md and SYSTEM_READY.md**
+>
+> Correct assignments:
+> - Admin Dashboard: Port 3003 (NOT 3000)
+> - User Frontend: Port 3000 (NOT 3003)
+> - API Gateway: Port 4000
+> - Intelligence Engine: Port 8002
+
 **Date**: October 1, 2025
-**Status**: ✅ **READY** (Frontend needs to be started)
+**Status**: ⚠️ **OUTDATED - See SYSTEM_READY.md for current version**
 
 ---
 

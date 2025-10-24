@@ -1,6 +1,10 @@
 # 🚀 System Ready for End-to-End Testing
 
-**Date**: October 1, 2025
+> **⚠️ PORT CONFIGURATION UPDATE (2025-10-24)**
+> This document has been updated with correct port assignments.
+> For canonical port architecture, see: **PORT_ARCHITECTURE_MASTER_PLAN.md**
+
+**Date**: October 1, 2025 (Updated: October 24, 2025)
 **Status**: ✅ **ALL SYSTEMS GO**
 
 ---
@@ -11,8 +15,8 @@
 |---------|------|--------|-----|
 | **API Gateway** | 4000 | ✅ Healthy | http://localhost:4000 |
 | **Intelligence Engine** | 8002 | ✅ Healthy | http://localhost:8002 |
-| **Admin Dashboard** | 3000 | ✅ Running | http://localhost:3000/admin |
-| **Frontend** | 3003 | ✅ Running | http://localhost:3003 |
+| **Admin Dashboard** | 3003 | ✅ Running | http://localhost:3003/admin |
+| **Frontend (User-facing)** | 3000 | ✅ Running | http://localhost:3000 |
 | **Redis** | 6379 | ✅ Connected | - |
 | **PostgreSQL** | 5432 | ✅ Connected | - |
 
@@ -21,7 +25,7 @@
 ## 🎯 Ready to Test Complete Workflow
 
 ### Step 1: Start Onboarding
-Go to: **http://localhost:3003**
+Go to: **http://localhost:3000** (Frontend - User Onboarding)
 
 ### Step 2: Complete Onboarding Flow
 1. Enter work email (e.g., `test@yourcompany.com`)
@@ -50,7 +54,7 @@ The system will automatically:
 | **Results Ready** | T+15min | ✅ User can view dashboard |
 
 ### Step 4: Monitor Progress
-Open: **http://localhost:3000/admin**
+Open: **http://localhost:3003/admin** (Admin Dashboard)
 
 Click the **"Audits"** tab to see real-time progress:
 - ⏳ Audit status (pending → processing → completed)
@@ -64,7 +68,7 @@ Click the **"Audits"** tab to see real-time progress:
 ### Step 5: View Results
 When audit status shows **"completed"**, view dashboard at:
 
-**http://localhost:3003/dashboard/{audit_id}**
+**http://localhost:3000/dashboard/{audit_id}** (User Dashboard)
 
 Or click **"View Dashboard"** button in admin panel.
 
@@ -198,8 +202,8 @@ PGPASSWORD=postgres psql -h localhost -U sawai -d rankmybrand -c \
 **All services healthy:**
 - ✅ API Gateway (TypeScript errors fixed)
 - ✅ Intelligence Engine (all checks passing)
-- ✅ Admin Dashboard (monitoring ready)
-- ✅ Frontend (port 3003 configured)
+- ✅ Admin Dashboard (port 3003 - monitoring ready)
+- ✅ Frontend (port 3000 - user-facing)
 - ✅ Database (73 companies, schema intact)
 - ✅ Redis (queue empty and ready)
 
@@ -207,11 +211,11 @@ PGPASSWORD=postgres psql -h localhost -U sawai -d rankmybrand -c \
 
 ## 🚀 Start Testing Now
 
-1. Open **http://localhost:3003**
+1. Open **http://localhost:3000** (Frontend - Onboarding)
 2. Complete onboarding with any email
-3. Watch progress at **http://localhost:3000/admin** (Audits tab)
+3. Watch progress at **http://localhost:3003/admin** (Admin Dashboard - Audits tab)
 4. Wait 10-15 minutes
-5. View results at **http://localhost:3003/dashboard/{audit_id}**
+5. View results at **http://localhost:3000/dashboard/{audit_id}** (User Dashboard)
 
 **No manual steps. No intervention. Fully automated end-to-end.**
 
