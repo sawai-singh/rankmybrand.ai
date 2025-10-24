@@ -393,20 +393,21 @@ class DashboardDataPopulator:
             company_data = cursor.fetchone()
 
             if not company_data:
-                logger.warning(f"No company data found for company_id {company_id}")
-                return {
-                    'company_name': 'Unknown Company',
-                    'domain': '',
-                    'industry': '',
-                    'employee_count': 0,
-                    'headquarters': 'Unknown',
-                    'logo_url': None
-                }
+                error_msg = f"❌ No company data found for company_id {company_id}"
+                logger.error(error_msg)
+
+                # ARCHITECTURAL FIX: Raise exception instead of silent fallback
+                raise ValueError(f"Company {company_id} not found in database. Cannot proceed without company data.")
 
             # Convert to dict and ensure logo_url exists (even if NULL)
             result = dict(company_data)
             if 'logo_url' not in result:
                 result['logo_url'] = None
+
+            # ARCHITECTURAL FIX: Validate company_name is not empty
+            company_name = result.get('company_name', '').strip()
+            if not company_name:
+                raise ValueError(f"Company {company_id} has empty/null name in database")
 
             # Sanitize logo_url: remove empty strings, whitespace-only, or invalid URLs
             if result.get('logo_url'):
@@ -420,19 +421,20 @@ class DashboardDataPopulator:
             else:
                 result['logo_url'] = None
 
+            logger.info(f"✅ Successfully retrieved company data: {result.get('company_name')}")
             return result
 
+        except ValueError:
+            # Re-raise validation errors (don't catch these)
+            raise
         except Exception as e:
-            logger.error(f"Error gathering company data: {e}")
-            # Return safe defaults to prevent crashes
-            return {
-                'company_name': 'Unknown Company',
-                'domain': '',
-                'industry': '',
-                'employee_count': 0,
-                'headquarters': 'Unknown',
-                'logo_url': None
-            }
+            # ARCHITECTURAL FIX: Don't return silent defaults, re-raise with context
+            logger.error(f"❌ CRITICAL: Error gathering company data for {company_id}: {e}")
+            import traceback
+            logger.error(f"Stack trace:\n{traceback.format_exc()}")
+
+            # Re-raise with better context
+            raise RuntimeError(f"Failed to retrieve company {company_id} from database") from e
         finally:
             cursor.close()
             self._return_connection(conn)

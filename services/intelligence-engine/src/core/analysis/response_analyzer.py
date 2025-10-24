@@ -358,6 +358,64 @@ class UnifiedResponseAnalyzer:
                 response_text, query, brand_name, competitors, provider
             )
     
+    def _extract_brand_variations(self, brand_name: str) -> List[str]:
+        """
+        Extract all possible brand name variations for robust matching.
+
+        Handles complex cases like:
+        - "Nike" → ["nike"]
+        - "Bikaji Foods International Ltd." → ["bikaji", "bikaji foods"]
+        - "Imagine Marketing Limited (boAt)" → ["boat", "imagine marketing", "imagine"]
+        - "Reliance Jio Infocomm Limited" → ["jio", "reliance jio", "reliance"]
+
+        Returns:
+            List of brand variations ordered by specificity (most specific first)
+        """
+        if not brand_name or brand_name.strip() == "":
+            logger.warning("⚠️ Empty brand_name provided to _extract_brand_variations")
+            return []
+
+        brand_lower = brand_name.lower().strip()
+        variations = []
+
+        # PRIORITY 1: Extract parenthetical brand name (highest specificity)
+        # e.g., "Imagine Marketing Limited (boAt)" → "boat"
+        paren_match = re.search(r'\(([^)]+)\)', brand_name)
+        if paren_match:
+            paren_brand = paren_match.group(1).strip().lower()
+            if paren_brand and paren_brand not in variations:
+                variations.append(paren_brand)
+                logger.debug(f"🎯 Extracted parenthetical brand: '{paren_brand}' from '{brand_name}'")
+
+        # PRIORITY 2: Add full legal name (for exact matches)
+        if brand_lower not in variations:
+            variations.append(brand_lower)
+
+        # PRIORITY 3: Extract first word (traditional approach)
+        words = brand_lower.split()
+        if len(words) > 0:
+            first_word = words[0]
+            if first_word and first_word not in variations and len(first_word) > 2:
+                variations.append(first_word)
+
+        # PRIORITY 4: Extract first two words (for "Bikaji Foods" etc.)
+        if len(words) >= 2:
+            first_two = f"{words[0]} {words[1]}"
+            if first_two not in variations:
+                variations.append(first_two)
+
+        # PRIORITY 5: Remove common legal suffixes for matching
+        # e.g., "Reliance Jio Infocomm Limited" → "reliance jio"
+        legal_suffixes = ['limited', 'ltd', 'inc', 'corp', 'corporation', 'llc', 'pvt']
+        words_without_suffix = [w for w in words if w not in legal_suffixes]
+        if len(words_without_suffix) >= 2:
+            clean_name = ' '.join(words_without_suffix)
+            if clean_name and clean_name not in variations:
+                variations.append(clean_name)
+
+        logger.info(f"✅ Brand variations for '{brand_name}': {variations}")
+        return variations
+
     async def _fast_analysis(
         self,
         response_text: str,
@@ -366,37 +424,53 @@ class UnifiedResponseAnalyzer:
         competitors: Optional[List[str]],
         provider: str
     ) -> ResponseAnalysis:
-        """Fast heuristic-based analysis without LLM"""
-        
+        """
+        Fast heuristic-based analysis without LLM.
+
+        ARCHITECTURAL FIX: Now uses robust brand variation extraction
+        to handle complex company names including parenthetical brands.
+        """
+
         response_lower = response_text.lower()
-        brand_lower = brand_name.lower()
-        
-        # Extract the main brand name (first word) for better detection
-        # e.g., "Bikaji Foods International Ltd." -> "bikaji"
-        main_brand = brand_lower.split()[0] if brand_lower else brand_lower
-        
-        # Brand mention analysis - check both full name and main brand
-        brand_mentioned = (brand_lower in response_lower) or (main_brand in response_lower)
-        
-        # Count mentions of both full name and main brand
-        mention_count = response_lower.count(brand_lower) + response_lower.count(main_brand)
-        
-        # Find first position
+
+        # ARCHITECTURAL FIX: Use robust brand variation extraction
+        brand_variations = self._extract_brand_variations(brand_name)
+
+        # Brand mention analysis - check ALL variations
+        brand_mentioned = False
+        mention_count = 0
         first_position = None
-        if brand_mentioned:
-            # Find the earliest position of either full name or main brand
-            pos_full = response_lower.find(brand_lower)
-            pos_main = response_lower.find(main_brand)
-            
-            if pos_full >= 0 and pos_main >= 0:
-                position = min(pos_full, pos_main)
-            elif pos_full >= 0:
-                position = pos_full
-            else:
-                position = pos_main
-                
-            first_position = position
-            first_position_pct = (position / len(response_text)) * 100 if response_text else 0
+
+        # Check each variation for mentions
+        for variation in brand_variations:
+            if variation in response_lower:
+                brand_mentioned = True
+                mention_count += response_lower.count(variation)
+
+                # Track first position (earliest match)
+                pos = response_lower.find(variation)
+                if first_position is None or pos < first_position:
+                    first_position = pos
+
+        # Log detection results for debugging
+        if not brand_mentioned and len(response_text) > 100:
+            logger.warning(
+                f"⚠️ Brand NOT detected in {len(response_text)} char response\n"
+                f"   Brand: {brand_name}\n"
+                f"   Variations tried: {brand_variations}\n"
+                f"   Response preview: {response_text[:150]}..."
+            )
+        elif brand_mentioned:
+            logger.debug(
+                f"✅ Brand detected: {brand_name}\n"
+                f"   Mention count: {mention_count}\n"
+                f"   First position: {first_position}\n"
+                f"   Matched variations: {[v for v in brand_variations if v in response_lower]}"
+            )
+
+        # Calculate first position percentage
+        if brand_mentioned and first_position is not None:
+            first_position_pct = (first_position / len(response_text)) * 100 if response_text else 0
         else:
             first_position_pct = 100
         
@@ -459,7 +533,9 @@ class UnifiedResponseAnalyzer:
                 'response_text': response_text,
                 'query': query,
                 'provider': provider,
-                'domain': f"{brand_name.split()[0].lower()}.com"  # Extract first word as domain
+                'domain': f"{brand_name.split()[0].lower()}.com",  # Extract first word as domain
+                'brand_variations': brand_variations,  # ARCHITECTURAL FIX: Store variations for debugging
+                'brand_name_original': brand_name  # Store original for transparency
             }
         )
     

@@ -1548,6 +1548,131 @@ class AuditJobProcessor:
         print(f"DEBUG: Overall score calculated: {overall_score:.2f}")
         logger.info(f"Scores calculated - Overall: {overall_score:.2f}, GEO: {geo_score:.2f}, SOV: {sov_score:.2f}")
 
+        # ═══════════════════════════════════════════════════════════════════════════
+        # ARCHITECTURAL FIX: Data Quality Validation & Circuit Breaker
+        # ═══════════════════════════════════════════════════════════════════════════
+
+        logger.info("")
+        logger.info("=" * 80)
+        logger.info("🔍 DATA QUALITY VALIDATION CHECKPOINT")
+        logger.info("=" * 80)
+
+        validation_warnings = []
+        validation_errors = []
+        data_quality_score = 100.0
+
+        # VALIDATION 1: Check for zero score anomaly (critical)
+        if overall_score == 0.0 and len(analyses) > 0:
+            validation_errors.append("All scores are zero despite having analyzed responses")
+            data_quality_score -= 50
+            logger.error("❌ CRITICAL: Overall score is ZERO with non-empty analysis")
+
+        # VALIDATION 2: Brand detection circuit breaker
+        brand_mention_rate = visibility_score
+        if brand_mention_rate < 5.0 and len(analyses) > 10:
+            validation_errors.append(f"Brand detected in only {brand_mention_rate:.1f}% of responses")
+            data_quality_score -= 40
+            logger.error(f"❌ CIRCUIT BREAKER: Brand mention rate critically low: {brand_mention_rate:.1f}%")
+            logger.error(f"   This indicates a brand detection failure - likely bug in response analyzer")
+
+            # Log sample for debugging
+            if len(analyses) > 0:
+                sample = analyses[0]
+                logger.error(f"   Sample analysis:")
+                logger.error(f"     Brand mentioned: {sample.brand_analysis.mentioned}")
+                logger.error(f"     Response preview: {sample.metadata.get('response_text', '')[:200]}...")
+
+        # VALIDATION 3: All component scores are zero (suspicious)
+        if (geo_score == 0 and sov_score == 0 and recommendation_score == 0 and
+            sentiment_score == 0 and visibility_score == 0):
+            validation_errors.append("All component scores are zero")
+            data_quality_score -= 50
+            logger.error("❌ CRITICAL: ALL component scores are zero - systemic failure")
+
+        # VALIDATION 4: Score sanity checks (out of range)
+        score_checks = {
+            'overall': overall_score,
+            'geo': geo_score,
+            'sov': sov_score,
+            'visibility': visibility_score,
+            'sentiment': sentiment_score,
+            'recommendation': recommendation_score,
+            'context_completeness': context_completeness
+        }
+
+        for score_name, score_value in score_checks.items():
+            if not (0.0 <= score_value <= 100.0):
+                validation_errors.append(f"{score_name} score {score_value:.2f} out of valid range [0-100]")
+                data_quality_score -= 10
+                logger.error(f"❌ Invalid {score_name} score: {score_value:.2f} (must be 0-100)")
+
+        # VALIDATION 5: Insufficient data warning
+        if len(analyses) < 10:
+            validation_warnings.append(f"Only {len(analyses)} responses analyzed (recommended: >10)")
+            data_quality_score -= 10
+            logger.warning(f"⚠️ Low sample size: {len(analyses)} responses")
+
+        # VALIDATION 6: Check for anomalous patterns
+        if overall_score > 0 and brand_mention_rate == 0:
+            validation_warnings.append("Overall score > 0 but brand never mentioned (inconsistent)")
+            data_quality_score -= 15
+            logger.warning("⚠️ Inconsistency: Score > 0 but brand_mention_rate = 0")
+
+        # Calculate final data quality assessment
+        data_quality_status = "high_confidence"
+        if data_quality_score < 30:
+            data_quality_status = "invalid"
+        elif data_quality_score < 50:
+            data_quality_status = "needs_review"
+        elif data_quality_score < 75:
+            data_quality_status = "low_confidence"
+
+        # Log validation results
+        logger.info(f"Data Quality Score: {data_quality_score:.1f}/100")
+        logger.info(f"Data Quality Status: {data_quality_status}")
+
+        if validation_warnings:
+            logger.info(f"⚠️ Warnings ({len(validation_warnings)}):")
+            for warning in validation_warnings:
+                logger.info(f"  • {warning}")
+
+        if validation_errors:
+            logger.info(f"❌ Errors ({len(validation_errors)}):")
+            for error in validation_errors:
+                logger.info(f"  • {error}")
+
+        logger.info("=" * 80)
+        logger.info("")
+
+        # CIRCUIT BREAKER: Fail fast if data quality is invalid
+        if data_quality_status == "invalid":
+            error_summary = "; ".join(validation_errors)
+            logger.error("🛑 CIRCUIT BREAKER TRIGGERED: Data quality invalid, halting audit")
+            raise ValueError(
+                f"Data quality validation failed for audit {audit_id}: {error_summary}. "
+                f"Data quality score: {data_quality_score:.1f}/100. "
+                f"This audit requires manual investigation before proceeding."
+            )
+
+        # WARNING: Log if quality is questionable but allow to proceed
+        if data_quality_status in ["needs_review", "low_confidence"]:
+            logger.warning(f"⚠️ Audit {audit_id} has {data_quality_status} data quality")
+            logger.warning(f"   Recommendation: Manual review suggested")
+            # Store warning in error_message field for visibility
+            warning_msg = f"Data quality: {data_quality_status} ({data_quality_score:.1f}/100)"
+            loop = asyncio.get_event_loop()
+            await loop.run_in_executor(
+                None,
+                self._update_audit_status_sync,
+                audit_id,
+                'processing',  # Keep processing
+                warning_msg  # But log the warning
+            )
+
+        # ═══════════════════════════════════════════════════════════════════════════
+        # END VALIDATION CHECKPOINT
+        # ═══════════════════════════════════════════════════════════════════════════
+
         # Store scores in database using thread pool
         print(f"DEBUG: Storing scores in database...")
         loop = asyncio.get_event_loop()
@@ -2911,27 +3036,65 @@ class AuditJobProcessor:
         conn = self._get_db_connection_sync()
         try:
             with conn.cursor() as cursor:
+                # FIX: Update both status AND current_phase in all branches to prevent infinite loop
                 if status == 'processing':
-                    cursor.execute(
-                        "UPDATE ai_visibility_audits SET status = %s, started_at = NOW(), last_heartbeat = NOW() WHERE id = %s",
-                        (status, audit_id)
-                    )
+                    cursor.execute("""
+                        UPDATE ai_visibility_audits
+                        SET
+                            status = %s,
+                            current_phase = 'processing',
+                            started_at = NOW(),
+                            last_heartbeat = NOW()
+                        WHERE id = %s
+                        RETURNING id, status, current_phase
+                    """, (status, audit_id))
                 elif status == 'completed':
-                    cursor.execute(
-                        "UPDATE ai_visibility_audits SET status = %s, completed_at = NOW(), last_heartbeat = NOW() WHERE id = %s",
-                        (status, audit_id)
-                    )
+                    cursor.execute("""
+                        UPDATE ai_visibility_audits
+                        SET
+                            status = %s,
+                            current_phase = 'completed',
+                            completed_at = NOW(),
+                            last_heartbeat = NOW()
+                        WHERE id = %s
+                        RETURNING id, status, current_phase
+                    """, (status, audit_id))
                 elif status == 'failed':
-                    cursor.execute(
-                        "UPDATE ai_visibility_audits SET status = %s, error_message = %s, last_heartbeat = NOW() WHERE id = %s",
-                        (status, error_message, audit_id)
-                    )
+                    cursor.execute("""
+                        UPDATE ai_visibility_audits
+                        SET
+                            status = %s,
+                            current_phase = 'failed',
+                            error_message = %s,
+                            last_heartbeat = NOW()
+                        WHERE id = %s
+                        RETURNING id, status, current_phase
+                    """, (status, error_message, audit_id))
                 else:
-                    cursor.execute(
-                        "UPDATE ai_visibility_audits SET status = %s, last_heartbeat = NOW() WHERE id = %s",
-                        (status, audit_id)
-                    )
+                    # Generic status update - mirror status to phase
+                    cursor.execute("""
+                        UPDATE ai_visibility_audits
+                        SET
+                            status = %s,
+                            current_phase = %s,
+                            last_heartbeat = NOW()
+                        WHERE id = %s
+                        RETURNING id, status, current_phase
+                    """, (status, status, audit_id))
+
+                # Verify update succeeded
+                result = cursor.fetchone()
+                if not result:
+                    logger.error(f"❌ Failed to update audit {audit_id} status to {status} - audit not found")
+                    raise RuntimeError(f"Failed to update audit {audit_id} status to {status}")
+
+                logger.info(f"✅ Audit {audit_id} status updated: status={result['status']}, phase={result['current_phase']}")
+
             conn.commit()
+        except Exception as e:
+            logger.error(f"❌ Error updating audit {audit_id} status: {str(e)}")
+            conn.rollback()
+            raise
         finally:
             self._put_db_connection_sync(conn)
 
@@ -3025,20 +3188,37 @@ class AuditJobProcessor:
         conn = self._get_db_connection_sync()
         try:
             with conn.cursor() as cursor:
+                # FIX: Update both status AND current_phase to prevent infinite loop
                 cursor.execute("""
                     UPDATE ai_visibility_audits
                     SET
                         status = 'completed',
+                        current_phase = 'completed',
                         completed_at = NOW(),
                         overall_score = %s,
-                        brand_mention_rate = %s
+                        brand_mention_rate = %s,
+                        last_heartbeat = NOW()
                     WHERE id = %s
+                    RETURNING id, status, current_phase, completed_at
                 """, (overall_score, visibility, audit_id))
+
+                # Verify update succeeded
+                result = cursor.fetchone()
+                if not result:
+                    logger.error(f"❌ Failed to finalize audit {audit_id} - audit not found in database")
+                    raise RuntimeError(f"Failed to finalize audit {audit_id} - audit not found")
+
+                logger.info(f"✅ Audit {audit_id} finalized successfully: status={result['status']}, phase={result['current_phase']}")
+
                 try:
                     cursor.execute("SELECT refresh_audit_materialized_views()")
                 except:
                     pass
             conn.commit()
+        except Exception as e:
+            logger.error(f"❌ Error finalizing audit {audit_id}: {str(e)}")
+            conn.rollback()
+            raise
         finally:
             self._put_db_connection_sync(conn)
 
