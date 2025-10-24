@@ -3,7 +3,8 @@
 export default function TestRedirect() {
   const handleRedirect = () => {
     console.log('Redirecting to dashboard on port 3000...');
-    window.location.href = 'http://localhost:3000/dashboard?onboarding=complete';
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
+    window.location.href = `${appUrl}/dashboard?onboarding=complete`;
   };
 
   return (

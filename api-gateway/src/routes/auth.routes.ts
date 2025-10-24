@@ -197,7 +197,7 @@ router.post('/magic-link', async (req: Request, res: Response) => {
     const token = await userRepository.generateMagicLink(email);
     
     // Create magic link URL
-    const magicLinkUrl = `${process.env.FRONTEND_URL || 'http://localhost:3001'}/r/${token}`;
+    const magicLinkUrl = `${process.env.FRONTEND_URL || 'http://localhost:3000'}/r/${token}`;
     
     // Send email (implement email service)
     console.log('Magic link URL:', magicLinkUrl); // For development

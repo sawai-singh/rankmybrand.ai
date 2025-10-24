@@ -1,12 +1,12 @@
 import { z } from 'zod';
+import { env } from './env';
 
-// API configuration - Use Docker service names in production, localhost in development
-const isDocker = process.env.NEXT_PUBLIC_IS_DOCKER === 'true';
-const API_GATEWAY = process.env.NEXT_PUBLIC_API_GATEWAY || (isDocker ? 'http://api-gateway:4000' : 'http://localhost:4000');
-const GEO_CALCULATOR = process.env.NEXT_PUBLIC_GEO_CALCULATOR || (isDocker ? 'http://intelligence-engine:8002' : 'http://localhost:8002');  // Now using Intelligence Engine
-const WEB_CRAWLER = process.env.NEXT_PUBLIC_WEB_CRAWLER || (isDocker ? 'http://web-crawler:3002' : 'http://localhost:3002');
-const INTELLIGENCE_ENGINE = process.env.NEXT_PUBLIC_INTELLIGENCE_ENGINE || (isDocker ? 'http://intelligence-engine:8002' : 'http://localhost:8002');
-const ACTION_CENTER = process.env.NEXT_PUBLIC_ACTION_CENTER || (isDocker ? 'http://action-center:8002' : 'http://localhost:8002');
+// API configuration - Use validated environment variables
+const API_GATEWAY = env.NEXT_PUBLIC_API_GATEWAY;
+const GEO_CALCULATOR = env.NEXT_PUBLIC_GEO_CALCULATOR;
+const WEB_CRAWLER = env.NEXT_PUBLIC_WEB_CRAWLER;
+const INTELLIGENCE_ENGINE = env.NEXT_PUBLIC_INTELLIGENCE_ENGINE;
+const ACTION_CENTER = process.env.NEXT_PUBLIC_ACTION_CENTER || 'http://localhost:8002';
 
 // Request types
 export interface RequestConfig extends RequestInit {

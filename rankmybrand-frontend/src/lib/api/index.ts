@@ -5,14 +5,15 @@
 
 import axios, { AxiosInstance } from 'axios';
 import io, { Socket } from 'socket.io-client';
+import { env } from '../env';
 
-// Service URLs from environment - Use API Gateway for all services
-const API_GATEWAY = process.env.NEXT_PUBLIC_API_GATEWAY || 'http://localhost:4000';
+// Service URLs from validated environment - Use API Gateway for all services
+const API_GATEWAY = env.NEXT_PUBLIC_API_GATEWAY;
 const GEO_API = API_GATEWAY; // Use API Gateway
 const CRAWLER_API = API_GATEWAY; // Use API Gateway
 const SEARCH_API = API_GATEWAY; // Use API Gateway
-const WS_URL = process.env.NEXT_PUBLIC_WS_URL || 'ws://localhost:4000/ws';
-const DASHBOARD_WS = process.env.NEXT_PUBLIC_WS_URL || 'ws://localhost:4000/ws';
+const WS_URL = env.NEXT_PUBLIC_WS_URL;
+const DASHBOARD_WS = env.NEXT_PUBLIC_WS_URL;
 
 // Types
 export interface GEOScore {
@@ -423,8 +424,7 @@ class RankMyBrandAPI {
    */
   async getDashboardData(auditId: string): Promise<any> {
     // Fetch from Intelligence Engine API
-    const intelligenceUrl = process.env.NEXT_PUBLIC_INTELLIGENCE_ENGINE || 'http://localhost:8002';
-    const { data } = await axios.get(`${intelligenceUrl}/api/dashboard/detailed/${auditId}`);
+    const { data } = await axios.get(`${env.NEXT_PUBLIC_INTELLIGENCE_ENGINE}/api/dashboard/detailed/${auditId}`);
     return data.data || data;
   }
 

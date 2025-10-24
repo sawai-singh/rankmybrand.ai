@@ -287,7 +287,7 @@ let wsClient: WebSocketClient | null = null;
  */
 export function initWebSocket(url?: string): WebSocketClient {
   if (!wsClient) {
-    const wsUrl = url || process.env.NEXT_PUBLIC_WS_URL || 'ws://localhost:3001';
+    const wsUrl = url || process.env.NEXT_PUBLIC_WS_URL || 'ws://localhost:4000';
     wsClient = new WebSocketClient({ url: wsUrl });
     
     // Auto-connect if in browser

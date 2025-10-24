@@ -502,8 +502,9 @@ async function triggerAIVisibilityAnalysis(params: {
   const { companyId, companyData, reportId } = params;
   
   try {
-    // Call the Python AI Visibility service
-    const response = await fetch('http://localhost:8085/api/visibility/analyze', {
+    // Call the Intelligence Engine service
+    const intelligenceUrl = process.env.INTELLIGENCE_SERVICE || 'http://localhost:8002';
+    const response = await fetch(`${intelligenceUrl}/api/ai-visibility/execute-audit`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
