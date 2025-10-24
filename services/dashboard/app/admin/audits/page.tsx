@@ -286,7 +286,8 @@ export default function AuditControlPage() {
 
     setActionLoading(auditId);
     try {
-      const response = await fetch(`http://localhost:8002/api/ai-visibility/execute-audit/${auditId}`, {
+      const INTELLIGENCE_ENGINE = process.env.NEXT_PUBLIC_INTELLIGENCE_ENGINE || "http://localhost:8002";
+      const response = await fetch(`${INTELLIGENCE_ENGINE}/api/ai-visibility/execute-audit/${auditId}`, {
         method: "POST",
       });
       if (response.ok) {
@@ -478,8 +479,8 @@ export default function AuditControlPage() {
       if (response.ok) {
         const data = await response.json();
         console.log("Response data:", data);
-        // UPDATED: Changed from localhost:3000 to localhost:3003
-        const link = `http://localhost:3003/r/${data.token}`;
+        const ADMIN_DASHBOARD_URL = process.env.NEXT_PUBLIC_ADMIN_DASHBOARD_URL || "http://localhost:3003";
+        const link = `${ADMIN_DASHBOARD_URL}/r/${data.token}`;
 
         // Try to copy to clipboard first
         try {

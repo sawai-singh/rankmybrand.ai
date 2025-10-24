@@ -916,6 +916,7 @@ router.post('/audits/:auditId/generate-link', asyncHandler(async (req: Request, 
       WHERE id = $3
     `, [tokenHash, tokenExpiresAt, reportId]);
 
+    const config = req.app.locals.config;
     res.json({
       success: true,
       token,
@@ -923,7 +924,7 @@ router.post('/audits/:auditId/generate-link', asyncHandler(async (req: Request, 
       auditId,
       companyName: audit.company_name,
       expiresAt: tokenExpiresAt,
-      link: `http://localhost:3003/r/${token}`
+      link: `${config.services.adminDashboardUrl}/r/${token}`
     });
   } catch (error: any) {
     console.error('Failed to generate link:', error);
@@ -1236,7 +1237,7 @@ router.get('/feature-flags', asyncHandler(async (req: Request, res: Response) =>
       throw new Error('Failed to fetch feature flags from intelligence engine');
     }
 
-    const data = await response.json();
+    const data: any = await response.json();
 
     // Format for UI
     const flags = [
@@ -1442,7 +1443,7 @@ router.post('/services/restart', asyncHandler(async (req: Request, res: Response
       `cd ${enginePath} && ` +
       `PYTHONPATH=${enginePath} ` +
       'nohup python3 src/main.py > /tmp/intelligence-engine.log 2>&1 &',
-      (error, stdout, stderr) => {
+      (error: any, stdout: any, stderr: any) => {
         if (error) {
           console.error('[Service Restart] Failed to start:', error);
         } else {

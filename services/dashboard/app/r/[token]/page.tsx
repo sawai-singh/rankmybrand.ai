@@ -51,7 +51,8 @@ export default function TokenRedirectPage() {
       setStatus('redirecting');
 
       // Build the redirect URL to rankmybrand-frontend dashboard
-      const dashboardUrl = `http://localhost:3000/dashboard/ai-visibility?token=${token}&auditId=${result.auditId}`;
+      const DASHBOARD_BASE_URL = process.env.NEXT_PUBLIC_DASHBOARD_BASE_URL || "http://localhost:3000";
+      const dashboardUrl = `${DASHBOARD_BASE_URL}/dashboard/ai-visibility?token=${token}&auditId=${result.auditId}`;
 
       // Redirect after a brief moment
       setTimeout(() => {

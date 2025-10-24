@@ -1,5 +1,6 @@
 """FastAPI application for Intelligence Engine."""
 
+import os
 import asyncio
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, HTTPException, BackgroundTasks
@@ -326,9 +327,13 @@ app = FastAPI(
 )
 
 # Add CORS middleware
+# Parse CORS origins from environment (comma-separated)
+cors_origins_str = os.getenv('CORS_ORIGINS', 'http://localhost:3000,http://localhost:3003')
+cors_origins = [origin.strip() for origin in cors_origins_str.split(',')]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "http://localhost:3001", "http://localhost:3002", "http://localhost:3003", "http://localhost:3004"],
+    allow_origins=cors_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
