@@ -12,6 +12,7 @@ import { motion } from 'framer-motion';
 import { Sparkles, RefreshCw, Loader2, ArrowRight, ArrowLeft, FileText, Wand2 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
+import { Button } from '@/components/ui/button';
 
 export default function DescriptionPage() {
   const router = useRouter();
@@ -138,8 +139,8 @@ export default function DescriptionPage() {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
-          <Sparkles className="w-12 h-12 text-primary-500 animate-pulse mx-auto mb-4" />
-          <p className="text-gray-600 dark:text-gray-400">Preparing description...</p>
+          <Sparkles className="w-12 h-12 text-neutral-600 dark:text-neutral-400 animate-pulse mx-auto mb-4" />
+          <p className="text-neutral-600 dark:text-neutral-400">Preparing description...</p>
         </div>
       </div>
     );
@@ -148,15 +149,15 @@ export default function DescriptionPage() {
   return (
     <div className="min-h-screen py-8 md:py-12 px-4">
       <div className="max-w-4xl mx-auto">
-        {/* Progress Bar */}
+        {/* Professional progress bar */}
         <nav aria-label="Progress" className="mb-8">
-          <div className="flex items-center justify-between text-sm text-gray-700 dark:text-gray-300 mb-2">
-            <span>Step 2 of 3</span>
-            <span>Company Description</span>
+          <div className="flex items-center justify-between text-sm text-neutral-700 dark:text-neutral-300 mb-2">
+            <span className="section-header">Step <span className="font-mono tabular-nums">2</span> of <span className="font-mono tabular-nums">3</span></span>
+            <span className="font-semibold">Company Description</span>
           </div>
-          <div className="h-2 bg-gray-200 dark:bg-gray-800 rounded-full overflow-hidden">
-            <div 
-              className="h-full bg-gradient-to-r from-primary-500 to-purple-500 rounded-full transition-all duration-500"
+          <div className="h-2 bg-neutral-200 dark:bg-neutral-800 rounded-full overflow-hidden">
+            <div
+              className="h-full bg-neutral-900 dark:bg-neutral-0 rounded-full transition-all duration-500"
               style={{ width: '66%' }}
               role="progressbar"
               aria-valuenow={66}
@@ -171,31 +172,31 @@ export default function DescriptionPage() {
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.3 }}
         >
-          {/* Header - [51:Microcopy] Clear, honest messaging */}
+          {/* Professional header */}
           <header className="text-center mb-8">
-            <h1 className="text-3xl md:text-4xl font-bold mb-4">
+            <h1 className="text-3xl md:text-4xl font-bold mb-4 text-neutral-900 dark:text-neutral-0">
               Describe Your Company
             </h1>
-            <p className="text-gray-600 dark:text-gray-400 max-w-2xl mx-auto">
+            <p className="text-neutral-600 dark:text-neutral-400 max-w-2xl mx-auto">
               We've drafted a description based on your company information. Edit it to better represent your brand and values.
             </p>
           </header>
 
           {/* Description Card */}
           <article className="glass rounded-2xl p-6 md:p-8 mb-8">
-            {/* Tools Bar */}
+            {/* Professional tools bar */}
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-2">
-                <FileText className="w-5 h-5 text-gray-500" />
-                <span className="text-sm text-gray-600 dark:text-gray-400">
-                  {wordCount} words
+                <FileText className="w-5 h-5 text-neutral-500" />
+                <span className="text-sm text-neutral-600 dark:text-neutral-400">
+                  <span className="font-mono tabular-nums font-semibold">{wordCount}</span> words
                 </span>
               </div>
-              
+
               <button
                 onClick={handleRegenerate}
                 disabled={generating}
-                className="flex items-center gap-2 px-4 py-2 text-sm bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 rounded-lg transition-colors disabled:opacity-50"
+                className="flex items-center gap-2 px-4 py-2 text-sm bg-neutral-100 dark:bg-neutral-800 hover:bg-neutral-200 dark:hover:bg-neutral-700 rounded-lg transition-colors disabled:opacity-50"
                 aria-label="Regenerate description"
               >
                 {generating ? (
@@ -207,30 +208,30 @@ export default function DescriptionPage() {
               </button>
             </div>
 
-            {/* Textarea - [43:Keyboard navigation] Full keyboard support */}
+            {/* Professional textarea */}
             <div className="relative">
               {generating && (
-                <div className="absolute inset-0 bg-white/80 dark:bg-gray-900/80 backdrop-blur-sm rounded-lg flex items-center justify-center z-10">
+                <div className="absolute inset-0 bg-white/90 dark:bg-neutral-900/90 backdrop-blur-sm rounded-lg flex items-center justify-center z-10">
                   <div className="text-center">
-                    <Wand2 className="w-8 h-8 text-primary-500 animate-pulse mx-auto mb-2" />
-                    <p className="text-sm text-gray-600 dark:text-gray-400">AI is writing...</p>
+                    <Wand2 className="w-8 h-8 text-neutral-600 dark:text-neutral-400 animate-pulse mx-auto mb-2" />
+                    <p className="text-sm text-neutral-600 dark:text-neutral-400">AI is writing...</p>
                   </div>
                 </div>
               )}
-              
+
               <textarea
                 ref={textareaRef}
                 value={description}
                 onChange={(e) => handleDescriptionChange(e.target.value)}
                 disabled={generating}
-                className="w-full min-h-[200px] p-4 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-lg resize-none focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-all"
+                className="w-full min-h-[200px] p-4 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-lg resize-none focus:outline-none focus:ring-2 focus:ring-neutral-900 dark:focus:ring-neutral-0 focus:border-transparent transition-all"
                 placeholder="Describe your company, products, and mission..."
                 aria-label="Company description"
               />
             </div>
 
-            {/* AI Indicator - [51:Microcopy] Transparent about AI assistance */}
-            <div className="mt-4 flex items-center gap-2 text-sm text-gray-500">
+            {/* Professional AI indicator */}
+            <div className="mt-4 flex items-center gap-2 text-sm text-neutral-500">
               <Sparkles className="w-4 h-4" />
               <span>
                 {description === originalDescription ? 'AI generated' : 'User edited'}
@@ -240,35 +241,25 @@ export default function DescriptionPage() {
 
           {/* Actions - [52:CTA] Clear primary action */}
           <div className="flex justify-between items-center">
-            <button
+            <Button
+              variant="ghost"
+              leftIcon={<ArrowLeft className="w-5 h-5" />}
               onClick={() => router.push('/onboarding/company')}
-              className="btn-ghost"
               aria-label="Go back to company details"
             >
-              <ArrowLeft className="w-5 h-5 mr-2" />
               Back
-            </button>
-            
-            <motion.button
+            </Button>
+
+            <Button
               onClick={handleContinue}
               disabled={saving || generating || !description.trim()}
-              className="btn-primary flex items-center gap-2"
-              whileHover={{ scale: 1.02 }}
-              whileTap={{ scale: 0.98 }}
+              loading={saving}
+              rightIcon={!saving ? <ArrowRight className="w-5 h-5" /> : undefined}
+              size="lg"
               aria-label="Continue to competitors"
             >
-              {saving ? (
-                <>
-                  <Loader2 className="w-5 h-5 animate-spin" />
-                  Saving...
-                </>
-              ) : (
-                <>
-                  Continue
-                  <ArrowRight className="w-5 h-5" />
-                </>
-              )}
-            </motion.button>
+              {saving ? 'Saving...' : 'Continue'}
+            </Button>
           </div>
         </motion.div>
       </div>

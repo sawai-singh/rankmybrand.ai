@@ -2,10 +2,13 @@
 
 import { useState } from 'react';
 import { motion } from 'framer-motion';
-import { Mail, Lock, ArrowRight, Loader2, Sparkles, Building2, AlertCircle } from 'lucide-react';
+import { Mail, Lock, ArrowRight, Sparkles } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
+import { Input } from '@/components/ui/input';
+import { Button } from '@/components/ui/button';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 
 export default function LoginPage() {
   const router = useRouter();
@@ -93,15 +96,16 @@ export default function LoginPage() {
             <p className="text-sm text-gray-500 mb-6">
               Click the link in your email to log in instantly. The link expires in 30 minutes.
             </p>
-            <button
+            <Button
+              variant="link"
               onClick={() => {
                 setMagicLinkSent(false);
                 setUseMagicLink(false);
               }}
-              className="text-primary-600 hover:text-primary-700 text-sm font-medium"
+              className="text-sm"
             >
               ← Back to login
-            </button>
+            </Button>
           </div>
         </motion.div>
       </div>
@@ -139,60 +143,47 @@ export default function LoginPage() {
           <form onSubmit={handleLogin} className="space-y-6">
             {/* Email Input */}
             <div>
-              <label htmlFor="email" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              <label htmlFor="email" className="block text-sm font-medium mb-2">
                 Email Address
               </label>
-              <div className="relative">
-                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                  <Mail className="h-5 w-5 text-gray-400" />
-                </div>
-                <input
-                  id="email"
-                  type="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  required
-                  className="block w-full pl-10 pr-3 py-3 border border-gray-300 dark:border-gray-700 rounded-xl
-                           bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100
-                           focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent
-                           placeholder-gray-400"
-                  placeholder="you@company.com"
-                />
-              </div>
+              <Input
+                id="email"
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                required
+                leftIcon={<Mail className="h-5 w-5" />}
+                inputSize="lg"
+                placeholder="you@company.com"
+              />
             </div>
 
             {/* Password Input (only if not using magic link) */}
             {!useMagicLink && (
               <div>
-                <label htmlFor="password" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                <label htmlFor="password" className="block text-sm font-medium mb-2">
                   Password
                 </label>
-                <div className="relative">
-                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                    <Lock className="h-5 w-5 text-gray-400" />
-                  </div>
-                  <input
-                    id="password"
-                    type="password"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    required={!useMagicLink}
-                    className="block w-full pl-10 pr-3 py-3 border border-gray-300 dark:border-gray-700 rounded-xl
-                             bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100
-                             focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent
-                             placeholder-gray-400"
-                    placeholder="Enter your password"
-                  />
-                </div>
+                <Input
+                  id="password"
+                  type="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  required={!useMagicLink}
+                  leftIcon={<Lock className="h-5 w-5" />}
+                  inputSize="lg"
+                  placeholder="Enter your password"
+                />
                 <div className="mt-2 flex items-center justify-between">
-                  <button
+                  <Button
                     type="button"
+                    variant="link"
                     onClick={() => setUseMagicLink(true)}
-                    className="text-sm text-primary-600 hover:text-primary-700"
+                    className="text-sm p-0 h-auto"
                   >
                     Use magic link instead
-                  </button>
-                  <Link href="/forgot-password" className="text-sm text-gray-500 hover:text-gray-700">
+                  </Button>
+                  <Link href="/forgot-password" className="text-sm text-muted-foreground hover:text-foreground">
                     Forgot password?
                   </Link>
                 </div>
@@ -205,13 +196,14 @@ export default function LoginPage() {
                 <p className="text-sm text-blue-800 dark:text-blue-200">
                   We'll send you a secure link to log in without a password.
                 </p>
-                <button
+                <Button
                   type="button"
+                  variant="link"
                   onClick={() => setUseMagicLink(false)}
-                  className="text-sm text-blue-600 hover:text-blue-700 mt-2"
+                  className="text-sm text-blue-600 hover:text-blue-700 p-0 h-auto mt-2"
                 >
                   Use password instead
-                </button>
+                </Button>
               </div>
             )}
 
@@ -220,37 +212,24 @@ export default function LoginPage() {
               <motion.div
                 initial={{ opacity: 0, y: -10 }}
                 animate={{ opacity: 1, y: 0 }}
-                className="p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg"
               >
-                <div className="flex items-center gap-2 text-red-600 dark:text-red-400">
-                  <AlertCircle className="w-4 h-4" />
-                  <span className="text-sm">{error}</span>
-                </div>
+                <Alert variant="error">
+                  <AlertDescription>{error}</AlertDescription>
+                </Alert>
               </motion.div>
             )}
 
             {/* Submit Button */}
-            <button
+            <Button
               type="submit"
-              disabled={isLoading || !email || (!useMagicLink && !password)}
-              className="w-full flex items-center justify-center gap-2 px-6 py-3 
-                       bg-gradient-to-r from-primary-600 to-purple-600 text-white font-semibold rounded-xl
-                       hover:from-primary-700 hover:to-purple-700 
-                       disabled:opacity-50 disabled:cursor-not-allowed
-                       transition-all duration-300 transform hover:scale-[1.02]"
+              disabled={!email || (!useMagicLink && !password)}
+              loading={isLoading}
+              rightIcon={!isLoading ? <ArrowRight className="w-5 h-5" /> : undefined}
+              size="lg"
+              className="w-full"
             >
-              {isLoading ? (
-                <>
-                  <Loader2 className="w-5 h-5 animate-spin" />
-                  {useMagicLink ? 'Sending...' : 'Logging in...'}
-                </>
-              ) : (
-                <>
-                  {useMagicLink ? 'Send Magic Link' : 'Log In'}
-                  <ArrowRight className="w-5 h-5" />
-                </>
-              )}
-            </button>
+              {isLoading ? (useMagicLink ? 'Sending...' : 'Logging in...') : (useMagicLink ? 'Send Magic Link' : 'Log In')}
+            </Button>
           </form>
 
           {/* Divider */}

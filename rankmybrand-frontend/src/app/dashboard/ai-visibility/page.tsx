@@ -93,10 +93,13 @@ export default function AIVisibilityDashboard() {
   return (
     <QueryClientProvider client={queryClient}>
       <React.Suspense fallback={
-        <div className="min-h-screen bg-gradient-to-br from-gray-50 via-white to-gray-50 flex items-center justify-center">
+        <div className="min-h-screen bg-neutral-0 dark:bg-neutral-950 flex items-center justify-center">
           <div className="text-center space-y-4">
-            <div className="w-16 h-16 border-4 border-purple-500/30 border-t-purple-500 rounded-full animate-spin mx-auto" />
-            <p className="text-gray-600 font-medium">Loading dashboard...</p>
+            <div className="w-12 h-12 border-3 border-neutral-200 dark:border-neutral-800 border-t-interactive-500 rounded-full animate-spin mx-auto" />
+            <div className="space-y-1">
+              <p className="text-neutral-700 dark:text-neutral-300 font-medium">Loading dashboard...</p>
+              <p className="text-xs text-neutral-500 dark:text-neutral-400">Initializing intelligence platform</p>
+            </div>
           </div>
         </div>
       }>

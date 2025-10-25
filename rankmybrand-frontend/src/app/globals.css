@@ -1,5 +1,7 @@
 /**
- * Global Styles - Authentic, Clean, Futuristic AI Design
+ * Global Styles - Professional B2B SaaS Design System
+ * Design Philosophy: "Intelligence Through Clarity" - Data is the color, UI is invisible
+ *
  * [80:Design tokens] CSS variables for consistent theming
  * [79:Theming] Dark/light mode support
  * [36:Contrast] WCAG AA compliant colors
@@ -12,87 +14,126 @@
 @tailwind utilities;
 
 @layer base {
-  /* [80:Design tokens] System-wide design tokens */
+  /**
+   * PROFESSIONAL B2B MONOCHROME COLOR SYSTEM
+   * Core principle: True neutral grayscale foundation
+   * Color is ONLY used for data meaning (semantic)
+   */
   :root {
-    /* Core colors with improved contrast [36:Contrast] */
-    --background: 0 0% 100%;
-    --foreground: 222 47% 11%;
-    --card: 0 0% 100%;
-    --card-foreground: 222 47% 11%;
-    --popover: 0 0% 100%;
-    --popover-foreground: 222 47% 11%;
-    
-    /* Primary brand colors - futuristic purple/blue [35:Color system] */
-    --primary: 262 83% 58%;
-    --primary-foreground: 210 20% 98%;
-    --primary-500: 262 83% 58%;
-    --primary-600: 262 83% 48%;
-    --primary-700: 262 83% 38%;
-    
-    /* Secondary and accent colors */
-    --secondary: 220 14.3% 95.9%;
-    --secondary-foreground: 220.9 39.3% 11%;
-    --muted: 220 14.3% 95.9%;
-    --muted-foreground: 220 8.9% 46.1%;
-    --accent: 220 14.3% 95.9%;
-    --accent-foreground: 220.9 39.3% 11%;
-    
-    /* System colors */
-    --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 210 20% 98%;
+    /* ===========================================
+       NEUTRAL GRAYSCALE - THE FOUNDATION
+       =========================================== */
+    --neutral-0: 0 0% 100%;      /* Pure white - backgrounds (light mode) */
+    --neutral-50: 0 0% 98%;      /* Off-white - subtle backgrounds, hover states */
+    --neutral-100: 0 0% 96%;     /* Light gray - cards, panels */
+    --neutral-200: 0 0% 90%;     /* Lighter border - subtle separators */
+    --neutral-300: 0 0% 83%;     /* Border - visible separation */
+    --neutral-400: 0 0% 64%;     /* Disabled text, placeholder */
+    --neutral-500: 0 0% 45%;     /* Secondary text, muted content */
+    --neutral-600: 0 0% 32%;     /* Body text - primary reading */
+    --neutral-700: 0 0% 25%;     /* Headings - strong emphasis */
+    --neutral-800: 0 0% 15%;     /* Dark headings - maximum emphasis */
+    --neutral-900: 0 0% 9%;      /* Near black - hero text, key numbers */
+    --neutral-950: 0 0% 4%;      /* True black - dark mode background */
+
+    /* ===========================================
+       SEMANTIC COLORS - DATA VISUALIZATION ONLY
+       =========================================== */
+
+    /* SUCCESS (Green) - ONLY for positive metrics/data */
     --success: 142 76% 36%;
     --success-foreground: 210 20% 98%;
+    --success-50: 142 76% 97%;
+    --success-500: 142 76% 46%;
+    --success-600: 142 76% 36%;
+    --success-700: 142 70% 30%;
+
+    /* DANGER (Red) - ONLY for negative metrics/data */
+    --danger: 0 72% 51%;
+    --danger-foreground: 210 20% 98%;
+    --danger-50: 0 84% 97%;
+    --danger-500: 0 84% 60%;
+    --danger-600: 0 72% 51%;
+    --danger-700: 0 65% 45%;
+
+    /* WARNING (Amber) - ONLY for alerts/caution */
     --warning: 38 92% 50%;
     --warning-foreground: 222 47% 11%;
-    
-    /* UI tokens */
-    --border: 220 13% 91%;
-    --input: 220 13% 91%;
-    --ring: 262 83% 58%;
-    --radius: 0.75rem;
-    
-    /* Animation tokens [3:Feedback] */
-    --transition-base: 200ms;
-    --transition-slow: 300ms;
-    --transition-fast: 150ms;
+    --warning-50: 38 92% 95%;
+    --warning-500: 38 92% 50%;
+    --warning-600: 38 92% 40%;
+
+    /* INTERACTIVE (Blue) - ONLY for links/CTAs */
+    --interactive: 217 91% 60%;
+    --interactive-foreground: 210 20% 98%;
+    --interactive-50: 217 91% 97%;
+    --interactive-500: 217 91% 60%;
+    --interactive-600: 217 91% 50%;
+    --interactive-700: 217 91% 40%;
+
+    /* ===========================================
+       CORE THEME TOKENS (using neutral scale)
+       =========================================== */
+    --background: var(--neutral-0);
+    --foreground: var(--neutral-900);
+    --card: var(--neutral-0);
+    --card-foreground: var(--neutral-900);
+    --popover: var(--neutral-0);
+    --popover-foreground: var(--neutral-900);
+
+    /* Legacy aliases for backward compatibility */
+    --primary: var(--interactive);
+    --primary-foreground: var(--interactive-foreground);
+    --destructive: var(--danger);
+    --destructive-foreground: var(--danger-foreground);
+
+    /* Muted/Secondary using neutral scale */
+    --secondary: var(--neutral-100);
+    --secondary-foreground: var(--neutral-900);
+    --muted: var(--neutral-100);
+    --muted-foreground: var(--neutral-500);
+    --accent: var(--neutral-100);
+    --accent-foreground: var(--neutral-900);
+
+    /* UI tokens using neutral scale */
+    --border: var(--neutral-200);
+    --input: var(--neutral-200);
+    --ring: var(--interactive);
+    --radius: 0.5rem;
+
+    /* Professional animation timing */
+    --transition-base: 150ms;
+    --transition-slow: 250ms;
+    --transition-fast: 100ms;
   }
 
   .dark {
-    /* Dark theme with proper contrast [36:Contrast][38:WCAG] */
-    --background: 222 47% 6%;
-    --foreground: 210 20% 98%;
-    --card: 222 47% 8%;
-    --card-foreground: 210 20% 98%;
-    --popover: 222 47% 8%;
-    --popover-foreground: 210 20% 98%;
-    
-    /* Adjusted primary for dark mode */
-    --primary: 263 70% 50.4%;
-    --primary-foreground: 210 20% 98%;
-    --primary-500: 263 70% 50.4%;
-    --primary-600: 263 70% 40.4%;
-    --primary-700: 263 70% 30.4%;
-    
-    /* Dark mode secondary colors */
-    --secondary: 217 33% 17%;
-    --secondary-foreground: 210 20% 98%;
-    --muted: 217 33% 17%;
-    --muted-foreground: 215 20% 65%;
-    --accent: 217 33% 17%;
-    --accent-foreground: 210 20% 98%;
-    
-    /* Dark mode system colors */
-    --destructive: 0 62.8% 30.6%;
-    --destructive-foreground: 210 20% 98%;
-    --success: 142 76% 36%;
-    --success-foreground: 210 20% 98%;
+    /* Dark mode with professional neutral scale */
+    --background: var(--neutral-950);
+    --foreground: var(--neutral-0);
+    --card: var(--neutral-900);
+    --card-foreground: var(--neutral-0);
+    --popover: var(--neutral-900);
+    --popover-foreground: var(--neutral-0);
+
+    /* Semantic colors remain consistent in dark mode */
+    --success: 142 76% 46%;
+    --danger: 0 84% 60%;
     --warning: 38 92% 50%;
-    --warning-foreground: 222 47% 11%;
-    
+    --interactive: 217 91% 60%;
+
+    /* Muted/Secondary in dark mode */
+    --secondary: var(--neutral-800);
+    --secondary-foreground: var(--neutral-0);
+    --muted: var(--neutral-800);
+    --muted-foreground: var(--neutral-400);
+    --accent: var(--neutral-800);
+    --accent-foreground: var(--neutral-0);
+
     /* Dark mode UI tokens */
-    --border: 217 33% 17%;
-    --input: 217 33% 17%;
-    --ring: 263 70% 50.4%;
+    --border: var(--neutral-800);
+    --input: var(--neutral-800);
+    --ring: var(--interactive);
   }
 }
 
@@ -100,20 +141,21 @@
   * {
     @apply border-border;
   }
-  
+
   body {
     @apply bg-background text-foreground;
-    /* [11:Aesthetic-Usability] Enhanced typography */
-    font-feature-settings: "rlig" 1, "calt" 1, "ss01" 1;
+    /* Professional typography with OpenType features */
+    font-feature-settings: "rlig" 1, "calt" 1, "kern" 1;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
   }
 
-  /* [14:Visual hierarchy] Typography scale */
+  /* Professional B2B Typography Hierarchy */
   h1, h2, h3, h4, h5, h6 {
-    @apply font-heading font-bold tracking-tight;
+    @apply font-sans font-bold text-neutral-900 dark:text-neutral-0;
+    letter-spacing: -0.025em; /* Tighter tracking for headings */
   }
-  
+
   h1 { @apply text-4xl md:text-5xl lg:text-6xl; }
   h2 { @apply text-3xl md:text-4xl lg:text-5xl; }
   h3 { @apply text-2xl md:text-3xl lg:text-4xl; }
@@ -121,16 +163,17 @@
   h5 { @apply text-lg md:text-xl lg:text-2xl; }
   h6 { @apply text-base md:text-lg lg:text-xl; }
 
+  /* All code, numbers, and data should use monospace */
   code, pre {
-    @apply font-mono text-sm;
+    @apply font-mono text-sm tabular-nums;
   }
-  
-  /* [43:Keyboard navigation] Focus styles */
+
+  /* Professional focus states using interactive color */
   :focus-visible {
-    @apply outline-none ring-2 ring-primary-500 ring-offset-2;
+    @apply outline-none ring-2 ring-interactive-500 ring-offset-2;
   }
-  
-  /* [45:Skip link] Screen reader only class */
+
+  /* Accessibility helpers */
   .sr-only {
     position: absolute;
     width: 1px;
@@ -142,7 +185,7 @@
     white-space: nowrap;
     border-width: 0;
   }
-  
+
   .not-sr-only {
     position: static;
     width: auto;
@@ -156,260 +199,178 @@
 }
 
 @layer components {
-  /* [11:Aesthetic-Usability] Refined glassmorphism */
+  /* ===========================================
+     PROFESSIONAL B2B COMPONENTS
+     No decorative elements - function over form
+     =========================================== */
+
+  /* Clean glass effect - subtle, professional */
   .glass {
-    @apply bg-white/60 dark:bg-gray-900/60 backdrop-blur-2xl;
-    @apply border border-white/20 dark:border-gray-800/30;
-    @apply shadow-lg;
+    @apply bg-white/80 dark:bg-neutral-900/80 backdrop-blur-sm;
+    @apply border border-neutral-200 dark:border-neutral-800;
+    @apply shadow-sm;
   }
 
-  .glass-hover {
-    @apply hover:bg-white/70 dark:hover:bg-gray-900/70;
-    @apply transition-all duration-200;
-    @apply hover:shadow-xl;
-  }
-  
-  /* [11:Aesthetic-Usability] Subtle glass variant */
-  .glass-subtle {
-    @apply bg-white/40 dark:bg-gray-900/40 backdrop-blur-md;
-    @apply border border-white/10 dark:border-gray-800/20;
+  /* Professional card with subtle hover (no scale) */
+  .card-hover {
+    @apply transition-all duration-150 ease-out;
+    @apply hover:shadow-md;
   }
 
-  /* [14:Visual hierarchy] Enhanced gradient text */
-  .gradient-text {
-    @apply bg-gradient-to-r from-primary-600 via-purple-600 to-indigo-600;
-    @apply bg-clip-text text-transparent;
-    @apply animate-gradient bg-[length:200%_auto];
-  }
-  
-  .gradient-text-subtle {
-    @apply bg-gradient-to-r from-gray-700 to-gray-900;
-    @apply dark:from-gray-300 dark:to-gray-100;
-    @apply bg-clip-text text-transparent;
+  @media (prefers-reduced-motion: reduce) {
+    .card-hover {
+      @apply hover:shadow-sm;
+    }
   }
 
-  /* Loading skeleton */
+  /* Professional loading skeleton (neutral colors only) */
   .skeleton {
-    @apply animate-pulse bg-gradient-to-r from-gray-200 via-gray-300 to-gray-200;
-    @apply dark:from-gray-800 dark:via-gray-700 dark:to-gray-800;
+    @apply animate-pulse bg-gradient-to-r from-neutral-200 via-neutral-100 to-neutral-200;
+    @apply dark:from-neutral-800 dark:via-neutral-900 dark:to-neutral-800;
     background-size: 200% 100%;
     animation: shimmer 1.5s infinite;
   }
 
-  /* [11:Aesthetic-Usability] Futuristic glow effects */
-  .glow {
-    box-shadow: 0 0 20px rgba(139, 92, 246, 0.3),
-                0 0 40px rgba(139, 92, 246, 0.2),
-                0 0 60px rgba(139, 92, 246, 0.1);
-  }
-  
-  .glow-subtle {
-    box-shadow: 0 0 10px rgba(139, 92, 246, 0.2),
-                0 0 20px rgba(139, 92, 246, 0.1);
-  }
-  
-  .glow-intense {
-    box-shadow: 0 0 30px rgba(139, 92, 246, 0.4),
-                0 0 60px rgba(139, 92, 246, 0.3),
-                0 0 90px rgba(139, 92, 246, 0.2);
-  }
-
-  /* [3:Feedback] Interactive card effects */
-  .card-hover {
-    @apply transition-all duration-300 ease-out;
-    @apply hover:scale-[1.02] hover:shadow-xl;
-  }
-  
-  @media (prefers-reduced-motion: reduce) {
-    .card-hover {
-      @apply hover:scale-100;
-    }
-  }
-
-  /* [52:CTA][46:Touch target] Accessible button variants */
+  /* Professional button styles (legacy support - use Button component instead) */
   .btn-primary {
-    @apply bg-gradient-to-r from-primary-500 to-primary-600;
-    @apply hover:from-primary-600 hover:to-primary-700;
-    @apply text-white font-medium;
-    @apply px-6 py-3 min-h-[44px] rounded-lg;
-    @apply transition-all duration-200;
-    @apply shadow-lg hover:shadow-xl;
-    @apply active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed;
-    @apply focus:ring-2 focus:ring-primary-500 focus:ring-offset-2;
+    @apply bg-interactive-600 hover:bg-interactive-700;
+    @apply text-white font-semibold;
+    @apply px-6 py-3 min-h-[44px] rounded-md;
+    @apply transition-all duration-150;
+    @apply shadow-sm hover:shadow-md;
+    @apply disabled:opacity-50 disabled:cursor-not-allowed;
+    @apply focus:ring-2 focus:ring-interactive-500 focus:ring-offset-2;
   }
 
   .btn-secondary {
-    @apply bg-white dark:bg-gray-800 text-gray-900 dark:text-white;
-    @apply border border-gray-200 dark:border-gray-700;
-    @apply px-6 py-3 min-h-[44px] rounded-lg font-medium;
-    @apply transition-all duration-200;
-    @apply hover:bg-gray-50 dark:hover:bg-gray-700;
-    @apply active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed;
-    @apply focus:ring-2 focus:ring-gray-500 focus:ring-offset-2;
-  }
-  
-  .btn-ghost {
-    @apply text-gray-700 dark:text-gray-300;
-    @apply px-4 py-2 min-h-[44px] rounded-lg font-medium;
-    @apply transition-all duration-200;
-    @apply hover:bg-gray-100 dark:hover:bg-gray-800;
-    @apply active:scale-[0.98];
-    @apply focus:ring-2 focus:ring-gray-500 focus:ring-offset-2;
+    @apply bg-white dark:bg-neutral-900 text-neutral-900 dark:text-neutral-0;
+    @apply border border-neutral-300 dark:border-neutral-700;
+    @apply px-6 py-3 min-h-[44px] rounded-md font-semibold;
+    @apply transition-all duration-150;
+    @apply hover:bg-neutral-50 dark:hover:bg-neutral-800;
+    @apply disabled:opacity-50 disabled:cursor-not-allowed;
+    @apply focus:ring-2 focus:ring-neutral-500 focus:ring-offset-2;
   }
 
-  /* Progress ring */
+  .btn-ghost {
+    @apply text-neutral-700 dark:text-neutral-300;
+    @apply px-4 py-2 min-h-[44px] rounded-md font-medium;
+    @apply transition-all duration-150;
+    @apply hover:bg-neutral-100 dark:hover:bg-neutral-800;
+    @apply focus:ring-2 focus:ring-neutral-500 focus:ring-offset-2;
+  }
+
+  /* Progress ring for data visualization */
   .progress-ring {
     @apply relative inline-flex items-center justify-center;
   }
 
   .progress-ring-circle {
-    @apply transition-all duration-500 ease-out;
+    @apply transition-all duration-300 ease-out;
     transform: rotate(-90deg);
     transform-origin: 50% 50%;
   }
 
-  /* [3:Feedback] Motion design with reduced-motion support */
+  /* Professional animations - subtle, fast (<300ms) */
   @keyframes shimmer {
     0% { background-position: -200% 0; }
     100% { background-position: 200% 0; }
   }
 
-  @keyframes float-up {
-    0% { transform: translateY(20px); opacity: 0; }
-    100% { transform: translateY(0); opacity: 1; }
-  }
-
-  @keyframes scale-in {
-    0% { transform: scale(0.95); opacity: 0; }
-    100% { transform: scale(1); opacity: 1; }
-  }
-  
   @keyframes fade-in {
     0% { opacity: 0; }
     100% { opacity: 1; }
   }
-  
-  @keyframes gradient {
-    0%, 100% { background-position: 0% 50%; }
-    50% { background-position: 100% 50%; }
-  }
 
-  .animate-float-up {
-    animation: float-up 0.5s ease-out;
-  }
-
-  .animate-scale-in {
-    animation: scale-in 0.3s ease-out;
-  }
-  
   .animate-fade-in {
-    animation: fade-in 0.3s ease-out;
+    animation: fade-in 0.2s ease-out;
   }
-  
-  .animate-gradient {
-    animation: gradient 3s ease infinite;
-  }
-  
-  /* [3:Feedback] Respect user preferences */
+
+  /* Respect user preferences */
   @media (prefers-reduced-motion: reduce) {
-    .animate-float-up,
-    .animate-scale-in,
     .animate-fade-in,
-    .animate-gradient {
+    .skeleton {
       animation: none;
+    }
+
+    .progress-ring-circle {
+      @apply transition-none;
     }
   }
 }
 
 @layer utilities {
-  /* Futuristic animations */
-  .animate-gradient {
-    background-size: 200% 200%;
-    animation: gradient 3s ease infinite;
-  }
-  
-  @keyframes gradient {
-    0% { background-position: 0% 50%; }
-    50% { background-position: 100% 50%; }
-    100% { background-position: 0% 50%; }
-  }
-  
-  .animation-delay-2000 {
-    animation-delay: 2s;
-  }
-  
-  /* Glass morphism */
-  .glass {
-    @apply bg-white/10 backdrop-blur-md border border-white/20;
-  }
-  
-  .glass-dark {
-    @apply bg-black/20 backdrop-blur-xl border border-white/10;
-  }
-  
-  /* Glow effects */
-  .glow-violet {
-    @apply shadow-lg shadow-violet-500/25;
-  }
-  
-  .glow-pink {
-    @apply shadow-lg shadow-pink-500/25;
+  /* ===========================================
+     PROFESSIONAL NUMBER FORMATTING
+     All metrics use monospace with tabular-nums
+     =========================================== */
+
+  /* Large hero metrics (78.3, 94.2, etc.) */
+  .number-display-metric {
+    @apply text-5xl font-extrabold font-mono tabular-nums text-neutral-900 dark:text-neutral-0;
+    font-variant-numeric: tabular-nums lining-nums;
   }
 
-  /* Scrollbar styles */
+  /* Data table values and medium numbers */
+  .number-display-data {
+    @apply text-2xl font-bold font-mono tabular-nums text-neutral-800 dark:text-neutral-100;
+    font-variant-numeric: tabular-nums lining-nums;
+  }
+
+  /* Small inline numbers in text */
+  .number-display-small {
+    @apply text-sm font-semibold font-mono tabular-nums text-neutral-600 dark:text-neutral-300;
+    font-variant-numeric: tabular-nums lining-nums;
+  }
+
+  /* ===========================================
+     PROFESSIONAL TYPOGRAPHY UTILITIES
+     =========================================== */
+
+  /* Section headers - UPPERCASE with tracking */
+  .section-header {
+    @apply text-sm font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wide;
+    letter-spacing: 0.05em;
+  }
+
+  /* Trust signals and metadata */
+  .trust-metadata {
+    @apply text-xs text-neutral-500 dark:text-neutral-400 flex items-center gap-2;
+  }
+
+  /* Body text optimized for reading */
+  .body-text {
+    @apply text-base text-neutral-600 dark:text-neutral-300 leading-relaxed;
+  }
+
+  /* Data labels (for charts, KPIs, etc.) */
+  .data-label {
+    @apply text-xs font-medium text-neutral-500 dark:text-neutral-400 uppercase tracking-wider;
+  }
+
+  /* ===========================================
+     ACCESSIBILITY & UTILITY HELPERS
+     =========================================== */
+
+  /* Hide scrollbars */
   .scrollbar-hide {
     -ms-overflow-style: none;
     scrollbar-width: none;
   }
-  
+
   .scrollbar-hide::-webkit-scrollbar {
     display: none;
   }
 
-  /* Text balance */
+  /* Text balance for headings */
   .text-balance {
     text-wrap: balance;
   }
 
-  /* [11:Aesthetic-Usability] Futuristic grid patterns */
-  .grid-pattern {
-    background-image: 
-      linear-gradient(rgba(139, 92, 246, 0.03) 1px, transparent 1px),
-      linear-gradient(90deg, rgba(139, 92, 246, 0.03) 1px, transparent 1px);
-    background-size: 50px 50px;
-  }
-  
-  .grid-pattern-dense {
-    background-image: 
-      linear-gradient(rgba(139, 92, 246, 0.05) 1px, transparent 1px),
-      linear-gradient(90deg, rgba(139, 92, 246, 0.05) 1px, transparent 1px);
-    background-size: 25px 25px;
-  }
-  
-  .dot-pattern {
-    background-image: radial-gradient(circle, rgba(139, 92, 246, 0.1) 1px, transparent 1px);
-    background-size: 20px 20px;
-  }
-
-  /* [11:Aesthetic-Usability] Gradient borders */
-  .gradient-border {
-    position: relative;
-    background: linear-gradient(white, white) padding-box,
-                linear-gradient(135deg, #667eea 0%, #764ba2 100%) border-box;
-    border: 2px solid transparent;
-  }
-  
-  .gradient-border-subtle {
-    position: relative;
-    background: linear-gradient(white, white) padding-box,
-                linear-gradient(135deg, rgba(102, 126, 234, 0.5) 0%, rgba(118, 75, 162, 0.5) 100%) border-box;
-    border: 1px solid transparent;
-  }
-  
-  /* [98:Lazy loading] Loading states */
+  /* Loading skeleton (professional neutral) */
   .loading-skeleton {
-    @apply animate-pulse bg-gradient-to-r from-gray-200 via-gray-300 to-gray-200;
-    @apply dark:from-gray-800 dark:via-gray-700 dark:to-gray-800;
+    @apply animate-pulse bg-gradient-to-r from-neutral-200 via-neutral-100 to-neutral-200;
+    @apply dark:from-neutral-800 dark:via-neutral-900 dark:to-neutral-800;
     background-size: 200% 100%;
     animation: shimmer 1.5s infinite;
   }

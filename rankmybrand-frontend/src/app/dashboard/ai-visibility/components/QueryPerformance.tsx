@@ -1,12 +1,21 @@
 'use client';
 
+/**
+ * QueryPerformance - Professional B2B Query Analysis Table
+ * Design System: Monochrome + Semantic Colors
+ * - Professional table with neutral styling
+ * - Monospace numbers with tabular-nums
+ * - Semantic colors for success indicators only
+ * - Bloomberg Terminal aesthetic
+ */
+
 import React, { useState, useMemo } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { CheckCircle, Search, Filter, X, SlidersHorizontal } from 'lucide-react';
+import { CheckCircle, Search, Filter, X, SlidersHorizontal, MessageSquare } from 'lucide-react';
 import { getPriorityIndicator } from '@/lib/dashboard-utils';
 
 interface QueryPerformanceProps {
@@ -69,32 +78,37 @@ export default function QueryPerformance({ queries = [] }: QueryPerformanceProps
   };
 
   return (
-    <Card>
-      <CardHeader>
+    <Card className="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800">
+      <CardHeader className="border-b border-neutral-200 dark:border-neutral-800">
         <div className="flex items-center justify-between">
           <div>
-            <CardTitle>Query Performance</CardTitle>
-            <CardDescription>
-              Showing {filteredQueries.length} of {queries.length} queries
+            <div className="section-header mb-2">Query Analysis</div>
+            <CardTitle className="text-2xl font-bold text-neutral-900 dark:text-neutral-0 flex items-center gap-2">
+              <MessageSquare className="w-5 h-5 text-neutral-600" />
+              Query Performance
+            </CardTitle>
+            <CardDescription className="text-sm text-neutral-600 dark:text-neutral-400 mt-1">
+              Showing <span className="font-mono tabular-nums font-semibold">{filteredQueries.length}</span> of{' '}
+              <span className="font-mono tabular-nums font-semibold">{queries.length}</span> queries
             </CardDescription>
           </div>
           <Button
             variant="outline"
             size="sm"
             onClick={() => setShowFilters(!showFilters)}
-            className="flex items-center gap-2"
+            className="flex items-center gap-2 text-xs font-semibold"
           >
             <SlidersHorizontal className="w-4 h-4" />
             {showFilters ? 'Hide' : 'Show'} Filters
           </Button>
         </div>
       </CardHeader>
-      <CardContent>
+      <CardContent className="p-0">
         {/* Filters Section */}
         {showFilters && (
-          <div className="mb-6 p-4 bg-gray-50 rounded-lg border border-gray-200 space-y-4">
+          <div className="m-6 p-4 bg-neutral-50 dark:bg-neutral-800/30 rounded-md border border-neutral-200 dark:border-neutral-700 space-y-4">
             <div className="flex items-center justify-between">
-              <h3 className="text-sm font-semibold text-gray-700 flex items-center gap-2">
+              <h3 className="section-header flex items-center gap-2">
                 <Filter className="w-4 h-4" />
                 Filters
               </h3>
@@ -114,11 +128,11 @@ export default function QueryPerformance({ queries = [] }: QueryPerformanceProps
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
               {/* Search */}
               <div className="md:col-span-2">
-                <label className="text-xs font-medium text-gray-600 mb-1.5 block">
+                <label className="section-header mb-2 block">
                   Search queries
                 </label>
                 <div className="relative">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-neutral-400" />
                   <Input
                     type="text"
                     placeholder="Type to search..."
@@ -131,7 +145,7 @@ export default function QueryPerformance({ queries = [] }: QueryPerformanceProps
 
               {/* Category Filter */}
               <div>
-                <label className="text-xs font-medium text-gray-600 mb-1.5 block">
+                <label className="section-header mb-2 block">
                   Category
                 </label>
                 <Select value={categoryFilter} onValueChange={setCategoryFilter}>
@@ -151,7 +165,7 @@ export default function QueryPerformance({ queries = [] }: QueryPerformanceProps
 
               {/* Intent Filter */}
               <div>
-                <label className="text-xs font-medium text-gray-600 mb-1.5 block">
+                <label className="section-header mb-2 block">
                   Intent
                 </label>
                 <Select value={intentFilter} onValueChange={setIntentFilter}>
@@ -171,8 +185,8 @@ export default function QueryPerformance({ queries = [] }: QueryPerformanceProps
             </div>
 
             {/* Sort Options */}
-            <div className="flex items-center gap-2 pt-2 border-t border-gray-200">
-              <span className="text-xs font-medium text-gray-600">Sort by:</span>
+            <div className="flex items-center gap-2 pt-4 border-t border-neutral-200 dark:border-neutral-700">
+              <span className="section-header">Sort by:</span>
               <div className="flex gap-2">
                 <Button
                   variant={sortBy === 'text' ? 'default' : 'outline'}
@@ -203,8 +217,8 @@ export default function QueryPerformance({ queries = [] }: QueryPerformanceProps
 
             {/* Active Filters Display */}
             {hasActiveFilters && (
-              <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-gray-200">
-                <span className="text-xs text-gray-500">Active filters:</span>
+              <div className="flex flex-wrap items-center gap-2 pt-4 border-t border-neutral-200 dark:border-neutral-700">
+                <span className="text-xs font-medium text-neutral-500 dark:text-neutral-400">Active filters:</span>
                 {searchTerm && (
                   <Badge variant="secondary" className="text-xs flex items-center gap-1">
                     Search: "{searchTerm}"
@@ -237,75 +251,67 @@ export default function QueryPerformance({ queries = [] }: QueryPerformanceProps
           </div>
         )}
 
+        {/* Professional B2B Table */}
         <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-gray-200">
-            <thead className="bg-gray-50">
+          <table className="min-w-full">
+            <thead className="bg-neutral-50 dark:bg-neutral-900/50 sticky top-0 z-10 border-b-2 border-neutral-200 dark:border-neutral-800">
               <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="px-6 py-4 text-left section-header">
                   Query
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="px-6 py-4 text-left section-header">
                   Category
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="px-6 py-4 text-left section-header">
                   Intent
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="px-6 py-4 text-right section-header">
                   Responses
                 </th>
               </tr>
             </thead>
-            <tbody className="bg-white divide-y divide-gray-200">
+            <tbody className="bg-white dark:bg-neutral-950 divide-y divide-neutral-200 dark:divide-neutral-800">
               {filteredQueries.length === 0 ? (
                 <tr>
-                  <td colSpan={4} className="px-6 py-12 text-center text-gray-500">
-                    {queries.length === 0
-                      ? 'No queries executed yet. Start an audit to see results.'
-                      : 'No queries match your filters. Try adjusting your search criteria.'}
+                  <td colSpan={4} className="px-6 py-16 text-center">
+                    <div className="text-neutral-500 dark:text-neutral-400">
+                      {queries.length === 0
+                        ? 'No queries executed yet. Start an audit to see results.'
+                        : 'No queries match your filters. Try adjusting your search criteria.'}
+                    </div>
                   </td>
                 </tr>
               ) : (
                 filteredQueries.map((query) => {
-                  const priority = getPriorityIndicator(query.responseCount);
                   return (
-                    <tr key={query.id} className="hover:bg-gray-50">
+                    <tr key={query.id} className="hover:bg-neutral-50 dark:hover:bg-neutral-900/50 transition-colors duration-150">
                       <td className="px-6 py-4">
-                        <div className="flex items-start gap-2">
-                          <span
-                            className="text-lg leading-none mt-0.5"
-                            title={priority.label}
-                            role="img"
-                            aria-label={priority.label}
-                          >
-                            {priority.emoji}
-                          </span>
-                          <div className="text-sm font-medium text-gray-900 max-w-md">
-                            {query.text}
-                          </div>
+                        <div className="text-sm text-neutral-900 dark:text-neutral-0 max-w-md">
+                          {query.text}
                         </div>
                       </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      {query.category ? (
-                        <Badge variant="secondary" className="text-xs">
-                          {query.category}
-                        </Badge>
-                      ) : (
-                        <span className="text-xs text-gray-400">-</span>
-                      )}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      {query.intent ? (
-                        <Badge variant="outline" className="text-xs">
-                          {query.intent}
-                        </Badge>
-                      ) : (
-                        <span className="text-xs text-gray-400">-</span>
-                      )}
-                    </td>
                       <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="flex items-center">
-                          <CheckCircle className="w-4 h-4 text-green-500 mr-2" />
-                          <span className="text-sm text-gray-900">
+                        {query.category ? (
+                          <Badge variant="outline" className="text-xs">
+                            {query.category}
+                          </Badge>
+                        ) : (
+                          <span className="text-xs text-neutral-400">—</span>
+                        )}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        {query.intent ? (
+                          <Badge variant="outline" className="text-xs">
+                            {query.intent}
+                          </Badge>
+                        ) : (
+                          <span className="text-xs text-neutral-400">—</span>
+                        )}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-right">
+                        <div className="flex items-center justify-end gap-2">
+                          <CheckCircle className="w-4 h-4 text-success-600" />
+                          <span className="font-mono tabular-nums text-sm font-semibold text-neutral-900 dark:text-neutral-0">
                             {query.responseCount || 0}
                           </span>
                         </div>

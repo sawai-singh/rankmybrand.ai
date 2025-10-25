@@ -9,13 +9,13 @@ interface BuyerJourneyInsightsViewProps {
   isLoading?: boolean;
 }
 
-const CATEGORY_INFO: Record<string, { label: string; icon: string; color: string }> = {
-  problem_unaware: { label: 'Problem Unaware', icon: '🤔', color: 'gray' },
-  solution_seeking: { label: 'Solution Seeking', icon: '🔍', color: 'blue' },
-  brand_specific: { label: 'Brand Specific', icon: '🎯', color: 'purple' },
-  comparison: { label: 'Comparison', icon: '⚖️', color: 'orange' },
-  purchase_intent: { label: 'Purchase Intent', icon: '💳', color: 'green' },
-  use_case: { label: 'Use Case', icon: '📋', color: 'indigo' },
+const CATEGORY_INFO: Record<string, { label: string; color: string }> = {
+  problem_unaware: { label: 'Problem Unaware', color: 'gray' },
+  solution_seeking: { label: 'Solution Seeking', color: 'blue' },
+  brand_specific: { label: 'Brand Specific', color: 'purple' },
+  comparison: { label: 'Comparison', color: 'orange' },
+  purchase_intent: { label: 'Purchase Intent', color: 'green' },
+  use_case: { label: 'Use Case', color: 'indigo' },
 };
 
 export function BuyerJourneyInsightsView({ auditId, isLoading: externalLoading }: BuyerJourneyInsightsViewProps) {
@@ -106,7 +106,7 @@ export function BuyerJourneyInsightsView({ auditId, isLoading: externalLoading }
           <div className="border-b border-gray-200 bg-gray-50 p-3">
             <div className="flex flex-wrap gap-2">
               {categoryKeys.map((category) => {
-                const info = CATEGORY_INFO[category] || { label: category, icon: '📊', color: 'gray' };
+                const info = CATEGORY_INFO[category] || { label: category, color: 'gray' };
                 return (
                   <button
                     key={category}
@@ -121,7 +121,7 @@ export function BuyerJourneyInsightsView({ auditId, isLoading: externalLoading }
                         : 'bg-white text-gray-600 hover:bg-gray-100 border border-gray-200'
                     }`}
                   >
-                    {info.icon} {info.label}
+                    {info.label}
                   </button>
                 );
               })}
@@ -139,7 +139,7 @@ export function BuyerJourneyInsightsView({ auditId, isLoading: externalLoading }
                     onClick={() => setSelectedBatch(batch)}
                     className={`px-3 py-1 rounded text-sm font-medium transition-all ${
                       selectedBatch === batch
-                        ? 'bg-indigo-600 text-white'
+                        ? 'bg-neutral-900 dark:bg-neutral-0 text-white dark:text-neutral-900'
                         : 'bg-white text-gray-600 hover:bg-gray-100 border border-gray-200'
                     }`}
                   >
@@ -157,11 +157,11 @@ export function BuyerJourneyInsightsView({ auditId, isLoading: externalLoading }
               {currentBatchData.recommendations && currentBatchData.recommendations.length > 0 && (
                 <div>
                   <h3 className="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
-                    <span>💡</span> Recommendations
+                    Recommendations
                   </h3>
                   <div className="space-y-2">
                     {currentBatchData.recommendations.map((rec: any, idx: number) => (
-                      <div key={idx} className="p-3 bg-purple-50 border border-purple-200 rounded-lg text-sm">
+                      <div key={idx} className="p-3 bg-neutral-50 dark:bg-neutral-800/50 border border-neutral-200 dark:border-neutral-700 rounded-lg text-sm">
                         {typeof rec === 'string' ? rec : JSON.stringify(rec, null, 2)}
                       </div>
                     ))}
@@ -173,7 +173,7 @@ export function BuyerJourneyInsightsView({ auditId, isLoading: externalLoading }
               {currentBatchData.competitive_gaps && currentBatchData.competitive_gaps.length > 0 && (
                 <div>
                   <h3 className="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
-                    <span>🎯</span> Competitive Gaps
+                    Competitive Gaps
                   </h3>
                   <div className="space-y-2">
                     {currentBatchData.competitive_gaps.map((gap: any, idx: number) => (
@@ -189,11 +189,11 @@ export function BuyerJourneyInsightsView({ auditId, isLoading: externalLoading }
               {currentBatchData.content_opportunities && currentBatchData.content_opportunities.length > 0 && (
                 <div>
                   <h3 className="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
-                    <span>✨</span> Content Opportunities
+                    Content Opportunities
                   </h3>
                   <div className="space-y-2">
                     {currentBatchData.content_opportunities.map((opp: any, idx: number) => (
-                      <div key={idx} className="p-3 bg-blue-50 border border-blue-200 rounded-lg text-sm">
+                      <div key={idx} className="p-3 bg-neutral-50 dark:bg-neutral-800/50 border border-neutral-200 dark:border-neutral-700 rounded-lg text-sm">
                         {typeof opp === 'string' ? opp : JSON.stringify(opp, null, 2)}
                       </div>
                     ))}
@@ -205,7 +205,7 @@ export function BuyerJourneyInsightsView({ auditId, isLoading: externalLoading }
               {currentBatchData.per_response_metrics && currentBatchData.per_response_metrics.length > 0 && (
                 <div>
                   <h3 className="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
-                    <span>📊</span> Per-Response Metrics (Call #4)
+                    Per-Response Metrics (Call #4)
                   </h3>
                   <div className="overflow-x-auto">
                     <pre className="p-3 bg-gray-50 border border-gray-200 rounded-lg text-xs">

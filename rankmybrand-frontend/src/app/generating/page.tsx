@@ -2,13 +2,15 @@
 
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
-import { 
-  Sparkles, Clock, Mail, CheckCircle, Activity, 
+import {
+  Sparkles, Clock, Mail, CheckCircle, Activity,
   TrendingUp, Shield, Zap, ArrowRight, X,
   FileText, Users, Brain, AlertCircle
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import { Input } from '@/components/ui/input';
+import { Button } from '@/components/ui/button';
 
 // Lazy load heavy components (removed confetti - not implemented yet)
 
@@ -170,7 +172,7 @@ const ProgressIndicator = ({
 
   return (
     <div className="space-y-6">
-      {/* Icon display */}
+      {/* Professional icon display */}
       <div className="flex justify-center">
         <motion.div
           key={currentStatus}
@@ -179,42 +181,42 @@ const ProgressIndicator = ({
           transition={{ duration: 0.3 }}
           className="relative"
         >
-          <div className="absolute inset-0 bg-purple-500/20 rounded-full blur-xl" />
-          <div className="relative w-24 h-24 bg-gradient-to-br from-purple-500/20 to-blue-500/20 rounded-full flex items-center justify-center border border-purple-500/30">
-            <CurrentIcon 
-              className={`w-12 h-12 text-purple-400 ${!shouldReduceMotion && 'animate-pulse'}`} 
+          <div className="absolute inset-0 bg-neutral-900/10 dark:bg-neutral-0/10 rounded-full blur-xl" />
+          <div className="relative w-24 h-24 bg-neutral-900 dark:bg-neutral-0 rounded-full flex items-center justify-center border border-neutral-200 dark:border-neutral-700">
+            <CurrentIcon
+              className={`w-12 h-12 text-white dark:text-neutral-900 ${!shouldReduceMotion && 'animate-pulse'}`}
               aria-hidden="true"
             />
           </div>
         </motion.div>
       </div>
 
-      {/* Progress bar */}
+      {/* Professional progress bar */}
       <div className="space-y-2">
-        <div className="flex justify-between text-xs text-gray-500">
+        <div className="flex justify-between text-xs text-neutral-500">
           <span>{currentState.label}</span>
-          <span>{Math.round(progress)}%</span>
+          <span className="font-mono tabular-nums">{Math.round(progress)}%</span>
         </div>
-        <div className="h-2 bg-gray-800 rounded-full overflow-hidden">
+        <div className="h-2 bg-neutral-200 dark:bg-neutral-800 rounded-full overflow-hidden">
           <motion.div
-            className="h-full bg-gradient-to-r from-purple-500 to-blue-500"
+            className="h-full bg-neutral-900 dark:bg-neutral-0 rounded-full"
             initial={{ width: 0 }}
             animate={{ width: `${progress}%` }}
             transition={{ duration: 0.5, ease: 'easeInOut' }}
           />
         </div>
-        <p className="text-center text-sm text-gray-400">{currentState.description}</p>
+        <p className="text-center text-sm text-neutral-600 dark:text-neutral-400">{currentState.description}</p>
       </div>
 
-      {/* Status dots */}
+      {/* Professional status dots */}
       <div className="flex justify-center gap-2" role="presentation">
         {PROGRESS_STATES.map((state, idx) => (
           <div
             key={state.id}
             className={`h-1.5 rounded-full transition-all duration-500 ${
               idx <= currentStateIndex
-                ? 'w-8 bg-purple-500'
-                : 'w-1.5 bg-gray-600'
+                ? 'w-8 bg-neutral-900 dark:bg-neutral-0'
+                : 'w-1.5 bg-neutral-300 dark:bg-neutral-700'
             }`}
             aria-hidden="true"
           />
@@ -298,66 +300,63 @@ const EmailChangeModal = ({
             initial={{ scale: 0.9, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}
             exit={{ scale: 0.9, opacity: 0 }}
-            className="bg-gray-900 border border-white/10 rounded-2xl p-6 max-w-md w-full shadow-2xl"
+            className="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl p-6 max-w-md w-full shadow-2xl"
             onClick={(e) => e.stopPropagation()}
           >
             <header className="flex items-center justify-between mb-4">
-              <h2 id="modal-title" className="text-xl font-bold text-white">
+              <h2 id="modal-title" className="text-xl font-bold text-neutral-900 dark:text-neutral-0">
                 Change Email Address
               </h2>
               <button
                 ref={firstFocusableRef}
                 onClick={onClose}
-                className="p-2 hover:bg-white/10 rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-purple-500"
+                className="p-2 hover:bg-neutral-100 dark:hover:bg-neutral-800 rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-neutral-900 dark:focus:ring-neutral-0"
                 aria-label="Close dialog"
                 disabled={isSubmitting}
               >
-                <X className="w-5 h-5" />
+                <X className="w-5 h-5 text-neutral-600 dark:text-neutral-400" />
               </button>
             </header>
             
             <form onSubmit={handleSubmit} noValidate>
               <div className="space-y-4">
                 <div>
-                  <label htmlFor="email" className="block text-sm text-gray-400 mb-2">
+                  <label htmlFor="email" className="block text-sm text-neutral-600 dark:text-neutral-400 mb-2">
                     New email address
                   </label>
-                  <input
+                  <Input
                     id="email"
                     name="email"
                     type="email"
                     required
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
-                    className="w-full px-4 py-2 bg-black/20 border border-white/10 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent text-white placeholder-gray-500 transition-all"
+                    className="bg-neutral-50 dark:bg-neutral-800 border-neutral-200 dark:border-neutral-700 text-neutral-900 dark:text-neutral-0 placeholder-neutral-500"
                     placeholder="you@company.com"
-                    aria-describedby={error ? 'email-error' : undefined}
+                    variant={error ? 'error' : 'default'}
+                    error={error || undefined}
                     disabled={isSubmitting}
                   />
-                  {error && (
-                    <p id="email-error" className="mt-2 text-sm text-red-400 flex items-center gap-1">
-                      <AlertCircle className="w-4 h-4" />
-                      {error}
-                    </p>
-                  )}
                 </div>
-                
+
                 <div className="flex gap-3">
-                  <button
+                  <Button
                     type="submit"
                     disabled={isSubmitting}
-                    className="flex-1 px-4 py-2 bg-gradient-to-r from-purple-600 to-blue-600 text-white font-medium rounded-lg hover:from-purple-700 hover:to-blue-700 transition-all focus:outline-none focus:ring-2 focus:ring-purple-500 disabled:opacity-50 disabled:cursor-not-allowed"
+                    loading={isSubmitting}
+                    className="flex-1"
                   >
                     {isSubmitting ? 'Updating...' : 'Update Email'}
-                  </button>
-                  <button
+                  </Button>
+                  <Button
                     type="button"
+                    variant="outline"
                     onClick={onClose}
                     disabled={isSubmitting}
-                    className="flex-1 px-4 py-2 bg-white/5 text-gray-300 font-medium rounded-lg hover:bg-white/10 transition-all focus:outline-none focus:ring-2 focus:ring-white/20 disabled:opacity-50"
+                    className="flex-1"
                   >
                     Cancel
-                  </button>
+                  </Button>
                 </div>
               </div>
             </form>
@@ -427,26 +426,26 @@ export default function GeneratingPage() {
   }, [status.status, router]);
 
   return (
-    <div className="min-h-screen relative overflow-hidden bg-slate-900">
-      {/* Optimized gradient background */}
+    <div className="min-h-screen relative overflow-hidden bg-neutral-50 dark:bg-neutral-950">
+      {/* Professional neutral background */}
       <div className="absolute inset-0" aria-hidden="true">
-        <div className="absolute inset-0 bg-gradient-to-br from-slate-900 via-purple-900/20 to-slate-900" />
-        <div className="absolute top-0 right-0 w-1/2 h-1/2 bg-purple-500/10 blur-3xl rounded-full" />
-        <div className="absolute bottom-0 left-0 w-1/2 h-1/2 bg-blue-500/10 blur-3xl rounded-full" />
+        <div className="absolute inset-0 bg-gradient-to-br from-neutral-50 via-white to-neutral-100 dark:from-neutral-950 dark:via-neutral-900 dark:to-neutral-900" />
+        <div className="absolute top-0 right-0 w-1/2 h-1/2 bg-neutral-900/5 dark:bg-neutral-0/5 blur-3xl rounded-full" />
+        <div className="absolute bottom-0 left-0 w-1/2 h-1/2 bg-neutral-900/3 dark:bg-neutral-0/3 blur-3xl rounded-full" />
       </div>
 
       {/* Main content */}
       <main className="relative z-10 flex min-h-screen items-center justify-center px-4 py-12">
         <div className="w-full max-w-2xl">
-          {/* Progress breadcrumb */}
+          {/* Professional progress breadcrumb */}
           <nav aria-label="Onboarding progress" className="mb-8">
             <ol className="flex items-center justify-center space-x-2">
               {['Brand', 'Description', 'Competitors', 'Generating'].map((step, idx) => (
                 <li key={step} className="flex items-center">
                   <div className={`flex items-center justify-center w-8 h-8 rounded-full text-xs font-medium transition-all ${
-                    idx < 3 
-                      ? 'bg-green-500/20 text-green-400 border border-green-500/30' 
-                      : 'bg-purple-500/20 text-purple-400 border border-purple-500/30'
+                    idx < 3
+                      ? 'bg-success-50 text-success-800 border border-success-200'
+                      : 'bg-neutral-900 dark:bg-neutral-0 text-white dark:text-neutral-900 border border-neutral-900 dark:border-neutral-0'
                   }`}>
                     {idx < 3 ? (
                       <CheckCircle className="w-4 h-4" aria-label={`${step} completed`} />
@@ -455,7 +454,7 @@ export default function GeneratingPage() {
                     )}
                   </div>
                   {idx < 3 && (
-                    <div className="w-12 h-0.5 bg-green-500/30 ml-2" aria-hidden="true" />
+                    <div className="w-12 h-0.5 bg-success-600 ml-2" aria-hidden="true" />
                   )}
                 </li>
               ))}
@@ -467,7 +466,7 @@ export default function GeneratingPage() {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5 }}
-            className="backdrop-blur-xl bg-white/5 border border-white/10 rounded-3xl p-8 md:p-12 shadow-2xl"
+            className="glass rounded-3xl p-8 md:p-12 shadow-2xl"
           >
             {/* Error state */}
             {(statusError || status.status === 'failed') && (
@@ -490,20 +489,20 @@ export default function GeneratingPage() {
               progress={status.progress} 
             />
 
-            {/* Content */}
+            {/* Professional content */}
             <div className="mt-8 text-center space-y-4">
-              <h1 className="text-3xl md:text-4xl font-bold bg-gradient-to-r from-white to-purple-200 bg-clip-text text-transparent">
+              <h1 className="text-3xl md:text-4xl font-bold text-neutral-900 dark:text-neutral-0">
                 We're Generating Your Report
               </h1>
-              <p className="text-gray-400 text-lg">
+              <p className="text-neutral-600 dark:text-neutral-400 text-lg">
                 You'll receive a secure link by email in about{' '}
-                <strong className="text-white">{Math.ceil(estimatedTimeRemaining)} minutes</strong>
+                <strong className="text-neutral-900 dark:text-neutral-0 font-mono tabular-nums">{Math.ceil(estimatedTimeRemaining)} minutes</strong>
               </p>
 
               {/* Can close page message */}
-              <div className="inline-flex items-center gap-2 px-4 py-2 bg-green-500/10 border border-green-500/30 rounded-full">
-                <CheckCircle className="w-4 h-4 text-green-400" />
-                <p className="text-sm text-green-400 font-medium">
+              <div className="inline-flex items-center gap-2 px-4 py-2 bg-success-50 border border-success-200 rounded-full">
+                <CheckCircle className="w-4 h-4 text-success-600" />
+                <p className="text-sm text-success-800 font-medium">
                   You can close this page - we'll email you when ready
                 </p>
               </div>
@@ -511,7 +510,7 @@ export default function GeneratingPage() {
               {/* Live status message */}
               {status.message && (
                 <div
-                  className="flex items-center justify-center gap-2 text-sm text-purple-400"
+                  className="flex items-center justify-center gap-2 text-sm text-neutral-600 dark:text-neutral-400"
                   role="status"
                   aria-live="polite"
                 >
@@ -521,61 +520,58 @@ export default function GeneratingPage() {
               )}
             </div>
 
-            {/* Info cards */}
+            {/* Professional info cards */}
             <div className="grid gap-4 mt-8">
               {[
                 {
                   icon: TrendingUp,
-                  color: 'purple',
                   title: 'Comprehensive Analysis',
                   description: 'Benchmarking against top competitors and AI platforms'
                 },
                 {
                   icon: Shield,
-                  color: 'blue',
                   title: 'Enterprise Security',
                   description: 'Bank-level encryption and GDPR compliant'
                 },
                 {
                   icon: Zap,
-                  color: 'green',
                   title: 'Real-time Processing',
                   description: 'Analyzing 5+ AI platforms simultaneously'
                 }
               ].map((item, idx) => (
                 <div key={idx} className="flex items-start gap-3">
-                  <div className={`mt-1 p-1.5 bg-${item.color}-500/20 rounded-lg flex-shrink-0`}>
-                    <item.icon className={`w-4 h-4 text-${item.color}-400`} />
+                  <div className="mt-1 p-1.5 bg-neutral-100 dark:bg-neutral-800 rounded-lg flex-shrink-0">
+                    <item.icon className="w-4 h-4 text-neutral-600 dark:text-neutral-400" />
                   </div>
                   <div>
-                    <p className="text-gray-300 font-medium">{item.title}</p>
-                    <p className="text-gray-500 text-sm">{item.description}</p>
+                    <p className="text-neutral-900 dark:text-neutral-0 font-medium">{item.title}</p>
+                    <p className="text-neutral-600 dark:text-neutral-400 text-sm">{item.description}</p>
                   </div>
                 </div>
               ))}
             </div>
 
-            {/* Email section */}
-            <div className="mt-8 p-4 bg-black/20 rounded-xl border border-white/10">
+            {/* Professional email section */}
+            <div className="mt-8 p-4 bg-neutral-50 dark:bg-neutral-800/50 rounded-xl border border-neutral-200 dark:border-neutral-700">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
-                  <Mail className="w-5 h-5 text-gray-400" />
+                  <Mail className="w-5 h-5 text-neutral-600 dark:text-neutral-400" />
                   <div>
-                    <p className="text-xs text-gray-500">Report will be sent to:</p>
-                    <p className="text-sm font-medium text-gray-300">
+                    <p className="text-xs text-neutral-500">Report will be sent to:</p>
+                    <p className="text-sm font-medium text-neutral-900 dark:text-neutral-0">
                       {sessionData?.email || 'Loading...'}
                     </p>
                   </div>
                 </div>
                 <button
                   onClick={() => setShowEmailModal(true)}
-                  className="text-xs text-purple-400 hover:text-purple-300 transition-colors focus:outline-none focus:ring-2 focus:ring-purple-500 rounded px-2 py-1"
+                  className="text-xs text-interactive-600 hover:text-interactive-700 transition-colors focus:outline-none focus:ring-2 focus:ring-interactive-600 rounded px-2 py-1"
                   aria-label="Change email address"
                 >
                   Change
                 </button>
               </div>
-              
+
               {/* Success message */}
               <AnimatePresence>
                 {showSuccess && (
@@ -583,7 +579,7 @@ export default function GeneratingPage() {
                     initial={{ opacity: 0, y: -10 }}
                     animate={{ opacity: 1, y: 0 }}
                     exit={{ opacity: 0, y: -10 }}
-                    className="mt-3 text-sm text-green-400 flex items-center gap-2"
+                    className="mt-3 text-sm text-success-600 flex items-center gap-2"
                   >
                     <CheckCircle className="w-4 h-4" />
                     Email updated successfully
@@ -592,20 +588,25 @@ export default function GeneratingPage() {
               </AnimatePresence>
             </div>
 
-            {/* Actions */}
+            {/* Professional actions */}
             <div className="flex flex-col sm:flex-row gap-4 mt-8">
-              <Link
-                href="/features"
-                className="flex-1 flex items-center justify-center gap-2 px-6 py-3 bg-gradient-to-r from-purple-600 to-blue-600 text-white font-semibold rounded-xl hover:from-purple-700 hover:to-blue-700 transition-all focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2 focus:ring-offset-gray-900"
-              >
-                Explore Features
-                <ArrowRight className="w-5 h-5" />
+              <Link href="/features" className="flex-1">
+                <Button
+                  rightIcon={<ArrowRight className="w-5 h-5" />}
+                  size="lg"
+                  className="w-full"
+                >
+                  Explore Features
+                </Button>
               </Link>
-              <Link
-                href="/docs"
-                className="flex-1 flex items-center justify-center gap-2 px-6 py-3 bg-white/5 text-gray-300 font-semibold rounded-xl border border-white/10 hover:bg-white/10 transition-all focus:outline-none focus:ring-2 focus:ring-white/20 focus:ring-offset-2 focus:ring-offset-gray-900"
-              >
-                View Documentation
+              <Link href="/docs" className="flex-1">
+                <Button
+                  variant="outline"
+                  size="lg"
+                  className="w-full"
+                >
+                  View Documentation
+                </Button>
               </Link>
             </div>
           </motion.article>

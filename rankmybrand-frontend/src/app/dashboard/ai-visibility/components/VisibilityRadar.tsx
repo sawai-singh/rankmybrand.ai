@@ -1,11 +1,20 @@
 'use client';
 
+/**
+ * VisibilityRadar - Professional B2B Radar Chart
+ * Design System: Monochrome + Semantic Colors
+ * - Neutral D3 radar visualization (grayscale only)
+ * - Semantic colors for trend indicators (green/red)
+ * - Professional typography and trust signals
+ * - Bloomberg Terminal aesthetic
+ */
+
 import React, { useEffect, useRef, useMemo } from 'react';
 import * as d3 from 'd3';
 import { motion } from 'framer-motion';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Info, TrendingUp, TrendingDown } from 'lucide-react';
+import { Activity, TrendingUp, TrendingDown, Minus } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 
 interface RadarDataPoint {
@@ -105,7 +114,7 @@ export default function VisibilityRadar({ data }: VisibilityRadarProps) {
     const levels = 5;
     const levelValues = d3.range(1, levels + 1).map(d => (d / levels) * 100);
 
-    // Draw grid circles with animation
+    // Draw grid circles with animation - Professional neutral styling
     const gridCircles = g.selectAll('.grid-circle')
       .data(levelValues)
       .enter()
@@ -113,7 +122,7 @@ export default function VisibilityRadar({ data }: VisibilityRadarProps) {
       .attr('class', 'grid-circle')
       .attr('r', 0)
       .style('fill', 'none')
-      .style('stroke', '#e5e7eb')
+      .style('stroke', '#d4d4d4') // neutral-300
       .style('stroke-width', 1)
       .style('stroke-dasharray', '2,2')
       .style('opacity', 0);
@@ -122,9 +131,9 @@ export default function VisibilityRadar({ data }: VisibilityRadarProps) {
       .duration(500)
       .delay((d, i) => i * 100)
       .attr('r', d => rScale(d))
-      .style('opacity', 0.5);
+      .style('opacity', 0.4);
 
-    // Grid labels
+    // Grid labels - Professional monospace
     g.selectAll('.grid-label')
       .data(levelValues)
       .enter()
@@ -133,14 +142,16 @@ export default function VisibilityRadar({ data }: VisibilityRadarProps) {
       .attr('x', 5)
       .attr('y', d => -rScale(d))
       .style('font-size', '10px')
-      .style('fill', '#9ca3af')
+      .style('font-family', 'JetBrains Mono, Monaco, monospace')
+      .style('font-variant-numeric', 'tabular-nums')
+      .style('fill', '#737373') // neutral-500
       .style('opacity', 0)
       .text(d => d)
       .transition()
       .duration(500)
       .style('opacity', 1);
 
-    // Draw axes
+    // Draw axes - Professional neutral styling
     const axis = g.selectAll('.axis')
       .data(radarData)
       .enter()
@@ -152,14 +163,14 @@ export default function VisibilityRadar({ data }: VisibilityRadarProps) {
       .attr('y1', 0)
       .attr('x2', (d, i) => rScale(100) * Math.cos(angleSlice * i - Math.PI / 2))
       .attr('y2', (d, i) => rScale(100) * Math.sin(angleSlice * i - Math.PI / 2))
-      .style('stroke', '#e5e7eb')
+      .style('stroke', '#d4d4d4') // neutral-300
       .style('stroke-width', 1)
       .style('opacity', 0)
       .transition()
       .duration(500)
-      .style('opacity', 0.3);
+      .style('opacity', 0.4);
 
-    // Axis labels with icons
+    // Axis labels - Professional typography
     const labels = axis.append('g')
       .attr('transform', (d, i) => {
         const x = rScale(120) * Math.cos(angleSlice * i - Math.PI / 2);
@@ -168,10 +179,11 @@ export default function VisibilityRadar({ data }: VisibilityRadarProps) {
       });
 
     labels.append('text')
-      .style('font-size', '12px')
-      .style('font-weight', '500')
+      .style('font-size', '11px')
+      .style('font-weight', '600')
       .style('text-anchor', 'middle')
-      .style('fill', '#374151')
+      .style('letter-spacing', '0.02em')
+      .style('fill', '#525252') // neutral-600
       .style('opacity', 0)
       .text(d => d.axis)
       .transition()
@@ -179,7 +191,7 @@ export default function VisibilityRadar({ data }: VisibilityRadarProps) {
       .delay(500)
       .style('opacity', 1);
 
-    // Draw benchmark area
+    // Draw benchmark area - Professional neutral styling
     const benchmarkLine = d3.lineRadial()
       .curve(d3.curveLinearClosed)
       .radius(d => rScale(d.benchmark))
@@ -189,16 +201,16 @@ export default function VisibilityRadar({ data }: VisibilityRadarProps) {
       .datum(radarData)
       .attr('class', 'benchmark-area')
       .attr('d', benchmarkLine as any)
-      .style('fill', '#fbbf24')
+      .style('fill', '#a3a3a3') // neutral-400
       .style('fill-opacity', 0)
-      .style('stroke', '#f59e0b')
+      .style('stroke', '#737373') // neutral-500
       .style('stroke-width', 2)
       .style('stroke-dasharray', '5,5')
       .transition()
       .duration(1000)
-      .style('fill-opacity', 0.1);
+      .style('fill-opacity', 0.06); // Very subtle background
 
-    // Draw data area
+    // Draw data area - Professional neutral styling (no gradient)
     const radarLine = d3.lineRadial()
       .curve(d3.curveLinearClosed)
       .radius(d => rScale(d.value))
@@ -208,33 +220,18 @@ export default function VisibilityRadar({ data }: VisibilityRadarProps) {
       .datum(radarData)
       .attr('class', 'radar-area')
       .attr('d', radarLine as any)
-      .style('fill', 'url(#gradient)')
+      .style('fill', '#171717') // neutral-900 - darkest for your data
       .style('fill-opacity', 0)
-      .style('stroke', '#8b5cf6')
-      .style('stroke-width', 2);
-
-    // Create gradient
-    const gradient = svg.append('defs')
-      .append('radialGradient')
-      .attr('id', 'gradient');
-
-    gradient.append('stop')
-      .attr('offset', '0%')
-      .attr('stop-color', '#8b5cf6')
-      .attr('stop-opacity', 0.6);
-
-    gradient.append('stop')
-      .attr('offset', '100%')
-      .attr('stop-color', '#ec4899')
-      .attr('stop-opacity', 0.2);
+      .style('stroke', '#171717') // neutral-900
+      .style('stroke-width', 2.5);
 
     // Animate data area
     dataPath.transition()
       .duration(1000)
       .delay(500)
-      .style('fill-opacity', 0.3);
+      .style('fill-opacity', 0.12); // Subtle fill
 
-    // Draw data points
+    // Draw data points - Professional neutral styling
     const points = g.selectAll('.radar-point')
       .data(radarData)
       .enter()
@@ -248,20 +245,22 @@ export default function VisibilityRadar({ data }: VisibilityRadarProps) {
 
     points.append('circle')
       .attr('r', 0)
-      .style('fill', '#8b5cf6')
+      .style('fill', '#171717') // neutral-900
       .style('stroke', '#fff')
       .style('stroke-width', 2)
       .on('mouseenter', function(event, d: any) {
         d3.select(this)
           .transition()
-          .duration(200)
-          .attr('r', 8);
+          .duration(150)
+          .attr('r', 7)
+          .style('fill', '#404040'); // neutral-700 on hover
       })
       .on('mouseleave', function() {
         d3.select(this)
           .transition()
-          .duration(200)
-          .attr('r', 5);
+          .duration(150)
+          .attr('r', 5)
+          .style('fill', '#171717'); // neutral-900
       })
       .transition()
       .duration(1000)
@@ -275,60 +274,70 @@ export default function VisibilityRadar({ data }: VisibilityRadarProps) {
   }, [data, radarData]);
 
   return (
-    <Card className="p-6">
-      <div className="flex items-center justify-between mb-4">
-        <div>
-          <h3 className="text-lg font-semibold">Visibility Radar Analysis</h3>
-          <p className="text-sm text-gray-500">Multi-dimensional brand presence assessment</p>
+    <Card className="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800">
+      <div className="border-b border-neutral-200 dark:border-neutral-800 p-6">
+        <div className="flex items-center justify-between mb-4">
+          <div>
+            <div className="section-header mb-2">Multi-Dimensional Analysis</div>
+            <h3 className="text-2xl font-bold text-neutral-900 dark:text-neutral-0 flex items-center gap-2">
+              <Activity className="w-5 h-5 text-neutral-600" />
+              Visibility Radar
+            </h3>
+            <p className="text-sm text-neutral-600 dark:text-neutral-400 mt-1">Brand performance across {radarData.length} key metrics</p>
+          </div>
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger className="p-2 hover:bg-neutral-50 dark:hover:bg-neutral-800/50 rounded-md transition-colors">
+                <Activity className="w-4 h-4 text-neutral-500" />
+              </TooltipTrigger>
+              <TooltipContent className="max-w-xs">
+                <p className="text-xs">Compares your brand visibility across key metrics against industry benchmarks (dashed line)</p>
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
         </div>
-        <TooltipProvider>
-          <Tooltip>
-            <TooltipTrigger>
-              <Info className="w-4 h-4 text-gray-400" />
-            </TooltipTrigger>
-            <TooltipContent>
-              <p className="max-w-xs">Compares your brand visibility across key metrics against industry benchmarks (yellow dashed line)</p>
-            </TooltipContent>
-          </Tooltip>
-        </TooltipProvider>
       </div>
 
       <div ref={containerRef} className="relative">
         <svg ref={svgRef} className="w-full" />
       </div>
 
-      <div className="mt-6 space-y-3">
-        <div className="flex items-center gap-4">
+      <div className="p-6 space-y-4">
+        {/* Professional Legend */}
+        <div className="flex items-center gap-6 pb-4 border-b border-neutral-200 dark:border-neutral-800">
           <div className="flex items-center gap-2">
-            <div className="w-3 h-3 rounded-full bg-gradient-to-r from-purple-500 to-pink-500" />
-            <span className="text-xs text-gray-600">Your Brand</span>
+            <div className="w-3 h-3 rounded-full bg-neutral-900 dark:bg-neutral-0" />
+            <span className="text-xs font-medium text-neutral-600 dark:text-neutral-400">Your Brand</span>
           </div>
           <div className="flex items-center gap-2">
-            <div className="w-3 h-3 rounded-full bg-yellow-400 opacity-50" />
-            <span className="text-xs text-gray-600">Industry Benchmark</span>
+            <div className="w-8 h-0.5 border-t-2 border-neutral-500 border-dashed" />
+            <span className="text-xs font-medium text-neutral-600 dark:text-neutral-400">Industry Benchmark</span>
           </div>
         </div>
 
-        <div className="grid grid-cols-2 gap-2">
+        {/* Professional Metrics Grid */}
+        <div className="grid grid-cols-2 gap-3">
           {radarData.slice(0, 4).map((item, index) => (
             <motion.div
               key={item.axis}
               initial={{ opacity: 0, x: -20 }}
               animate={{ opacity: 1, x: 0 }}
               transition={{ delay: index * 0.1 }}
-              className="flex items-center justify-between p-2 bg-gray-50 rounded-lg"
+              className="flex items-center justify-between p-4 bg-neutral-50 dark:bg-neutral-800/30 border border-neutral-200 dark:border-neutral-700 rounded-md"
             >
               <div className="flex items-center gap-2">
-                <span className="text-xs font-medium">{item.axis}</span>
+                <span className="text-xs font-semibold text-neutral-700 dark:text-neutral-300">{item.axis}</span>
                 {item.trend === 'up' ? (
-                  <TrendingUp className="w-3 h-3 text-green-500" />
+                  <TrendingUp className="w-3 h-3 text-success-600" />
                 ) : item.trend === 'down' ? (
-                  <TrendingDown className="w-3 h-3 text-red-500" />
-                ) : null}
+                  <TrendingDown className="w-3 h-3 text-danger-600" />
+                ) : (
+                  <Minus className="w-3 h-3 text-neutral-400" />
+                )}
               </div>
-              <Badge variant={item.value > item.benchmark ? 'default' : 'secondary'} className="text-xs">
+              <span className="font-mono tabular-nums text-sm font-bold text-neutral-900 dark:text-neutral-0">
                 {item.value}%
-              </Badge>
+              </span>
             </motion.div>
           ))}
         </div>

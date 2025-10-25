@@ -72,29 +72,29 @@ export function ExecutiveSummaryCard({ auditId, isLoading: externalLoading }: Ex
   const brief = executive_brief as ExecutiveBrief;
 
   return (
-    <div className="bg-gradient-to-br from-white to-purple-50/30 rounded-xl shadow-lg border border-purple-100/50 overflow-hidden">
+    <div className="bg-white dark:bg-neutral-900 rounded-xl shadow-lg border border-neutral-200 dark:border-neutral-800 overflow-hidden">
       {/* Header */}
-      <div className="bg-gradient-to-r from-purple-600 to-indigo-600 p-6 text-white">
+      <div className="bg-neutral-900 dark:bg-neutral-0 p-6 text-white dark:text-neutral-900">
         <div className="flex items-start justify-between">
           <div>
             <div className="flex items-center gap-2 mb-2">
               <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
               </svg>
-              <h2 className="text-2xl font-bold">Executive Summary</h2>
+              <h2 className="text-2xl font-bold text-white dark:text-neutral-900">Executive Summary</h2>
             </div>
-            <p className="text-purple-100 text-sm">
+            <p className="text-white dark:text-neutral-900 text-sm">
               Board-Ready Strategic Intelligence • Personalized for {persona}
             </p>
           </div>
           <div className="text-right">
             <div className="text-3xl font-bold">{scores.overall.toFixed(1)}</div>
-            <div className="text-xs text-purple-100">Overall Score</div>
+            <div className="text-xs text-white dark:text-neutral-900">Overall Score</div>
           </div>
         </div>
 
         {/* Company Info */}
-        <div className="mt-4 flex items-center gap-4 text-sm text-purple-100">
+        <div className="mt-4 flex items-center gap-4 text-sm text-white dark:text-neutral-900">
           <span>{company.name}</span>
           <span>•</span>
           <span>{company.industry}</span>
@@ -110,21 +110,21 @@ export function ExecutiveSummaryCard({ auditId, isLoading: externalLoading }: Ex
       <div className="border-b border-gray-200 bg-white/80 backdrop-blur-sm">
         <div className="flex gap-1 p-2">
           {[
-            { id: 'overview', label: 'Current State', icon: '📊' },
-            { id: 'roadmap', label: 'Strategic Roadmap', icon: '🗺️' },
-            { id: 'resources', label: 'Resources', icon: '💰' },
-            { id: 'outcomes', label: 'Expected Outcomes', icon: '🎯' },
+            { id: 'overview', label: 'Current State' },
+            { id: 'roadmap', label: 'Strategic Roadmap' },
+            { id: 'resources', label: 'Resources' },
+            { id: 'outcomes', label: 'Expected Outcomes' },
           ].map((tab) => (
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id as any)}
               className={`flex-1 px-4 py-2 rounded-lg text-sm font-medium transition-all ${
                 activeTab === tab.id
-                  ? 'bg-purple-600 text-white shadow-md'
+                  ? 'bg-neutral-900 dark:bg-neutral-0 text-white dark:text-neutral-900 shadow-md'
                   : 'text-gray-600 hover:bg-gray-100'
               }`}
             >
-              <span className="mr-1">{tab.icon}</span>
+              
               {tab.label}
             </button>
           ))}
@@ -140,7 +140,7 @@ export function ExecutiveSummaryCard({ auditId, isLoading: externalLoading }: Ex
               <div className="space-y-2">
                 {brief.current_state.key_strengths?.map((strength, idx) => (
                   <div key={idx} className="flex items-start gap-2">
-                    <span className="text-green-500 mt-0.5">✓</span>
+                    <span className="text-success-500 mt-0.5 font-bold">+</span>
                     <p className="text-gray-700">{strength}</p>
                   </div>
                 ))}
@@ -152,7 +152,7 @@ export function ExecutiveSummaryCard({ auditId, isLoading: externalLoading }: Ex
               <div className="space-y-2">
                 {brief.current_state.critical_weaknesses?.map((weakness, idx) => (
                   <div key={idx} className="flex items-start gap-2">
-                    <span className="text-red-500 mt-0.5">⚠</span>
+                    <span className="text-danger-500 mt-0.5 font-bold">!</span>
                     <p className="text-gray-700">{weakness}</p>
                   </div>
                 ))}
@@ -165,13 +165,13 @@ export function ExecutiveSummaryCard({ auditId, isLoading: externalLoading }: Ex
           <div className="space-y-6">
             <div>
               <h3 className="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
-                <span className="text-2xl">🚀</span>
+                
                 Quick Wins (Immediate)
               </h3>
               <ul className="space-y-2">
                 {brief.strategic_roadmap.quick_wins?.map((win, idx) => (
-                  <li key={idx} className="flex items-start gap-2 p-3 bg-green-50 rounded-lg border border-green-200">
-                    <span className="text-green-600 font-bold">{idx + 1}.</span>
+                  <li key={idx} className="flex items-start gap-2 p-3 bg-green-50 rounded-lg border border-neutral-200 dark:border-neutral-700">
+                    <span className="text-neutral-900 dark:text-neutral-0 font-bold">{idx + 1}.</span>
                     <span className="text-gray-700">{win}</span>
                   </li>
                 ))}
@@ -180,13 +180,13 @@ export function ExecutiveSummaryCard({ auditId, isLoading: externalLoading }: Ex
 
             <div>
               <h3 className="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
-                <span className="text-2xl">📅</span>
+                
                 Q1 Priorities
               </h3>
               <ul className="space-y-2">
                 {brief.strategic_roadmap.q1_priorities?.map((priority, idx) => (
-                  <li key={idx} className="flex items-start gap-2 p-3 bg-blue-50 rounded-lg border border-blue-200">
-                    <span className="text-blue-600 font-bold">{idx + 1}.</span>
+                  <li key={idx} className="flex items-start gap-2 p-3 bg-neutral-50 dark:bg-neutral-800/50 rounded-lg border border-neutral-200 dark:border-neutral-700">
+                    <span className="text-neutral-900 dark:text-neutral-0 font-bold">{idx + 1}.</span>
                     <span className="text-gray-700">{priority}</span>
                   </li>
                 ))}
@@ -195,13 +195,13 @@ export function ExecutiveSummaryCard({ auditId, isLoading: externalLoading }: Ex
 
             <div>
               <h3 className="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
-                <span className="text-2xl">📈</span>
+                
                 Q2 Priorities
               </h3>
               <ul className="space-y-2">
                 {brief.strategic_roadmap.q2_priorities?.map((priority, idx) => (
-                  <li key={idx} className="flex items-start gap-2 p-3 bg-purple-50 rounded-lg border border-purple-200">
-                    <span className="text-purple-600 font-bold">{idx + 1}.</span>
+                  <li key={idx} className="flex items-start gap-2 p-3 bg-neutral-50 dark:bg-neutral-800/50 rounded-lg border border-neutral-200 dark:border-neutral-700">
+                    <span className="text-neutral-900 dark:text-neutral-0 font-bold">{idx + 1}.</span>
                     <span className="text-gray-700">{priority}</span>
                   </li>
                 ))}
@@ -213,17 +213,17 @@ export function ExecutiveSummaryCard({ auditId, isLoading: externalLoading }: Ex
         {activeTab === 'resources' && brief.resource_allocation && (
           <div className="space-y-6">
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div className="bg-gradient-to-br from-purple-50 to-purple-100 p-4 rounded-lg border border-purple-200">
-                <div className="text-sm text-purple-600 font-medium mb-1">Budget Required</div>
-                <div className="text-2xl font-bold text-purple-900">{brief.resource_allocation.budget_required}</div>
+              <div className="bg-neutral-50 dark:bg-neutral-800/50 p-4 rounded-lg border border-neutral-200 dark:border-neutral-700">
+                <div className="text-sm text-neutral-900 dark:text-neutral-0 font-medium mb-1">Budget Required</div>
+                <div className="text-2xl font-bold text-neutral-900 dark:text-neutral-0">{brief.resource_allocation.budget_required}</div>
               </div>
-              <div className="bg-gradient-to-br from-blue-50 to-blue-100 p-4 rounded-lg border border-blue-200">
-                <div className="text-sm text-blue-600 font-medium mb-1">Timeline</div>
-                <div className="text-2xl font-bold text-blue-900">{brief.resource_allocation.timeline}</div>
+              <div className="bg-neutral-50 dark:bg-neutral-800/50 p-4 rounded-lg border border-neutral-200 dark:border-neutral-700">
+                <div className="text-sm text-neutral-900 dark:text-neutral-0 font-medium mb-1">Timeline</div>
+                <div className="text-2xl font-bold text-neutral-900 dark:text-neutral-0">{brief.resource_allocation.timeline}</div>
               </div>
-              <div className="bg-gradient-to-br from-green-50 to-green-100 p-4 rounded-lg border border-green-200">
-                <div className="text-sm text-green-600 font-medium mb-1">Team Members</div>
-                <div className="text-2xl font-bold text-green-900">{brief.resource_allocation.team_needs?.length || 0}</div>
+              <div className="bg-neutral-50 dark:bg-neutral-800/50 p-4 rounded-lg border border-neutral-200 dark:border-neutral-700">
+                <div className="text-sm text-neutral-900 dark:text-neutral-0 font-medium mb-1">Team Members</div>
+                <div className="text-2xl font-bold text-neutral-900 dark:text-neutral-0">{brief.resource_allocation.team_needs?.length || 0}</div>
               </div>
             </div>
 
@@ -231,7 +231,7 @@ export function ExecutiveSummaryCard({ auditId, isLoading: externalLoading }: Ex
               <h3 className="text-lg font-semibold text-gray-900 mb-3">Team Requirements</h3>
               <div className="flex flex-wrap gap-2">
                 {brief.resource_allocation.team_needs?.map((role, idx) => (
-                  <span key={idx} className="px-3 py-1 bg-indigo-100 text-indigo-700 rounded-full text-sm font-medium">
+                  <span key={idx} className="px-3 py-1 bg-neutral-100 dark:bg-neutral-800 text-neutral-900 dark:text-neutral-0 rounded-full text-sm font-medium">
                     {role}
                   </span>
                 ))}
@@ -243,17 +243,17 @@ export function ExecutiveSummaryCard({ auditId, isLoading: externalLoading }: Ex
         {activeTab === 'outcomes' && brief.expected_outcomes && (
           <div className="space-y-6">
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div className="bg-gradient-to-br from-green-50 to-green-100 p-6 rounded-lg border border-green-200">
-                <div className="text-sm text-green-600 font-medium mb-2">Score Improvement</div>
-                <div className="text-3xl font-bold text-green-900">{brief.expected_outcomes.score_improvement}</div>
+              <div className="bg-neutral-50 dark:bg-neutral-800/50 p-6 rounded-lg border border-neutral-200 dark:border-neutral-700">
+                <div className="text-sm text-neutral-900 dark:text-neutral-0 font-medium mb-2">Score Improvement</div>
+                <div className="text-3xl font-bold text-neutral-900 dark:text-neutral-0">{brief.expected_outcomes.score_improvement}</div>
               </div>
-              <div className="bg-gradient-to-br from-blue-50 to-blue-100 p-6 rounded-lg border border-blue-200">
-                <div className="text-sm text-blue-600 font-medium mb-2">Revenue Impact</div>
-                <div className="text-3xl font-bold text-blue-900">{brief.expected_outcomes.revenue_impact}</div>
+              <div className="bg-neutral-50 dark:bg-neutral-800/50 p-6 rounded-lg border border-neutral-200 dark:border-neutral-700">
+                <div className="text-sm text-neutral-900 dark:text-neutral-0 font-medium mb-2">Revenue Impact</div>
+                <div className="text-3xl font-bold text-neutral-900 dark:text-neutral-0">{brief.expected_outcomes.revenue_impact}</div>
               </div>
-              <div className="bg-gradient-to-br from-purple-50 to-purple-100 p-6 rounded-lg border border-purple-200">
-                <div className="text-sm text-purple-600 font-medium mb-2">Market Position</div>
-                <div className="text-lg font-bold text-purple-900">{brief.expected_outcomes.competitive_position}</div>
+              <div className="bg-neutral-50 dark:bg-neutral-800/50 p-6 rounded-lg border border-neutral-200 dark:border-neutral-700">
+                <div className="text-sm text-neutral-900 dark:text-neutral-0 font-medium mb-2">Market Position</div>
+                <div className="text-lg font-bold text-neutral-900 dark:text-neutral-0">{brief.expected_outcomes.competitive_position}</div>
               </div>
             </div>
 
@@ -264,7 +264,7 @@ export function ExecutiveSummaryCard({ auditId, isLoading: externalLoading }: Ex
                   <ul className="space-y-2">
                     {brief.board_presentation.key_messages?.map((message, idx) => (
                       <li key={idx} className="flex items-start gap-2 p-3 bg-gray-50 rounded-lg">
-                        <span className="text-purple-600 font-bold">{idx + 1}.</span>
+                        <span className="text-neutral-900 dark:text-neutral-0 font-bold">{idx + 1}.</span>
                         <span className="text-gray-700">{message}</span>
                       </li>
                     ))}
@@ -275,7 +275,7 @@ export function ExecutiveSummaryCard({ auditId, isLoading: externalLoading }: Ex
                   <h3 className="text-lg font-semibold text-gray-900 mb-3">Success Metrics</h3>
                   <div className="flex flex-wrap gap-2">
                     {brief.board_presentation.success_metrics?.map((metric, idx) => (
-                      <div key={idx} className="px-4 py-2 bg-indigo-50 border border-indigo-200 rounded-lg text-sm">
+                      <div key={idx} className="px-4 py-2 bg-neutral-50 dark:bg-neutral-800/50 border border-neutral-200 dark:border-neutral-700 rounded-lg text-sm">
                         <span className="text-indigo-700 font-medium">{metric}</span>
                       </div>
                     ))}
@@ -297,7 +297,7 @@ export function ExecutiveSummaryCard({ auditId, isLoading: externalLoading }: Ex
             <span>Powered by 118-Call Strategic Intelligence</span>
           </div>
           <div className="flex items-center gap-2">
-            <span className="px-2 py-1 bg-purple-100 text-purple-700 rounded text-xs font-medium">
+            <span className="px-2 py-1 bg-neutral-100 dark:bg-neutral-800 text-neutral-900 dark:text-neutral-0 rounded text-xs font-medium">
               1 LLM Call • Layer 3
             </span>
           </div>

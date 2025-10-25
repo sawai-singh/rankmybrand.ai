@@ -34,50 +34,50 @@ import {
 import HeroHealthScore from '@/components/dashboard/HeroHealthScore';
 import EnhancedKPICard from '@/components/dashboard/EnhancedKPICard';
 
-// Dynamic imports for heavy components
+// Dynamic imports for heavy components - Professional loading states
 const VisibilityRadar = dynamic(() => import('@/app/dashboard/ai-visibility/components/VisibilityRadar'), {
-  loading: () => <div className="h-96 animate-pulse bg-gradient-to-r from-purple-50 to-pink-50 rounded-lg" />,
+  loading: () => <div className="h-96 loading-skeleton rounded-lg" />,
   ssr: false
 });
 
 const CompetitiveLandscape = dynamic(() => import('@/app/dashboard/ai-visibility/components/CompetitiveLandscape'), {
-  loading: () => <div className="h-96 animate-pulse bg-gradient-to-r from-blue-50 to-cyan-50 rounded-lg" />,
+  loading: () => <div className="h-96 loading-skeleton rounded-lg" />,
   ssr: false
 });
 
 const QueryPerformance = dynamic(() => import('@/app/dashboard/ai-visibility/components/QueryPerformance'), {
-  loading: () => <div className="h-96 animate-pulse bg-gradient-to-r from-green-50 to-emerald-50 rounded-lg" />,
+  loading: () => <div className="h-96 loading-skeleton rounded-lg" />,
   ssr: false
 });
 
 const ResponseAnalysisTable = dynamic(() => import('@/app/dashboard/ai-visibility/components/ResponseAnalysisTable'), {
-  loading: () => <div className="h-96 animate-pulse bg-gradient-to-r from-yellow-50 to-orange-50 rounded-lg" />,
+  loading: () => <div className="h-96 loading-skeleton rounded-lg" />,
   ssr: false
 });
 
 const InsightsFeed = dynamic(() => import('@/app/dashboard/ai-visibility/components/InsightsFeed'), {
-  loading: () => <div className="h-96 animate-pulse bg-gradient-to-r from-indigo-50 to-purple-50 rounded-lg" />,
+  loading: () => <div className="h-96 loading-skeleton rounded-lg" />,
   ssr: false
 });
 
 // Strategic Intelligence Components (118-Call Architecture)
 const ExecutiveSummaryCard = dynamic(() => import('@/components/dashboard/strategic').then(mod => ({ default: mod.ExecutiveSummaryCard })), {
-  loading: () => <div className="h-96 animate-pulse bg-gradient-to-r from-purple-50 to-indigo-50 rounded-lg" />,
+  loading: () => <div className="h-96 loading-skeleton rounded-lg" />,
   ssr: false
 });
 
 const StrategicPrioritiesPanel = dynamic(() => import('@/components/dashboard/strategic').then(mod => ({ default: mod.StrategicPrioritiesPanel })), {
-  loading: () => <div className="h-96 animate-pulse bg-gradient-to-r from-indigo-50 to-blue-50 rounded-lg" />,
+  loading: () => <div className="h-96 loading-skeleton rounded-lg" />,
   ssr: false
 });
 
 const CategoryInsightsGrid = dynamic(() => import('@/components/dashboard/strategic').then(mod => ({ default: mod.CategoryInsightsGrid })), {
-  loading: () => <div className="h-96 animate-pulse bg-gradient-to-r from-blue-50 to-cyan-50 rounded-lg" />,
+  loading: () => <div className="h-96 loading-skeleton rounded-lg" />,
   ssr: false
 });
 
 const BuyerJourneyInsightsView = dynamic(() => import('@/components/dashboard/strategic').then(mod => ({ default: mod.BuyerJourneyInsightsView })), {
-  loading: () => <div className="h-96 animate-pulse bg-gradient-to-r from-gray-50 to-gray-100 rounded-lg" />,
+  loading: () => <div className="h-96 loading-skeleton rounded-lg" />,
   ssr: false
 });
 
@@ -230,22 +230,14 @@ const PlatformStatus = ({ platform, status, responseTime, onClick }: any) => {
     offline: 'bg-red-500'
   };
 
-  const platformIcons = {
-    openai: '🤖',
-    anthropic: '🧠',
-    google: '🔍',
-    perplexity: '🌐'
-  };
-
   return (
     <motion.div
       whileHover={{ scale: 1.05 }}
       whileTap={{ scale: 0.95 }}
-      className="flex items-center gap-2 px-3 py-1.5 bg-gray-50 rounded-full border cursor-pointer hover:bg-gray-100 transition-all"
+      className="flex items-center gap-2 px-3 py-1.5 bg-neutral-50 dark:bg-neutral-800 rounded-full border border-neutral-200 dark:border-neutral-700 cursor-pointer hover:bg-neutral-100 dark:hover:bg-neutral-700 transition-all"
       onClick={onClick}
     >
-      <span className="text-sm">{platformIcons[platform as keyof typeof platformIcons]}</span>
-      <span className="text-xs font-medium capitalize">{platform}</span>
+      <span className="text-xs font-medium capitalize text-neutral-900 dark:text-neutral-0">{platform}</span>
       <div className={`w-1.5 h-1.5 rounded-full ${statusColors[status as keyof typeof statusColors]} animate-pulse`} />
     </motion.div>
   );
@@ -274,81 +266,101 @@ export default function DashboardView({
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-gray-50 via-white to-gray-50 flex items-center justify-center">
+      <div className="min-h-screen bg-neutral-0 dark:bg-neutral-950 flex items-center justify-center">
         <div className="text-center space-y-4">
-          <div className="w-16 h-16 border-4 border-purple-500/30 border-t-purple-500 rounded-full animate-spin mx-auto" />
-          <p className="text-gray-600 font-medium">Loading dashboard data...</p>
+          <div className="w-12 h-12 border-3 border-neutral-200 dark:border-neutral-800 border-t-interactive-500 rounded-full animate-spin mx-auto" />
+          <div className="space-y-1">
+            <p className="text-neutral-700 dark:text-neutral-300 font-medium">Loading intelligence data...</p>
+            <p className="text-xs text-neutral-500 dark:text-neutral-400">Analyzing brand visibility metrics</p>
+          </div>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 via-white to-gray-50">
-      {/* Header */}
+    <div className="min-h-screen bg-neutral-0 dark:bg-neutral-950">
+      {/* Professional B2B Header with Trust Signals */}
       {showHeader && (
         <motion.div
           initial={{ opacity: 0, y: -20 }}
           animate={{ opacity: 1, y: 0 }}
-          className="bg-white border-b sticky top-0 z-50 backdrop-blur-lg bg-white/90"
+          className="border-b border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-950 sticky top-0 z-50 backdrop-blur-sm bg-white/95 dark:bg-neutral-950/95"
         >
-          <div className="container mx-auto px-6 py-4">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-4">
+          <div className="container mx-auto px-6 py-6">
+            {/* Breadcrumb Navigation */}
+            <nav className="text-xs font-medium text-neutral-500 dark:text-neutral-400 mb-4" aria-label="Breadcrumb">
+              <span>Dashboard</span>
+              <span className="mx-2">→</span>
+              <span>Brand Intelligence</span>
+              <span className="mx-2">→</span>
+              <span className="text-neutral-900 dark:text-neutral-0">AI Visibility Report</span>
+            </nav>
+
+            <div className="flex items-start justify-between">
+              <div className="flex items-start gap-4">
                 {auditData?.companyLogoUrl ? (
                   <div className="flex-shrink-0">
                     <img
                       src={auditData.companyLogoUrl}
                       alt={`${auditData.companyName || 'Company'} logo`}
-                      className="w-10 h-10 rounded-lg object-contain bg-white p-1 shadow-sm border border-gray-200"
+                      className="w-12 h-12 rounded-md object-contain bg-white dark:bg-neutral-900 p-1.5 border border-neutral-200 dark:border-neutral-800"
                       onError={(e) => {
                         e.currentTarget.style.display = 'none';
                       }}
                     />
                   </div>
                 ) : (
-                  <div className="p-2 bg-gradient-to-br from-purple-500 to-pink-500 rounded-lg">
-                    <Brain className="w-6 h-6 text-white" />
+                  <div className="p-2.5 bg-neutral-100 dark:bg-neutral-800 rounded-md border border-neutral-200 dark:border-neutral-700">
+                    <Brain className="w-6 h-6 text-neutral-700 dark:text-neutral-300" />
                   </div>
                 )}
+
                 <div>
-                  <h1 className="text-2xl font-bold bg-gradient-to-r from-purple-600 to-pink-600 bg-clip-text text-transparent">
-                    AI Visibility Intelligence
+                  <h1 className="text-2xl font-bold text-neutral-900 dark:text-neutral-0 mb-2">
+                    {auditData?.companyName ? `${auditData.companyName} - ` : ''}Brand Visibility Intelligence Report
                   </h1>
-                  <p className="text-sm text-gray-500">
-                    {auditData?.companyName ? `${auditData.companyName} - ` : ''}
-                    Real-time brand presence across AI platforms
-                    {' • '}
-                    <span className="text-xs">
-                      Last updated: {new Date(lastUpdated).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+
+                  {/* Trust Signals */}
+                  <div className="flex items-center gap-4 text-sm text-neutral-600 dark:text-neutral-400 flex-wrap">
+                    <span className="flex items-center gap-1.5">
+                      <Clock className="w-4 h-4" />
+                      Updated: {new Date(lastUpdated).toLocaleString('en-US', {
+                        month: 'short',
+                        day: 'numeric',
+                        hour: '2-digit',
+                        minute: '2-digit'
+                      })}
                     </span>
-                  </p>
+                    <span>•</span>
+                    <span className="font-mono tabular-nums">
+                      {auditData?.responses?.length || 0} AI responses analyzed
+                    </span>
+                    <span>•</span>
+                    <span className="flex items-center gap-1.5">
+                      <Activity className={`w-3 h-3 ${connectionStatus === 'connected' ? 'text-success-600' : 'text-neutral-400'}`} />
+                      Live data
+                    </span>
+                  </div>
                 </div>
               </div>
 
-              <div className="flex items-center gap-4">
-                {connectionStatus !== 'disconnected' && (
-                  <Badge variant={connectionStatus === 'connected' ? 'default' : 'secondary'}>
-                    <Activity className="w-3 h-3 mr-1" />
-                    {connectionStatus}
-                  </Badge>
-                )}
-
+              <div className="flex items-center gap-3">
                 {showStartAuditButton && onStartAudit && (
                   <Button
                     onClick={onStartAudit}
                     disabled={isAuditRunning}
-                    className="bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700"
+                    size="sm"
                   >
                     {isAuditRunning ? (
                       <>
                         <Clock className="w-4 h-4 mr-2 animate-spin" />
-                        Audit Running...
+                        Running...
                       </>
                     ) : (
                       <>
                         <Zap className="w-4 h-4 mr-2" />
-                        Start New Audit
+                        New Audit
                       </>
                     )}
                   </Button>
@@ -533,28 +545,35 @@ export default function DashboardView({
           </div>
         </div>
 
-        {/* Strategic Intelligence - 118-Call Architecture (Prominent Top Section) */}
+        {/* Strategic Intelligence - 118-Call Architecture */}
         {auditData?.id && (
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5 }}
+            transition={{ duration: 0.3 }}
             className="mb-12"
           >
-            {/* Section Header */}
-            <div className="mb-6 flex items-center justify-between">
-              <div>
-                <h2 className="text-3xl font-bold bg-gradient-to-r from-purple-600 via-indigo-600 to-blue-600 bg-clip-text text-transparent mb-2">
-                  Strategic Intelligence
-                </h2>
-                <p className="text-gray-600 flex items-center gap-2">
-                  <Brain className="w-4 h-4" />
-                  118-Call Strategic Intelligence Architecture • Board-Ready Insights
-                </p>
+            {/* Professional Section Header */}
+            <div className="mb-8 pb-4 border-b border-neutral-200 dark:border-neutral-800">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h2 className="section-header mb-1">Strategic Analysis</h2>
+                  <h3 className="text-2xl font-bold text-neutral-900 dark:text-neutral-0 mb-2">
+                    Executive Intelligence Summary
+                  </h3>
+                  <p className="text-sm text-neutral-600 dark:text-neutral-400 flex items-center gap-2">
+                    <Brain className="w-4 h-4" />
+                    118-point strategic analysis
+                    <span>•</span>
+                    <span>Board-ready insights</span>
+                    <span>•</span>
+                    <span className="font-mono tabular-nums">Generated {new Date().toLocaleDateString()}</span>
+                  </p>
+                </div>
+                <Badge variant="outline" className="h-8 px-4 text-xs font-semibold">
+                  AI-Powered
+                </Badge>
               </div>
-              <Badge className="h-8 px-4 text-sm font-semibold bg-gradient-to-r from-purple-600 to-indigo-600 text-white">
-                Powered by AI
-              </Badge>
             </div>
 
             <div className="space-y-6">
@@ -627,27 +646,16 @@ export default function DashboardView({
                   const hasHighPriority = highPriorityCount > 0;
 
                   return (
-                    <div className="flex items-center gap-1">
-                      {hasHighPriority && (
-                        <motion.span
-                          animate={{ scale: [1, 1.3, 1], opacity: [0.8, 1, 0.8] }}
-                          transition={{ duration: 1.5, repeat: Infinity, ease: 'easeInOut' }}
-                          className="text-xs"
-                        >
-                          🔴
-                        </motion.span>
-                      )}
-                      <Badge
-                        variant="secondary"
-                        className={`h-5 min-w-[20px] px-1.5 text-[10px] font-semibold ${
-                          hasHighPriority
-                            ? 'bg-red-100 text-red-700 hover:bg-red-100'
-                            : 'bg-gray-100 text-gray-700 hover:bg-gray-100'
-                        }`}
-                      >
-                        {auditData.insights.length}
-                      </Badge>
-                    </div>
+                    <Badge
+                      variant="secondary"
+                      className={`h-5 min-w-[20px] px-1.5 text-[10px] font-semibold font-mono tabular-nums ${
+                        hasHighPriority
+                          ? 'bg-danger-100 dark:bg-danger-900/40 text-danger-700 dark:text-danger-300 hover:bg-danger-100'
+                          : 'bg-neutral-100 dark:bg-neutral-800 text-neutral-700 dark:text-neutral-300 hover:bg-neutral-100'
+                      }`}
+                    >
+                      {auditData.insights.length}
+                    </Badge>
                   );
                 })()}
               </span>
@@ -679,16 +687,10 @@ export default function DashboardView({
               return topInsights.length > 0 && (
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                   {topInsights.map((insight, index) => {
-                    const getIcon = () => {
-                      if (insight.importance === 'high') return '🔥';
-                      if (insight.importance === 'medium') return '⚠️';
-                      return '💡';
-                    };
-
                     const getBorderColor = () => {
-                      if (insight.importance === 'high') return 'border-red-300 bg-red-50/50';
-                      if (insight.importance === 'medium') return 'border-yellow-300 bg-yellow-50/50';
-                      return 'border-blue-300 bg-blue-50/50';
+                      if (insight.importance === 'high') return 'border-danger-300 dark:border-danger-700 bg-danger-50/50 dark:bg-danger-900/10';
+                      if (insight.importance === 'medium') return 'border-warning-300 dark:border-warning-700 bg-warning-50/50 dark:bg-warning-900/10';
+                      return 'border-interactive-300 dark:border-interactive-700 bg-interactive-50/50 dark:bg-interactive-900/10';
                     };
 
                     return (
@@ -701,7 +703,6 @@ export default function DashboardView({
                         <Card className={`border-2 ${getBorderColor()} hover:shadow-lg transition-all`}>
                           <div className="p-4">
                             <div className="flex items-start gap-3">
-                              <span className="text-2xl leading-none mt-0.5">{getIcon()}</span>
                               <div className="flex-1 min-w-0">
                                 <div className="flex items-center gap-2 mb-2">
                                   <Badge variant="outline" className="text-xs font-semibold">

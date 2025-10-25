@@ -12,6 +12,8 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Building2, Globe, Users, MapPin, Tag, Loader2, Edit2, Check, ArrowRight, X, Sparkles } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 
 interface CompanyData {
   name: string;
@@ -278,12 +280,12 @@ export default function CompanyDetailsPage() {
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
-        {/* [98:Lazy loading] Loading skeleton */}
+        {/* Professional loading state */}
         <div className="text-center">
           <div className="w-12 h-12 mx-auto mb-4">
-            <Sparkles className="w-full h-full text-primary-500 animate-pulse" />
+            <Sparkles className="w-full h-full text-neutral-600 dark:text-neutral-400 animate-pulse" />
           </div>
-          <p className="text-gray-600 dark:text-gray-400">Analyzing your company...</p>
+          <p className="text-neutral-600 dark:text-neutral-400">Analyzing your company...</p>
         </div>
       </div>
     );
@@ -293,7 +295,7 @@ export default function CompanyDetailsPage() {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
-          <p className="text-gray-600 dark:text-gray-400">No company data found</p>
+          <p className="text-neutral-600 dark:text-neutral-400">No company data found</p>
         </div>
       </div>
     );
@@ -302,15 +304,15 @@ export default function CompanyDetailsPage() {
   return (
     <div className="min-h-screen py-8 md:py-12 px-4">
       <div className="max-w-4xl mx-auto">
-        {/* Progress Bar - [14:Visual hierarchy] Clear progress indication */}
+        {/* Professional progress bar */}
         <nav aria-label="Progress" className="mb-8">
-          <div className="flex items-center justify-between text-sm text-gray-700 dark:text-gray-300 mb-2">
-            <span>Step 1 of 3</span>
-            <span>Company Details</span>
+          <div className="flex items-center justify-between text-sm text-neutral-700 dark:text-neutral-300 mb-2">
+            <span className="section-header">Step <span className="font-mono tabular-nums">1</span> of <span className="font-mono tabular-nums">3</span></span>
+            <span className="font-semibold">Company Details</span>
           </div>
-          <div className="h-2 bg-gray-200 dark:bg-gray-800 rounded-full overflow-hidden">
-            <div 
-              className="h-full bg-gradient-to-r from-primary-500 to-purple-500 rounded-full transition-all duration-500"
+          <div className="h-2 bg-neutral-200 dark:bg-neutral-800 rounded-full overflow-hidden">
+            <div
+              className="h-full bg-neutral-900 dark:bg-neutral-0 rounded-full transition-all duration-500"
               style={{ width: '33%' }}
               role="progressbar"
               aria-valuenow={33}
@@ -325,12 +327,12 @@ export default function CompanyDetailsPage() {
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.3 }}
         >
-          {/* Header - [51:Microcopy] Honest, helpful copy */}
+          {/* Professional header */}
           <header className="text-center mb-8">
-            <h1 className="text-3xl md:text-4xl font-bold mb-4">
+            <h1 className="text-3xl md:text-4xl font-bold mb-4 text-neutral-900 dark:text-neutral-0">
               Review Your Company Details
             </h1>
-            <p className="text-gray-600 dark:text-gray-400 max-w-2xl mx-auto">
+            <p className="text-neutral-600 dark:text-neutral-400 max-w-2xl mx-auto">
               We've gathered information about your company. Please review and correct any details to help us provide accurate AI visibility insights.
             </p>
           </header>
@@ -346,8 +348,8 @@ export default function CompanyDetailsPage() {
                   className="w-16 h-16 sm:w-20 sm:h-20 rounded-xl object-cover"
                 />
               ) : (
-                <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-xl bg-gradient-to-br from-primary-500 to-purple-500 flex items-center justify-center flex-shrink-0">
-                  <Building2 className="w-8 h-8 sm:w-10 sm:h-10 text-white" />
+                <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-xl bg-neutral-900 dark:bg-neutral-0 flex items-center justify-center flex-shrink-0">
+                  <Building2 className="w-8 h-8 sm:w-10 sm:h-10 text-white dark:text-neutral-900" />
                 </div>
               )}
               
@@ -367,7 +369,7 @@ export default function CompanyDetailsPage() {
                   inputClassName="text-2xl sm:text-3xl font-bold"
                 />
                 
-                <div className="flex items-center gap-2 mt-2 text-gray-600 dark:text-gray-400">
+                <div className="flex items-center gap-2 mt-2 text-neutral-600 dark:text-neutral-400">
                   <Globe className="w-4 h-4" aria-hidden="true" />
                   <span>{company.domain}</span>
                 </div>
@@ -376,22 +378,22 @@ export default function CompanyDetailsPage() {
 
             {/* Company Description */}
             {company.description && (
-              <div className="mb-8 p-4 bg-gray-50 dark:bg-gray-800/50 rounded-xl">
-                <p className="text-gray-700 dark:text-gray-300 leading-relaxed">
+              <div className="mb-8 p-4 bg-neutral-50 dark:bg-neutral-800/50 rounded-xl">
+                <p className="text-neutral-700 dark:text-neutral-300 leading-relaxed">
                   {company.description}
                 </p>
               </div>
             )}
 
-            {/* Business Model Section - NEW */}
-            <div className="mb-8 p-6 bg-gradient-to-br from-primary-50 to-purple-50 dark:from-primary-900/20 dark:to-purple-900/20 rounded-xl border-2 border-primary-200 dark:border-primary-800">
+            {/* Professional business model section */}
+            <div className="mb-8 p-6 bg-neutral-50 dark:bg-neutral-800/50 rounded-xl border-2 border-neutral-200 dark:border-neutral-700">
               <div className="flex items-start justify-between mb-4">
                 <div>
-                  <h3 className="text-lg font-semibold mb-1 flex items-center gap-2">
-                    <Sparkles className="w-5 h-5 text-primary-600" />
+                  <h3 className="text-lg font-semibold mb-1 flex items-center gap-2 text-neutral-900 dark:text-neutral-0">
+                    <Sparkles className="w-5 h-5 text-neutral-600 dark:text-neutral-400" />
                     Business Model
                   </h3>
-                  <p className="text-sm text-gray-600 dark:text-gray-400">
+                  <p className="text-sm text-neutral-600 dark:text-neutral-400">
                     This determines what type of queries we'll track for your AI visibility
                   </p>
                 </div>
@@ -399,13 +401,13 @@ export default function CompanyDetailsPage() {
 
               {/* Business Model Selector */}
               <div className="mb-4">
-                <label className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2 block">
+                <label className="text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-2 block">
                   Who are your customers?
                 </label>
                 <select
                   value={company.business_model || 'B2B'}
                   onChange={(e) => handleFieldEdit('business_model', e.target.value as 'B2C' | 'B2B' | 'B2B2C')}
-                  className="w-full px-4 py-3 border-2 border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-900 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent text-base"
+                  className="w-full px-4 py-3 border-2 border-neutral-300 dark:border-neutral-700 rounded-lg bg-white dark:bg-neutral-900 focus:outline-none focus:ring-2 focus:ring-neutral-900 dark:focus:ring-neutral-0 focus:border-transparent text-base"
                 >
                   <option value="B2C">🛍️  B2C - We sell to individual consumers (e.g., shoppers, families)</option>
                   <option value="B2B">🏢 B2B - We sell to businesses and enterprises</option>
@@ -414,18 +416,18 @@ export default function CompanyDetailsPage() {
               </div>
 
               {/* Business Model Explanation */}
-              <div className="p-4 bg-white dark:bg-gray-900/50 rounded-lg">
+              <div className="p-4 bg-white dark:bg-neutral-900/50 rounded-lg">
                 {company.business_model === 'B2C' && (
                   <div>
-                    <p className="font-medium text-gray-900 dark:text-gray-100 mb-2">
+                    <p className="font-medium text-neutral-900 dark:text-neutral-0 mb-2">
                       🛍️  Consumer Shopping Queries
                     </p>
-                    <p className="text-sm text-gray-600 dark:text-gray-400 mb-3">
+                    <p className="text-sm text-neutral-600 dark:text-neutral-400 mb-3">
                       {company.customer_type?.description || "Your customers are individual people shopping for products or services."}
                     </p>
                     <div className="text-sm">
-                      <p className="text-gray-500 dark:text-gray-400 mb-2">Example queries we'll track:</p>
-                      <ul className="space-y-1 text-gray-700 dark:text-gray-300">
+                      <p className="text-neutral-500 dark:text-neutral-400 mb-2">Example queries we'll track:</p>
+                      <ul className="space-y-1 text-neutral-700 dark:text-neutral-300">
                         <li>• "best {(() => {
                           const product = company.products_services?.[0];
                           return (typeof product === 'string' ? product : product?.name) || company.industry || 'products';
@@ -440,15 +442,15 @@ export default function CompanyDetailsPage() {
 
                 {company.business_model === 'B2B' && (
                   <div>
-                    <p className="font-medium text-gray-900 dark:text-gray-100 mb-2">
+                    <p className="font-medium text-neutral-900 dark:text-neutral-0 mb-2">
                       🏢 Enterprise & Business Queries
                     </p>
-                    <p className="text-sm text-gray-600 dark:text-gray-400 mb-3">
+                    <p className="text-sm text-neutral-600 dark:text-neutral-400 mb-3">
                       {company.customer_type?.description || "Your customers are businesses, enterprises, or developers."}
                     </p>
                     <div className="text-sm">
-                      <p className="text-gray-500 dark:text-gray-400 mb-2">Example queries we'll track:</p>
-                      <ul className="space-y-1 text-gray-700 dark:text-gray-300">
+                      <p className="text-neutral-500 dark:text-neutral-400 mb-2">Example queries we'll track:</p>
+                      <ul className="space-y-1 text-neutral-700 dark:text-neutral-300">
                         <li>• "best {company.industry || 'enterprise'} platform for businesses"</li>
                         <li>• "{company.name} API documentation"</li>
                         <li>• "{company.name} vs competitors comparison"</li>
@@ -460,15 +462,15 @@ export default function CompanyDetailsPage() {
 
                 {company.business_model === 'B2B2C' && (
                   <div>
-                    <p className="font-medium text-gray-900 dark:text-gray-100 mb-2">
+                    <p className="font-medium text-neutral-900 dark:text-neutral-0 mb-2">
                       🔀 Hybrid Business & Consumer Queries
                     </p>
-                    <p className="text-sm text-gray-600 dark:text-gray-400 mb-3">
+                    <p className="text-sm text-neutral-600 dark:text-neutral-400 mb-3">
                       {company.customer_type?.description || "You sell to businesses who then serve end consumers."}
                     </p>
                     <div className="text-sm">
-                      <p className="text-gray-500 dark:text-gray-400 mb-2">Example queries we'll track:</p>
-                      <ul className="space-y-1 text-gray-700 dark:text-gray-300">
+                      <p className="text-neutral-500 dark:text-neutral-400 mb-2">Example queries we'll track:</p>
+                      <ul className="space-y-1 text-neutral-700 dark:text-neutral-300">
                         <li>• "platform to sell products online" (B2C-influenced)</li>
                         <li>• "{company.name} for small businesses"</li>
                         <li>• "{company.name} merchant API"</li>
@@ -479,11 +481,11 @@ export default function CompanyDetailsPage() {
                 )}
               </div>
 
-              {/* Warning if LLM confidence is low */}
+              {/* Warning if LLM confidence is low - semantic color */}
               {company.confidence < 0.7 && (
-                <div className="mt-4 p-3 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg">
-                  <p className="text-sm text-yellow-800 dark:text-yellow-200">
-                    ⚠️ We're not 100% sure about this classification. Please verify it's correct for your business.
+                <div className="mt-4 p-3 bg-warning-50 dark:bg-warning-900/20 border border-warning-200 dark:border-warning-800 rounded-lg">
+                  <p className="text-sm text-warning-800 dark:text-warning-200">
+                    ⚠️ We're not <span className="font-mono tabular-nums">100%</span> sure about this classification. Please verify it's correct for your business.
                   </p>
                 </div>
               )}
@@ -493,7 +495,7 @@ export default function CompanyDetailsPage() {
             <div className="grid sm:grid-cols-2 gap-6">
               {/* Industry */}
               <div>
-                <label className="text-sm text-gray-500 dark:text-gray-400 mb-1 block">
+                <label className="text-sm text-neutral-500 dark:text-neutral-400 mb-1 block">
                   Industry
                 </label>
                 <EditableField
@@ -512,7 +514,7 @@ export default function CompanyDetailsPage() {
 
               {/* Company Size */}
               <div>
-                <label className="text-sm text-gray-500 dark:text-gray-400 mb-1 block">
+                <label className="text-sm text-neutral-500 dark:text-neutral-400 mb-1 block">
                   Company Size
                 </label>
                 <EditableField
@@ -531,7 +533,7 @@ export default function CompanyDetailsPage() {
 
               {/* Location */}
               <div>
-                <label className="text-sm text-gray-500 dark:text-gray-400 mb-1 block">
+                <label className="text-sm text-neutral-500 dark:text-neutral-400 mb-1 block">
                   Location
                 </label>
                 <EditableField
@@ -559,7 +561,7 @@ export default function CompanyDetailsPage() {
 
               {/* Tech Stack */}
               <div>
-                <label className="text-sm text-gray-500 dark:text-gray-400 mb-1 block">
+                <label className="text-sm text-neutral-500 dark:text-neutral-400 mb-1 block">
                   Tech Stack
                 </label>
                 <div className="flex flex-wrap gap-2">
@@ -567,20 +569,20 @@ export default function CompanyDetailsPage() {
                     company.techStack.slice(0, 5).map((tech, index) => (
                       <span
                         key={index}
-                        className="px-3 py-1 bg-primary-100 dark:bg-primary-900/20 text-primary-700 dark:text-primary-300 rounded-full text-sm"
+                        className="px-3 py-1 bg-neutral-100 dark:bg-neutral-800 text-neutral-900 dark:text-neutral-0 rounded-full text-sm font-medium"
                       >
                         {tech}
                       </span>
                     ))
                   ) : (
-                    <span className="text-gray-500">Not detected</span>
+                    <span className="text-neutral-500">Not detected</span>
                   )}
                 </div>
               </div>
 
               {/* Products & Services */}
               <div className="sm:col-span-2">
-                <label className="text-sm text-gray-500 dark:text-gray-400 mb-1 block">
+                <label className="text-sm text-neutral-500 dark:text-neutral-400 mb-1 block">
                   Products & Services
                 </label>
                 <div className="flex flex-wrap gap-2">
@@ -588,34 +590,34 @@ export default function CompanyDetailsPage() {
                     company.products_services.map((product, index) => (
                       <span
                         key={index}
-                        className="px-3 py-1 bg-purple-100 dark:bg-purple-900/20 text-purple-700 dark:text-purple-300 rounded-full text-sm"
+                        className="px-3 py-1 bg-neutral-100 dark:bg-neutral-800 text-neutral-900 dark:text-neutral-0 rounded-full text-sm font-medium"
                       >
                         {typeof product === 'string' ? product : product.name}
                       </span>
                     ))
                   ) : (
-                    <span className="text-gray-500">Not specified</span>
+                    <span className="text-neutral-500">Not specified</span>
                   )}
                 </div>
               </div>
             </div>
 
-            {/* Data Source Indicator - [51:Microcopy] Transparent about data source */}
-            <div className="mt-6 flex items-center justify-between border-t border-gray-200 dark:border-gray-800 pt-4">
-              <div className="flex items-center gap-2 text-sm text-gray-500">
-                <div 
+            {/* Professional data source indicator */}
+            <div className="mt-6 flex items-center justify-between border-t border-neutral-200 dark:border-neutral-800 pt-4">
+              <div className="flex items-center gap-2 text-sm text-neutral-500">
+                <div
                   className={`w-2 h-2 rounded-full ${
-                    company.confidence > 0.8 ? 'bg-green-500' : 
-                    company.confidence > 0.5 ? 'bg-yellow-500' : 'bg-orange-500'
-                  }`} 
+                    company.confidence > 0.8 ? 'bg-success-600' :
+                    company.confidence > 0.5 ? 'bg-warning-600' : 'bg-danger-600'
+                  }`}
                   aria-hidden="true"
                 />
                 <span>
-                  Data confidence: {Math.round(company.confidence * 100)}%
+                  Data confidence: <span className="font-mono tabular-nums font-semibold">{Math.round(company.confidence * 100)}%</span>
                 </span>
               </div>
               {company.userEdited && (
-                <span className="text-sm text-primary-600 dark:text-primary-400">
+                <span className="text-sm text-neutral-900 dark:text-neutral-0 font-medium">
                   ✓ User verified
                 </span>
               )}
@@ -624,35 +626,25 @@ export default function CompanyDetailsPage() {
 
           {/* Actions - [52:CTA] Clear primary action */}
           <div className="flex justify-between items-center">
-            <button
+            <Button
+              variant="ghost"
               onClick={() => router.push('/')}
-              className="btn-ghost"
+              leftIcon={<ArrowRight className="w-5 h-5 rotate-180" />}
               aria-label="Go back to home"
             >
-              <ArrowRight className="w-5 h-5 rotate-180 mr-2" />
               Back
-            </button>
-            
-            <motion.button
+            </Button>
+
+            <Button
               onClick={handleContinue}
-              disabled={saving || !!editingField}
-              className="btn-primary flex items-center gap-2"
-              whileHover={{ scale: 1.02 }}
-              whileTap={{ scale: 0.98 }}
+              disabled={!!editingField}
+              loading={saving}
+              rightIcon={!saving ? <ArrowRight className="w-5 h-5" /> : undefined}
+              size="lg"
               aria-label="Continue to next step"
             >
-              {saving ? (
-                <>
-                  <Loader2 className="w-5 h-5 animate-spin" />
-                  Processing...
-                </>
-              ) : (
-                <>
-                  Continue
-                  <ArrowRight className="w-5 h-5" />
-                </>
-              )}
-            </motion.button>
+              {saving ? 'Processing...' : 'Continue'}
+            </Button>
           </div>
         </motion.div>
       </div>
@@ -710,32 +702,37 @@ function EditableField({
   if (editing) {
     return (
       <div className="flex items-center gap-2">
-        <input
+        <Input
           ref={inputRef}
           type="text"
           value={editValue}
           onChange={(e) => setEditValue(e.target.value)}
           onKeyDown={handleKeyDown}
-          className={`flex-1 px-3 py-2 border-2 border-primary-500 rounded-lg bg-white dark:bg-gray-900 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 ${inputClassName}`}
+          className={inputClassName}
+          variant="success"
           aria-label="Edit value"
         />
-        <button
+        <Button
+          size="icon"
           onClick={() => onSave(editValue)}
-          className="p-2 text-green-600 hover:bg-green-50 dark:hover:bg-green-900/20 rounded-lg transition-colors"
+          className="text-green-600 hover:bg-green-50 dark:hover:bg-green-900/20"
+          variant="ghost"
           aria-label="Save changes"
         >
           <Check className="w-4 h-4" />
-        </button>
-        <button
+        </Button>
+        <Button
+          size="icon"
           onClick={() => {
             setEditValue(value);
             onCancel();
           }}
-          className="p-2 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
+          className="text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20"
+          variant="ghost"
           aria-label="Cancel editing"
         >
           <X className="w-4 h-4" />
-        </button>
+        </Button>
       </div>
     );
   }
@@ -743,13 +740,13 @@ function EditableField({
   return (
     <button
       onClick={onEdit}
-      className={`flex items-center gap-2 group w-full text-left hover:bg-gray-50 dark:hover:bg-gray-800/50 rounded-lg px-3 py-2 transition-colors ${className}`}
+      className={`flex items-center gap-2 group w-full text-left hover:bg-neutral-50 dark:hover:bg-neutral-800/50 rounded-lg px-3 py-2 transition-colors ${className}`}
       aria-label={`Edit ${value}`}
     >
       {icon && <span aria-hidden="true">{icon}</span>}
       <span className="flex-1">{value}</span>
-      <Edit2 
-        className="w-4 h-4 opacity-0 group-hover:opacity-100 text-gray-400 transition-opacity" 
+      <Edit2
+        className="w-4 h-4 opacity-0 group-hover:opacity-100 text-neutral-400 transition-opacity"
         aria-hidden="true"
       />
     </button>

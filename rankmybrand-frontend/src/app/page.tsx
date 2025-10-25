@@ -32,28 +32,28 @@ export default function HomePage() {
         {/* Hero Section - Futuristic AI Visibility Platform */}
         <FuturisticHero />
 
-        {/* Social Proof - Static */}
+        {/* Professional Social Proof */}
         <section
-          className="border-y border-gray-200 dark:border-gray-800 py-6"
+          className="border-y border-neutral-200 dark:border-neutral-800 py-6 bg-neutral-50 dark:bg-neutral-900/50"
           aria-label="Social proof"
         >
           <div className="container mx-auto px-4 text-center">
-            <p className="text-sm text-gray-600 dark:text-gray-400">
-              Join <span className="font-semibold text-primary-600 dark:text-primary-400">1,000+ brands</span> tracking their AI visibility across all major platforms
+            <p className="text-sm text-neutral-600 dark:text-neutral-400">
+              Join <span className="font-mono tabular-nums font-semibold text-neutral-900 dark:text-neutral-0">1,000+</span> brands tracking their AI visibility across all major platforms
             </p>
           </div>
         </section>
 
-        {/* Value Props - [51:Microcopy] Authentic, verifiable claims */}
-        <section className="py-20 px-4" aria-labelledby="value-props-heading">
+        {/* Professional Value Props */}
+        <section className="py-20 px-4 bg-white dark:bg-neutral-950" aria-labelledby="value-props-heading">
           <div className="container mx-auto">
             <div className="text-center mb-12">
-              <h2 id="value-props-heading" className="text-4xl font-heading font-bold mb-4">
-                Why Teams Choose <span className="gradient-text">RankMyBrand</span>
+              <div className="section-header mb-3">Platform Benefits</div>
+              <h2 id="value-props-heading" className="text-4xl font-bold text-neutral-900 dark:text-neutral-0 mb-4">
+                Why Teams Choose RankMyBrand
               </h2>
-              <p className="text-xl text-gray-600 dark:text-gray-400">
+              <p className="text-xl text-neutral-600 dark:text-neutral-400">
                 Real-time AI visibility tracking with transparent metrics
-                {/* [51:Microcopy] Removed unverifiable comparison */}
               </p>
             </div>
           
@@ -84,9 +84,9 @@ export default function HomePage() {
       </section>
 
 
-        {/* Trust Badges - [41:Alt text] Meaningful descriptions */}
-        <section 
-          className="py-12 px-4 border-t border-gray-200 dark:border-gray-800"
+        {/* Trust Badges - Professional security signals */}
+        <section
+          className="py-12 px-4 border-t border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-900/50"
           aria-labelledby="trust-heading"
         >
           <div className="container mx-auto">
@@ -95,29 +95,30 @@ export default function HomePage() {
           </div>
         </section>
 
-        {/* Case Studies - [51:Microcopy] Marked as illustrative */}
-        <section className="py-20 px-4" aria-labelledby="case-studies-heading">
+        {/* Case Studies - Professional client results */}
+        <section className="py-20 px-4 bg-white dark:bg-neutral-950" aria-labelledby="case-studies-heading">
           <div className="container mx-auto">
             <div className="text-center mb-12">
-              <h2 id="case-studies-heading" className="text-4xl font-heading font-bold mb-4">
+              <div className="section-header mb-3">Client Results</div>
+              <h2 id="case-studies-heading" className="text-4xl font-heading font-bold mb-4 text-neutral-900 dark:text-neutral-0">
                 Success Stories
               </h2>
-              <p className="text-xl text-gray-600 dark:text-gray-400">
+              <p className="text-xl text-neutral-600 dark:text-neutral-400">
                 How brands are improving their AI visibility
-                <span className="block text-sm mt-2 text-gray-500">
-                  {/* [51:Microcopy] Transparency about examples */}
+                <span className="block text-sm mt-2 text-neutral-500">
+                  {/* Transparency about examples */}
                   *Illustrative examples based on typical results
                 </span>
               </p>
             </div>
-            
+
             <CaseStudies />
           </div>
         </section>
 
-        {/* FAQ - [57:Tooltip][58:Popover] Proper accordion semantics */}
-        <section 
-          className="py-20 px-4 bg-gray-50 dark:bg-gray-900/50"
+        {/* FAQ - Professional knowledge base */}
+        <section
+          className="py-20 px-4 bg-neutral-50 dark:bg-neutral-900/50"
           aria-labelledby="faq-heading"
         >
           <div className="container mx-auto max-w-4xl">
@@ -126,34 +127,34 @@ export default function HomePage() {
           </div>
         </section>
 
-        {/* CTA - [52:CTA] One primary action per viewport */}
-        <section className="py-20 px-4" aria-labelledby="cta-heading">
+        {/* CTA - Professional conversion section */}
+        <section className="py-20 px-4 bg-white dark:bg-neutral-950" aria-labelledby="cta-heading">
           <div className="container mx-auto text-center">
-            <h2 id="cta-heading" className="text-4xl font-heading font-bold mb-4">
-              Ready to <span className="gradient-text">Improve</span> Your AI Visibility?
-              {/* [51:Microcopy] Realistic, achievable promise */}
+            <h2 id="cta-heading" className="text-4xl font-heading font-bold mb-4 text-neutral-900 dark:text-neutral-0">
+              Ready to Improve Your AI Visibility?
+              {/* Realistic, achievable promise */}
             </h2>
-            <p className="text-xl text-gray-600 dark:text-gray-400 mb-8">
+            <p className="text-xl text-neutral-600 dark:text-neutral-400 mb-8">
               Join growing brands tracking their AI presence
             </p>
             <div className="flex flex-col md:flex-row gap-4 justify-center">
-              {/* [46:Touch target] Min 44x44px clickable area */}
-              <button 
-                className="btn-primary text-lg px-8 py-4 min-h-[44px] focus:ring-2 focus:ring-primary-500 focus:ring-offset-2"
+              {/* Professional primary CTA */}
+              <button
+                className="btn-primary text-lg px-8 py-4 min-h-[44px] focus:ring-2 focus:ring-neutral-900 focus:ring-offset-2"
                 aria-label="Start your free trial"
               >
                 Start Free Trial →
               </button>
-              {/* [52:CTA] Secondary visually subordinate */}
-              <button 
-                className="btn-secondary text-lg px-6 py-3 min-h-[44px] opacity-90 focus:ring-2 focus:ring-gray-500 focus:ring-offset-2"
+              {/* Professional secondary CTA */}
+              <button
+                className="btn-secondary text-lg px-6 py-3 min-h-[44px] focus:ring-2 focus:ring-neutral-500 focus:ring-offset-2"
                 aria-label="Schedule a demo call"
               >
                 Book a Demo
               </button>
             </div>
-            <p className="text-sm text-gray-500 mt-4">
-              No credit card required • 5 free checks • Cancel anytime
+            <p className="text-sm text-neutral-500 mt-4">
+              No credit card required • <span className="font-mono tabular-nums">5</span> free checks • Cancel anytime
             </p>
           </div>
         </section>
@@ -186,52 +187,52 @@ function ValueProp({
       transition={{ duration: 0.5 }}
       whileHover={{ y: -8 }}
     >
-      {/* [11:Aesthetic-Usability] Subtle depth with motion */}
+      {/* Professional subtle depth */}
       <div
-        className="absolute inset-0 bg-gradient-to-r from-primary-500/10 to-purple-500/10 rounded-2xl blur-xl opacity-0 group-hover:opacity-100 transition-opacity duration-300 motion-reduce:transition-none"
+        className="absolute inset-0 bg-neutral-100 dark:bg-neutral-800 rounded-2xl blur-xl opacity-0 group-hover:opacity-50 transition-opacity duration-300 motion-reduce:transition-none"
         aria-hidden="true"
       />
-      <div className="relative glass rounded-2xl p-8 h-full transition-shadow duration-300 group-hover:shadow-2xl">
+      <div className="relative glass rounded-2xl p-8 h-full transition-shadow duration-300 group-hover:shadow-2xl border border-neutral-200 dark:border-neutral-800">
         <div className="flex items-center gap-4 mb-4">
-          {/* [14:Visual hierarchy] Icon as secondary element */}
+          {/* Professional icon container */}
           <motion.div
-            className="p-3 bg-primary-100 dark:bg-primary-900/20 rounded-xl text-primary-600 dark:text-primary-400"
+            className="p-3 bg-neutral-100 dark:bg-neutral-800 rounded-xl text-neutral-600 dark:text-neutral-400"
             aria-hidden="true"
             whileHover={{ rotate: 5, scale: 1.1 }}
             transition={{ type: "spring", stiffness: 300 }}
           >
             {icon}
           </motion.div>
-          <span className="px-3 py-1 bg-green-100 dark:bg-green-900/20 text-green-700 dark:text-green-400 rounded-full text-sm font-medium">
+          <span className="font-mono tabular-nums px-3 py-1 bg-neutral-100 dark:bg-neutral-800 text-neutral-900 dark:text-neutral-0 rounded-md text-sm font-semibold">
             {highlight}
           </span>
           {disclaimer && (
             <button
-              className="ml-auto p-1 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-full transition-colors"
+              className="ml-auto p-1 hover:bg-neutral-100 dark:hover:bg-neutral-800 rounded-full transition-colors"
               onMouseEnter={() => setShowTooltip(true)}
               onMouseLeave={() => setShowTooltip(false)}
               onFocus={() => setShowTooltip(true)}
               onBlur={() => setShowTooltip(false)}
               aria-label="More information"
             >
-              <Info className="w-4 h-4 text-gray-400" />
+              <Info className="w-4 h-4 text-neutral-400" />
             </button>
           )}
         </div>
-        <h3 className="text-xl font-heading font-bold mb-2 group-hover:text-primary-600 dark:group-hover:text-primary-400 transition-colors">
+        <h3 className="text-xl font-heading font-bold mb-2 text-neutral-900 dark:text-neutral-0 transition-colors">
           {title}
         </h3>
-        <p className="text-gray-600 dark:text-gray-400 leading-relaxed">
+        <p className="text-neutral-600 dark:text-neutral-400 leading-relaxed">
           {description}
         </p>
 
-        {/* [57:Tooltip] Disclaimer on hover */}
+        {/* Professional tooltip */}
         {disclaimer && showTooltip && (
           <motion.div
             initial={{ opacity: 0, y: -10 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -10 }}
-            className="absolute top-0 right-0 mt-12 mr-4 p-3 bg-gray-900 dark:bg-gray-100 text-white dark:text-gray-900 text-xs rounded-lg shadow-xl z-10 max-w-xs border border-gray-700 dark:border-gray-300"
+            className="absolute top-0 right-0 mt-12 mr-4 p-3 bg-neutral-900 dark:bg-neutral-100 text-white dark:text-neutral-900 text-xs rounded-lg shadow-xl z-10 max-w-xs border border-neutral-700 dark:border-neutral-300"
             role="tooltip"
           >
             {disclaimer}
@@ -271,23 +272,23 @@ function CaseStudies() {
   return (
     <div className="grid md:grid-cols-3 gap-8">
       {studies.map((study, index) => (
-        /* [40:Semantic HTML] Figure for case study */
-        <figure key={index} className="glass rounded-2xl p-8 card-hover">
-          {/* [41:Alt text] Meaningful placeholder instead of emoji */}
-          <div className="w-12 h-12 bg-primary-100 dark:bg-primary-900/20 rounded-lg flex items-center justify-center mb-4">
-            <span className="text-primary-600 dark:text-primary-400 font-bold text-lg">
+        /* Professional B2B case study card */
+        <figure key={index} className="glass rounded-2xl p-8 card-hover border border-neutral-200 dark:border-neutral-800">
+          {/* Professional company initial */}
+          <div className="w-12 h-12 bg-neutral-100 dark:bg-neutral-800 rounded-lg flex items-center justify-center mb-4">
+            <span className="text-neutral-900 dark:text-neutral-0 font-bold text-lg">
               {study.company[0]}
             </span>
           </div>
-          <h3 className="text-xl font-heading font-bold mb-1">{study.company}</h3>
-          <p className="text-sm text-gray-500 mb-3">{study.industry}</p>
+          <h3 className="text-xl font-heading font-bold mb-1 text-neutral-900 dark:text-neutral-0">{study.company}</h3>
+          <p className="text-sm text-neutral-500 mb-3">{study.industry}</p>
           <div className="flex items-center gap-4 mb-4 text-sm">
-            <span className="text-green-600 dark:text-green-400 font-bold">
+            <span className="font-mono tabular-nums text-success-600 dark:text-success-400 font-bold">
               {study.result}
             </span>
-            <span className="text-gray-500">in {study.timeframe}</span>
+            <span className="text-neutral-500">in {study.timeframe}</span>
           </div>
-          <figcaption className="text-gray-600 dark:text-gray-400 italic">
+          <figcaption className="text-neutral-600 dark:text-neutral-400 italic">
             "{study.quote}"
           </figcaption>
         </figure>

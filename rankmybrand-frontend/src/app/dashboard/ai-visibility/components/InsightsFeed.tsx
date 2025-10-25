@@ -1,5 +1,13 @@
 'use client';
 
+/**
+ * InsightsFeed - Professional B2B Insights Display
+ * Design System: Monochrome + Semantic Colors
+ * - Neutral UI with semantic colors for priority only
+ * - Professional typography and trust signals
+ * - Bloomberg Terminal aesthetic
+ */
+
 import React, { useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -38,51 +46,42 @@ export default function InsightsFeed({ insights: propInsights = [] }: InsightsFe
     }
   };
 
+  // Professional neutral styling - semantic colors for priority only
   const getIconColor = (type: string, importance?: string) => {
-    if (importance === 'high') return 'text-red-500 bg-red-50';
-    if (importance === 'medium') return 'text-yellow-600 bg-yellow-50';
-    if (importance === 'low') return 'text-blue-500 bg-blue-50';
+    // Semantic colors for priority levels only
+    if (importance === 'high') return 'text-danger-700 dark:text-danger-500 bg-danger-50 dark:bg-danger-900/20';
+    if (importance === 'medium') return 'text-warning-700 dark:text-warning-500 bg-warning-50 dark:bg-warning-900/20';
+    if (importance === 'low') return 'text-interactive-700 dark:text-interactive-500 bg-interactive-50 dark:bg-interactive-900/20';
 
-    switch (type) {
-      case 'recommendation':
-        return 'text-purple-600 bg-purple-50';
-      case 'opportunity':
-        return 'text-green-500 bg-green-50';
-      case 'risk':
-        return 'text-red-500 bg-red-50';
-      case 'key':
-        return 'text-blue-500 bg-blue-50';
-      case 'theme':
-        return 'text-purple-500 bg-purple-50';
-      default:
-        return 'text-gray-500 bg-gray-50';
-    }
+    // All types use neutral colors for consistency
+    return 'text-neutral-700 dark:text-neutral-300 bg-neutral-100 dark:bg-neutral-800';
   };
 
   const getTypeLabel = (type: string) => {
     switch (type) {
       case 'recommendation':
-        return { label: 'Strategic Recommendation', color: 'bg-purple-100 text-purple-800' };
+        return { label: 'Strategic Recommendation', color: 'bg-neutral-100 dark:bg-neutral-800 text-neutral-800 dark:text-neutral-200' };
       case 'opportunity':
-        return { label: 'Opportunity', color: 'bg-green-100 text-green-800' };
+        return { label: 'Opportunity', color: 'bg-neutral-100 dark:bg-neutral-800 text-neutral-800 dark:text-neutral-200' };
       case 'risk':
-        return { label: 'Risk', color: 'bg-red-100 text-red-800' };
+        return { label: 'Risk', color: 'bg-neutral-100 dark:bg-neutral-800 text-neutral-800 dark:text-neutral-200' };
       case 'key':
-        return { label: 'Key Insight', color: 'bg-blue-100 text-blue-800' };
+        return { label: 'Key Insight', color: 'bg-neutral-100 dark:bg-neutral-800 text-neutral-800 dark:text-neutral-200' };
       case 'theme':
-        return { label: 'Theme', color: 'bg-purple-100 text-purple-800' };
+        return { label: 'Theme', color: 'bg-neutral-100 dark:bg-neutral-800 text-neutral-800 dark:text-neutral-200' };
       default:
-        return { label: 'Insight', color: 'bg-gray-100 text-gray-800' };
+        return { label: 'Insight', color: 'bg-neutral-100 dark:bg-neutral-800 text-neutral-800 dark:text-neutral-200' };
     }
   };
 
   const getPriorityBadge = (importance?: string) => {
     if (!importance) return null;
 
+    // Semantic colors for priority data only
     const config: Record<string, { label: string; color: string }> = {
-      high: { label: 'High Priority', color: 'bg-red-100 text-red-800 border-red-200' },
-      medium: { label: 'Medium Priority', color: 'bg-yellow-100 text-yellow-800 border-yellow-200' },
-      low: { label: 'Low Priority', color: 'bg-blue-100 text-blue-800 border-blue-200' },
+      high: { label: 'High Priority', color: 'bg-danger-50 dark:bg-danger-900/20 text-danger-800 dark:text-danger-400 border-danger-200 dark:border-danger-700' },
+      medium: { label: 'Medium Priority', color: 'bg-warning-50 dark:bg-warning-900/20 text-warning-800 dark:text-warning-400 border-warning-200 dark:border-warning-700' },
+      low: { label: 'Low Priority', color: 'bg-interactive-50 dark:bg-interactive-900/20 text-interactive-800 dark:text-interactive-400 border-interactive-200 dark:border-interactive-700' },
     };
 
     const conf = config[importance];
@@ -99,22 +98,22 @@ export default function InsightsFeed({ insights: propInsights = [] }: InsightsFe
 
   return (
     <div className="space-y-6">
-      {/* Summary Cards */}
+      {/* Professional Summary Cards - Neutral Design */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.3 }}
+          transition={{ duration: 0.2 }}
         >
-          <Card className="border-purple-200 bg-gradient-to-br from-purple-50 to-white">
+          <Card className="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800">
             <CardContent className="p-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm text-gray-600 font-medium mb-1">Strategic Recommendations</p>
-                  <p className="text-3xl font-bold text-purple-700">{counts.recommendations}</p>
+                  <p className="section-header mb-2">Strategic Recommendations</p>
+                  <p className="number-display-metric text-4xl">{counts.recommendations}</p>
                 </div>
-                <div className="p-3 bg-purple-100 rounded-lg">
-                  <Lightbulb className="w-8 h-8 text-purple-600" />
+                <div className="p-3 bg-neutral-100 dark:bg-neutral-800 rounded-md">
+                  <Lightbulb className="w-6 h-6 text-neutral-600 dark:text-neutral-400" />
                 </div>
               </div>
             </CardContent>
@@ -124,17 +123,17 @@ export default function InsightsFeed({ insights: propInsights = [] }: InsightsFe
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.3, delay: 0.1 }}
+          transition={{ duration: 0.2, delay: 0.1 }}
         >
-          <Card className="border-green-200 bg-gradient-to-br from-green-50 to-white">
+          <Card className="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800">
             <CardContent className="p-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm text-gray-600 font-medium mb-1">High Priority Items</p>
-                  <p className="text-3xl font-bold text-green-700">{counts.opportunities}</p>
+                  <p className="section-header mb-2">High Priority Items</p>
+                  <p className="number-display-metric text-4xl">{counts.opportunities}</p>
                 </div>
-                <div className="p-3 bg-green-100 rounded-lg">
-                  <Target className="w-8 h-8 text-green-600" />
+                <div className="p-3 bg-neutral-100 dark:bg-neutral-800 rounded-md">
+                  <Target className="w-6 h-6 text-neutral-600 dark:text-neutral-400" />
                 </div>
               </div>
             </CardContent>
@@ -144,17 +143,17 @@ export default function InsightsFeed({ insights: propInsights = [] }: InsightsFe
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.3, delay: 0.2 }}
+          transition={{ duration: 0.2, delay: 0.2 }}
         >
-          <Card className="border-blue-200 bg-gradient-to-br from-blue-50 to-white">
+          <Card className="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800">
             <CardContent className="p-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm text-gray-600 font-medium mb-1">Total Insights</p>
-                  <p className="text-3xl font-bold text-blue-700">{propInsights.length}</p>
+                  <p className="section-header mb-2">Total Insights</p>
+                  <p className="number-display-metric text-4xl">{propInsights.length}</p>
                 </div>
-                <div className="p-3 bg-blue-100 rounded-lg">
-                  <TrendingUp className="w-8 h-8 text-blue-600" />
+                <div className="p-3 bg-neutral-100 dark:bg-neutral-800 rounded-md">
+                  <TrendingUp className="w-6 h-6 text-neutral-600 dark:text-neutral-400" />
                 </div>
               </div>
             </CardContent>
@@ -162,28 +161,29 @@ export default function InsightsFeed({ insights: propInsights = [] }: InsightsFe
         </motion.div>
       </div>
 
-      {/* Insights Feed */}
-      <Card className="shadow-lg">
-        <CardHeader className="border-b bg-gradient-to-r from-gray-50 to-white">
-          <CardTitle className="flex items-center gap-2">
-            <div className="p-2 bg-purple-100 rounded-lg">
-              <Lightbulb className="w-5 h-5 text-purple-600" />
+      {/* Professional Insights Feed */}
+      <Card className="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800">
+        <CardHeader className="border-b border-neutral-200 dark:border-neutral-800 p-6">
+          <div className="section-header mb-2">Strategic Intelligence</div>
+          <CardTitle className="text-2xl font-bold text-neutral-900 dark:text-neutral-0 flex items-center gap-2">
+            <div className="p-2 bg-neutral-100 dark:bg-neutral-800 rounded-md">
+              <Lightbulb className="w-5 h-5 text-neutral-600 dark:text-neutral-400" />
             </div>
             AI Insights & Recommendations
           </CardTitle>
-          <CardDescription>
-            {propInsights.length} AI-powered insights discovered from your visibility analysis
+          <CardDescription className="text-sm text-neutral-600 dark:text-neutral-400 mt-1">
+            <span className="font-mono tabular-nums font-semibold">{propInsights.length}</span> AI-powered insights discovered from your visibility analysis
           </CardDescription>
         </CardHeader>
         <CardContent className="p-6">
           <div className="space-y-4">
             {propInsights.length === 0 ? (
-              <div className="text-center py-12">
-                <div className="inline-flex items-center justify-center w-16 h-16 bg-gray-100 rounded-full mb-4">
-                  <Lightbulb className="w-8 h-8 text-gray-400" />
+              <div className="text-center py-16">
+                <div className="inline-flex items-center justify-center w-16 h-16 bg-neutral-100 dark:bg-neutral-800 rounded-full mb-4">
+                  <Lightbulb className="w-8 h-8 text-neutral-400" />
                 </div>
-                <p className="text-gray-500 font-medium">No insights available for this audit.</p>
-                <p className="text-sm text-gray-400 mt-1">Insights will appear here once the analysis is complete.</p>
+                <p className="text-neutral-700 dark:text-neutral-300 font-semibold">No insights available for this audit.</p>
+                <p className="text-sm text-neutral-500 dark:text-neutral-400 mt-1">Insights will appear here once the analysis is complete.</p>
               </div>
             ) : (
               propInsights.map((insight, index) => {
@@ -199,10 +199,10 @@ export default function InsightsFeed({ insights: propInsights = [] }: InsightsFe
                     transition={{ duration: 0.3, delay: index * 0.05 }}
                     className="group"
                   >
-                    <div className={`border rounded-xl transition-all duration-200 ${
+                    <div className={`border rounded-md transition-all duration-150 ${
                       isExpanded
-                        ? 'border-purple-300 shadow-lg bg-purple-50/30'
-                        : 'border-gray-200 hover:border-purple-200 hover:shadow-md bg-white'
+                        ? 'border-neutral-300 dark:border-neutral-700 shadow-md bg-neutral-50 dark:bg-neutral-800/30'
+                        : 'border-neutral-200 dark:border-neutral-800 hover:border-neutral-300 dark:hover:border-neutral-700 hover:shadow-sm bg-white dark:bg-neutral-900'
                     }`}>
                       {/* Header */}
                       <div
@@ -238,12 +238,12 @@ export default function InsightsFeed({ insights: propInsights = [] }: InsightsFe
                               )}
                             </div>
 
-                            <p className="text-base font-semibold text-gray-900 leading-relaxed">
+                            <p className="text-base font-semibold text-neutral-900 dark:text-neutral-0 leading-relaxed">
                               {insight.message}
                             </p>
 
                             {insight.details?.executive_pitch && !isExpanded && (
-                              <p className="text-sm text-gray-600 mt-2 leading-relaxed">
+                              <p className="text-sm text-neutral-600 dark:text-neutral-400 mt-2 leading-relaxed">
                                 {insight.details.executive_pitch}
                               </p>
                             )}
@@ -261,16 +261,16 @@ export default function InsightsFeed({ insights: propInsights = [] }: InsightsFe
                             transition={{ duration: 0.3 }}
                             className="overflow-hidden"
                           >
-                            <div className="px-5 pb-5 pt-2 border-t border-gray-200 bg-gradient-to-b from-white to-gray-50">
+                            <div className="px-5 pb-5 pt-2 border-t border-neutral-200 dark:border-neutral-700 bg-neutral-50/50 dark:bg-neutral-800/20">
                               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-4">
                                 {/* Executive Pitch */}
                                 {insight.details.executive_pitch && (
                                   <div className="lg:col-span-2">
                                     <div className="flex items-start gap-2 mb-2">
-                                      <Zap className="w-4 h-4 text-purple-600 mt-0.5" />
-                                      <h4 className="text-sm font-semibold text-gray-900">Executive Summary</h4>
+                                      <Zap className="w-4 h-4 text-neutral-600 dark:text-neutral-400 mt-0.5" />
+                                      <h4 className="section-header">Executive Summary</h4>
                                     </div>
-                                    <p className="text-sm text-gray-700 leading-relaxed bg-purple-50 p-3 rounded-lg">
+                                    <p className="text-sm text-neutral-700 dark:text-neutral-300 leading-relaxed bg-neutral-100 dark:bg-neutral-800 p-4 rounded-md border border-neutral-200 dark:border-neutral-700">
                                       {insight.details.executive_pitch}
                                     </p>
                                   </div>
@@ -280,13 +280,13 @@ export default function InsightsFeed({ insights: propInsights = [] }: InsightsFe
                                 {insight.details.quick_wins && insight.details.quick_wins.length > 0 && (
                                   <div>
                                     <div className="flex items-start gap-2 mb-3">
-                                      <CheckCircle2 className="w-4 h-4 text-green-600 mt-0.5" />
-                                      <h4 className="text-sm font-semibold text-gray-900">Quick Wins</h4>
+                                      <CheckCircle2 className="w-4 h-4 text-success-600 mt-0.5" />
+                                      <h4 className="section-header text-success-700 dark:text-success-500">Quick Wins</h4>
                                     </div>
                                     <ul className="space-y-2">
                                       {insight.details.quick_wins.map((win: string, i: number) => (
-                                        <li key={i} className="flex items-start gap-2 text-sm text-gray-700">
-                                          <span className="text-green-500 mt-0.5">✓</span>
+                                        <li key={i} className="flex items-start gap-2 text-sm text-neutral-700 dark:text-neutral-300">
+                                          <CheckCircle2 className="w-4 h-4 text-success-600 mt-0.5 flex-shrink-0" />
                                           <span>{win}</span>
                                         </li>
                                       ))}
@@ -298,13 +298,13 @@ export default function InsightsFeed({ insights: propInsights = [] }: InsightsFe
                                 {insight.details.next_steps && insight.details.next_steps.length > 0 && (
                                   <div>
                                     <div className="flex items-start gap-2 mb-3">
-                                      <Clock className="w-4 h-4 text-blue-600 mt-0.5" />
-                                      <h4 className="text-sm font-semibold text-gray-900">Next Steps</h4>
+                                      <Clock className="w-4 h-4 text-neutral-600 dark:text-neutral-400 mt-0.5" />
+                                      <h4 className="section-header">Next Steps</h4>
                                     </div>
                                     <ul className="space-y-2">
                                       {insight.details.next_steps.map((step: string, i: number) => (
-                                        <li key={i} className="flex items-start gap-2 text-sm text-gray-700">
-                                          <span className="text-blue-500 font-semibold mt-0.5">{i + 1}.</span>
+                                        <li key={i} className="flex items-start gap-2 text-sm text-neutral-700 dark:text-neutral-300">
+                                          <span className="font-mono tabular-nums font-semibold text-neutral-600 dark:text-neutral-400 mt-0.5 min-w-[1.5rem]">{i + 1}.</span>
                                           <span>{step}</span>
                                         </li>
                                       ))}
@@ -316,10 +316,10 @@ export default function InsightsFeed({ insights: propInsights = [] }: InsightsFe
                                 {insight.details.roi_calculation && (
                                   <div className="lg:col-span-2">
                                     <div className="flex items-start gap-2 mb-2">
-                                      <DollarSign className="w-4 h-4 text-green-600 mt-0.5" />
-                                      <h4 className="text-sm font-semibold text-gray-900">ROI Projection</h4>
+                                      <DollarSign className="w-4 h-4 text-success-600 mt-0.5" />
+                                      <h4 className="section-header text-success-700 dark:text-success-500">ROI Projection</h4>
                                     </div>
-                                    <p className="text-sm text-gray-700 leading-relaxed bg-green-50 p-3 rounded-lg">
+                                    <p className="text-sm text-neutral-700 dark:text-neutral-300 leading-relaxed bg-success-50 dark:bg-success-900/10 p-4 rounded-md border border-success-200 dark:border-success-800">
                                       {insight.details.roi_calculation}
                                     </p>
                                   </div>
@@ -328,8 +328,8 @@ export default function InsightsFeed({ insights: propInsights = [] }: InsightsFe
                                 {/* Strategic Rationale */}
                                 {insight.details.strategic_rationale && (
                                   <div className="lg:col-span-2">
-                                    <h4 className="text-sm font-semibold text-gray-900 mb-2">Strategic Rationale</h4>
-                                    <p className="text-sm text-gray-700 leading-relaxed">
+                                    <h4 className="section-header mb-2">Strategic Rationale</h4>
+                                    <p className="text-sm text-neutral-700 dark:text-neutral-300 leading-relaxed">
                                       {insight.details.strategic_rationale}
                                     </p>
                                   </div>
@@ -338,8 +338,8 @@ export default function InsightsFeed({ insights: propInsights = [] }: InsightsFe
                                 {/* Implementation Approach */}
                                 {insight.details.implementation_approach && (
                                   <div className="lg:col-span-2">
-                                    <h4 className="text-sm font-semibold text-gray-900 mb-2">Implementation Approach</h4>
-                                    <p className="text-sm text-gray-700 leading-relaxed bg-blue-50 p-3 rounded-lg">
+                                    <h4 className="section-header mb-2">Implementation Approach</h4>
+                                    <p className="text-sm text-neutral-700 dark:text-neutral-300 leading-relaxed bg-neutral-100 dark:bg-neutral-800 p-4 rounded-md border border-neutral-200 dark:border-neutral-700">
                                       {insight.details.implementation_approach}
                                     </p>
                                   </div>
@@ -348,16 +348,16 @@ export default function InsightsFeed({ insights: propInsights = [] }: InsightsFe
                                 {/* Priority Score */}
                                 {insight.details.priority_score && (
                                   <div className="lg:col-span-2">
-                                    <div className="flex items-center justify-between p-4 bg-gray-100 rounded-lg">
-                                      <span className="text-sm font-medium text-gray-700">Priority Score</span>
+                                    <div className="flex items-center justify-between p-4 bg-neutral-100 dark:bg-neutral-800 rounded-md border border-neutral-200 dark:border-neutral-700">
+                                      <span className="section-header">Priority Score</span>
                                       <div className="flex items-center gap-3">
-                                        <div className="flex-1 max-w-xs h-2 bg-gray-200 rounded-full overflow-hidden">
+                                        <div className="flex-1 max-w-xs h-2 bg-neutral-200 dark:bg-neutral-700 rounded-full overflow-hidden">
                                           <div
-                                            className="h-full bg-gradient-to-r from-yellow-400 to-green-500"
+                                            className="h-full bg-neutral-900 dark:bg-neutral-0"
                                             style={{ width: `${insight.details.priority_score}%` }}
                                           />
                                         </div>
-                                        <span className="text-lg font-bold text-gray-900">{insight.details.priority_score}/100</span>
+                                        <span className="font-mono tabular-nums text-lg font-bold text-neutral-900 dark:text-neutral-0">{insight.details.priority_score}/100</span>
                                       </div>
                                     </div>
                                   </div>

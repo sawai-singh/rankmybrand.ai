@@ -1,5 +1,14 @@
 'use client';
 
+/**
+ * CompetitiveLandscape - Professional B2B Market Analysis
+ * Design System: Monochrome + Semantic Colors
+ * - Neutral D3 visualizations (grayscale bubbles)
+ * - Semantic colors for data only (sentiment indicators)
+ * - Professional typography and trust signals
+ * - Bloomberg Terminal aesthetic
+ */
+
 import React, { useEffect, useRef, useState } from 'react';
 import * as d3 from 'd3';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -8,14 +17,14 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import {
-  Trophy,
+  BarChart3,
   Target,
   Shield,
   Swords,
   TrendingUp,
   AlertTriangle,
   ChevronRight,
-  Award,
+  Building2,
   Users,
   Zap
 } from 'lucide-react';
@@ -116,29 +125,31 @@ export default function CompetitiveLandscape({ competitors = [], detailed = fals
       .domain([0, d3.max(competitorData, d => d.mentionCount) || 250])
       .range([10, 50]);
 
-    // Enhanced color palette for different competitors
+    // Professional neutral grayscale palette
     const competitorColors = [
-      '#8b5cf6', // purple (Your Brand - will use gradient)
-      '#3b82f6', // blue
-      '#10b981', // green
-      '#f59e0b', // amber
-      '#ec4899', // pink
-      '#14b8a6', // teal
-      '#f97316', // orange
-      '#6366f1'  // indigo
+      '#171717', // neutral-900 (Your Brand - darkest)
+      '#404040', // neutral-700
+      '#525252', // neutral-600
+      '#737373', // neutral-500
+      '#a3a3a3', // neutral-400
+      '#d4d4d4', // neutral-300
+      '#e5e5e5', // neutral-200
+      '#f5f5f5'  // neutral-100
     ];
 
-    // Add axes
+    // Add axes - Professional neutral styling
     svg.append('g')
       .attr('transform', `translate(0,${height - margin.bottom})`)
       .call(d3.axisBottom(xScale))
       .append('text')
       .attr('x', width / 2)
       .attr('y', 35)
-      .attr('fill', 'black')
+      .attr('fill', '#525252') // neutral-600
       .style('text-anchor', 'middle')
-      .style('font-size', '12px')
-      .text('Sentiment Score →');
+      .style('font-size', '11px')
+      .style('font-weight', '600')
+      .style('letter-spacing', '0.05em')
+      .text('SENTIMENT SCORE →');
 
     svg.append('g')
       .attr('transform', `translate(${margin.left},0)`)
@@ -147,10 +158,12 @@ export default function CompetitiveLandscape({ competitors = [], detailed = fals
       .attr('transform', 'rotate(-90)')
       .attr('y', -35)
       .attr('x', -height / 2)
-      .attr('fill', 'black')
+      .attr('fill', '#525252') // neutral-600
       .style('text-anchor', 'middle')
-      .style('font-size', '12px')
-      .text('Market Dominance →');
+      .style('font-size', '11px')
+      .style('font-weight', '600')
+      .style('letter-spacing', '0.05em')
+      .text('MARKET DOMINANCE →');
 
     // Add grid lines
     svg.append('g')
@@ -191,16 +204,16 @@ export default function CompetitiveLandscape({ competitors = [], detailed = fals
       .attr('class', 'bubble')
       .attr('transform', (d: any) => `translate(${d.x},${d.y})`);
 
-    // Add circles - "Your Brand" bubble is 2x larger with diverse colors
+    // Add circles - Professional neutral palette, "Your Brand" is 2x larger with darker shade
     bubbles.append('circle')
       .attr('r', 0)
       .attr('fill', (d, i) => {
-        if (d.name === 'Your Brand') return 'url(#brandGradient)';
         const color = competitorColors[i % competitorColors.length];
-        return `${color}66`; // 40% opacity
+        // "Your Brand" uses darkest neutral, others use lighter neutrals with transparency
+        if (d.name === 'Your Brand') return `${color}40`; // 25% opacity for subtle fill
+        return `${color}20`; // 12% opacity for competitors
       })
       .attr('stroke', (d, i) => {
-        if (d.name === 'Your Brand') return '#8b5cf6';
         return competitorColors[i % competitorColors.length];
       })
       .attr('stroke-width', d => d.name === 'Your Brand' ? 3 : 2)
@@ -211,28 +224,15 @@ export default function CompetitiveLandscape({ competitors = [], detailed = fals
       .delay((d, i) => i * 100)
       .attr('r', d => d.name === 'Your Brand' ? sizeScale(d.mentionCount) * 2 : sizeScale(d.mentionCount));
 
-    // Add gradient for brand
-    const gradient = svg.append('defs')
-      .append('radialGradient')
-      .attr('id', 'brandGradient');
+    // Note: Removed gradient - using neutral colors only for professional B2B design
 
-    gradient.append('stop')
-      .attr('offset', '0%')
-      .attr('stop-color', '#8b5cf6')
-      .attr('stop-opacity', 0.8);
-
-    gradient.append('stop')
-      .attr('offset', '100%')
-      .attr('stop-color', '#ec4899')
-      .attr('stop-opacity', 0.4);
-
-    // Add labels
+    // Add labels - Professional neutral typography
     bubbles.append('text')
       .attr('text-anchor', 'middle')
       .attr('dy', '-0.3em')
       .style('font-size', '12px')
-      .style('font-weight', 'bold')
-      .style('fill', d => d.name === 'Your Brand' ? '#8b5cf6' : '#374151')
+      .style('font-weight', '700')
+      .style('fill', '#171717') // neutral-900 - all labels same color for consistency
       .style('opacity', 0)
       .text(d => d.name)
       .transition()
@@ -244,7 +244,10 @@ export default function CompetitiveLandscape({ competitors = [], detailed = fals
       .attr('text-anchor', 'middle')
       .attr('dy', '1em')
       .style('font-size', '10px')
-      .style('fill', '#6b7280')
+      .style('font-weight', '500')
+      .style('font-family', 'JetBrains Mono, Monaco, monospace')
+      .style('font-variant-numeric', 'tabular-nums')
+      .style('fill', '#737373') // neutral-500
       .style('opacity', 0)
       .text(d => `${d.mentionCount} mentions`)
       .transition()
@@ -252,7 +255,7 @@ export default function CompetitiveLandscape({ competitors = [], detailed = fals
       .delay((d, i) => i * 100 + 400)
       .style('opacity', 1);
 
-    // Add "You're here" annotation for Your Brand
+    // Add professional "Your Position" annotation - neutral design
     const yourBrandData = competitorData.find((d: any) => d.name === 'Your Brand');
     if (yourBrandData) {
       const annotation = svg.append('g')
@@ -260,30 +263,33 @@ export default function CompetitiveLandscape({ competitors = [], detailed = fals
         .attr('transform', `translate(${(yourBrandData as any).x},${(yourBrandData as any).y})`)
         .style('opacity', 0);
 
-      // Arrow pointing down to the bubble
+      // Arrow pointing down - neutral
       annotation.append('path')
-        .attr('d', `M 0,${-sizeScale(yourBrandData.mentionCount) * 2 - 40} L -8,${-sizeScale(yourBrandData.mentionCount) * 2 - 25} L 8,${-sizeScale(yourBrandData.mentionCount) * 2 - 25} Z`)
-        .attr('fill', '#8b5cf6')
-        .attr('opacity', 0.8);
+        .attr('d', `M 0,${-sizeScale(yourBrandData.mentionCount) * 2 - 40} L -6,${-sizeScale(yourBrandData.mentionCount) * 2 - 28} L 6,${-sizeScale(yourBrandData.mentionCount) * 2 - 28} Z`)
+        .attr('fill', '#171717') // neutral-900
+        .attr('opacity', 0.9);
 
-      // Background for text
+      // Background for text - neutral border
       annotation.append('rect')
-        .attr('x', -45)
+        .attr('x', -48)
         .attr('y', -sizeScale(yourBrandData.mentionCount) * 2 - 70)
-        .attr('width', 90)
+        .attr('width', 96)
         .attr('height', 24)
-        .attr('rx', 12)
-        .attr('fill', '#8b5cf6')
-        .attr('opacity', 0.95);
+        .attr('rx', 4)
+        .attr('fill', '#ffffff')
+        .attr('stroke', '#171717') // neutral-900
+        .attr('stroke-width', 2)
+        .attr('opacity', 1);
 
-      // "You're here" text
+      // Professional "Your Position" text
       annotation.append('text')
         .attr('y', -sizeScale(yourBrandData.mentionCount) * 2 - 53)
         .attr('text-anchor', 'middle')
-        .style('font-size', '12px')
-        .style('font-weight', 'bold')
-        .style('fill', 'white')
-        .text("👋 You're here");
+        .style('font-size', '11px')
+        .style('font-weight', '600')
+        .style('letter-spacing', '0.05em')
+        .style('fill', '#171717') // neutral-900
+        .text('YOUR POSITION');
 
       // Animate annotation
       annotation.transition()
@@ -307,20 +313,20 @@ export default function CompetitiveLandscape({ competitors = [], detailed = fals
       .attr('width', width)
       .attr('height', height);
 
-    // Create quadrants
+    // Create quadrants - Professional neutral palette
     const quadrantWidth = (width - margin.left - margin.right) / 2;
     const quadrantHeight = (height - margin.top - margin.bottom) / 2;
 
     const quadrants = [
-      { x: margin.left, y: margin.top, label: 'Leaders', color: '#10b981' },
-      { x: margin.left + quadrantWidth, y: margin.top, label: 'Challengers', color: '#3b82f6' },
-      { x: margin.left, y: margin.top + quadrantHeight, label: 'Niche Players', color: '#f59e0b' },
-      { x: margin.left + quadrantWidth, y: margin.top + quadrantHeight, label: 'Visionaries', color: '#8b5cf6' }
+      { x: margin.left, y: margin.top, label: 'Leaders', color: '#171717' }, // neutral-900
+      { x: margin.left + quadrantWidth, y: margin.top, label: 'Challengers', color: '#404040' }, // neutral-700
+      { x: margin.left, y: margin.top + quadrantHeight, label: 'Niche Players', color: '#737373' }, // neutral-500
+      { x: margin.left + quadrantWidth, y: margin.top + quadrantHeight, label: 'Visionaries', color: '#525252' } // neutral-600
     ];
 
-    // Draw quadrant backgrounds with enhanced shading
+    // Draw quadrant backgrounds - Professional neutral styling
     quadrants.forEach((q, i) => {
-      // Gradient background
+      // Subtle neutral background
       svg.append('rect')
         .attr('x', q.x)
         .attr('y', q.y)
@@ -331,9 +337,9 @@ export default function CompetitiveLandscape({ competitors = [], detailed = fals
         .transition()
         .duration(500)
         .delay(i * 100)
-        .attr('opacity', 0.08);
+        .attr('opacity', 0.03); // Very subtle background
 
-      // Label background with enhanced styling
+      // Professional label styling
       const labelGroup = svg.append('g')
         .style('opacity', 0);
 
@@ -341,21 +347,21 @@ export default function CompetitiveLandscape({ competitors = [], detailed = fals
         .attr('x', q.x + quadrantWidth / 2 - 60)
         .attr('y', q.y + 8)
         .attr('width', 120)
-        .attr('height', 28)
-        .attr('rx', 14)
+        .attr('height', 24)
+        .attr('rx', 4) // Smaller radius for professional look
         .attr('fill', 'white')
-        .attr('stroke', q.color)
-        .attr('stroke-width', 2)
-        .attr('opacity', 0.95);
+        .attr('stroke', '#d4d4d4') // neutral-300 - consistent border
+        .attr('stroke-width', 1.5);
 
       labelGroup.append('text')
         .attr('x', q.x + quadrantWidth / 2)
-        .attr('y', q.y + 26)
+        .attr('y', q.y + 24)
         .attr('text-anchor', 'middle')
-        .style('font-size', '13px')
-        .style('font-weight', 'bold')
-        .style('fill', q.color)
-        .text(q.label);
+        .style('font-size', '11px')
+        .style('font-weight', '600')
+        .style('letter-spacing', '0.05em')
+        .style('fill', '#525252') // neutral-600 - all labels same color
+        .text(q.label.toUpperCase());
 
       labelGroup.transition()
         .duration(500)
@@ -363,23 +369,27 @@ export default function CompetitiveLandscape({ competitors = [], detailed = fals
         .style('opacity', 1);
     });
 
-    // Add axis labels
+    // Add axis labels - Professional neutral styling
     svg.append('text')
       .attr('x', width / 2)
       .attr('y', height - 20)
       .attr('text-anchor', 'middle')
-      .style('font-size', '12px')
-      .style('fill', '#6b7280')
-      .text('Completeness of Vision →');
+      .style('font-size', '11px')
+      .style('font-weight', '600')
+      .style('letter-spacing', '0.05em')
+      .style('fill', '#525252') // neutral-600
+      .text('COMPLETENESS OF VISION →');
 
     svg.append('text')
       .attr('transform', `rotate(-90)`)
       .attr('x', -height / 2)
       .attr('y', 20)
       .attr('text-anchor', 'middle')
-      .style('font-size', '12px')
-      .style('fill', '#6b7280')
-      .text('Ability to Execute →');
+      .style('font-size', '11px')
+      .style('font-weight', '600')
+      .style('letter-spacing', '0.05em')
+      .style('fill', '#525252') // neutral-600
+      .text('ABILITY TO EXECUTE →');
 
     // Plot competitors
     const xScale = d3.scaleLinear()
@@ -399,8 +409,8 @@ export default function CompetitiveLandscape({ competitors = [], detailed = fals
 
     dots.append('circle')
       .attr('r', 0)
-      .attr('fill', d => d.name === 'Your Brand' ? '#8b5cf6' : '#e5e7eb')
-      .attr('stroke', d => d.name === 'Your Brand' ? '#8b5cf6' : '#9ca3af')
+      .attr('fill', d => d.name === 'Your Brand' ? '#171717' : '#f5f5f5') // neutral-900 or neutral-100
+      .attr('stroke', d => d.name === 'Your Brand' ? '#171717' : '#d4d4d4') // neutral-900 or neutral-300
       .attr('stroke-width', 2)
       .style('cursor', 'pointer')
       .on('click', (event, d) => setSelectedCompetitor(d as Competitor))
@@ -413,8 +423,8 @@ export default function CompetitiveLandscape({ competitors = [], detailed = fals
       .attr('dy', -15)
       .attr('text-anchor', 'middle')
       .style('font-size', '11px')
-      .style('font-weight', 'bold')
-      .style('fill', d => d.name === 'Your Brand' ? '#8b5cf6' : '#374151')
+      .style('font-weight', '700')
+      .style('fill', '#171717') // neutral-900 - consistent for all
       .style('opacity', 0)
       .text(d => d.name)
       .transition()
@@ -422,7 +432,7 @@ export default function CompetitiveLandscape({ competitors = [], detailed = fals
       .delay((d, i) => i * 150 + 400)
       .style('opacity', 1);
 
-    // Add "You're here" annotation for Your Brand in matrix view
+    // Add professional "Your Position" annotation for matrix view
     const yourBrandData = competitorData.find((d: any) => d.name === 'Your Brand');
     if (yourBrandData) {
       const annotation = svg.append('g')
@@ -430,30 +440,32 @@ export default function CompetitiveLandscape({ competitors = [], detailed = fals
         .attr('transform', `translate(${xScale(yourBrandData.sentiment)},${yScale(yourBrandData.dominance || 50)})`)
         .style('opacity', 0);
 
-      // Arrow pointing down
+      // Arrow pointing down - neutral
       annotation.append('path')
-        .attr('d', 'M 0,-35 L -6,-22 L 6,-22 Z')
-        .attr('fill', '#8b5cf6')
-        .attr('opacity', 0.8);
+        .attr('d', 'M 0,-35 L -6,-24 L 6,-24 Z')
+        .attr('fill', '#171717') // neutral-900
+        .attr('opacity', 0.9);
 
-      // Background
+      // Background - neutral border
       annotation.append('rect')
-        .attr('x', -45)
-        .attr('y', -58)
-        .attr('width', 90)
-        .attr('height', 22)
-        .attr('rx', 11)
-        .attr('fill', '#8b5cf6')
-        .attr('opacity', 0.95);
+        .attr('x', -48)
+        .attr('y', -56)
+        .attr('width', 96)
+        .attr('height', 20)
+        .attr('rx', 4)
+        .attr('fill', '#ffffff')
+        .attr('stroke', '#171717') // neutral-900
+        .attr('stroke-width', 2);
 
-      // Text
+      // Professional text
       annotation.append('text')
-        .attr('y', -43)
+        .attr('y', -42)
         .attr('text-anchor', 'middle')
-        .style('font-size', '11px')
-        .style('font-weight', 'bold')
-        .style('fill', 'white')
-        .text("👋 You're here");
+        .style('font-size', '10px')
+        .style('font-weight', '600')
+        .style('letter-spacing', '0.05em')
+        .style('fill', '#171717') // neutral-900
+        .text('YOUR POSITION');
 
       // Animate
       annotation.transition()
@@ -475,12 +487,13 @@ export default function CompetitiveLandscape({ competitors = [], detailed = fals
     <motion.div
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
-      className="grid grid-cols-2 gap-4 p-4"
+      className="grid grid-cols-2 gap-6 p-6"
     >
-      <div className="space-y-2">
-        <div className="flex items-center gap-2 mb-2">
-          <Shield className="w-4 h-4 text-green-500" />
-          <span className="font-semibold text-green-700">Strengths</span>
+      {/* Strengths - Semantic Green */}
+      <div className="space-y-3">
+        <div className="flex items-center gap-2 mb-3">
+          <Shield className="w-4 h-4 text-success-600" />
+          <span className="section-header text-success-700 dark:text-success-500">Strengths</span>
         </div>
         {(competitor.strengths || []).map((s, i) => (
           <motion.div
@@ -488,18 +501,19 @@ export default function CompetitiveLandscape({ competitors = [], detailed = fals
             initial={{ opacity: 0, x: -20 }}
             animate={{ opacity: 1, x: 0 }}
             transition={{ delay: i * 0.1 }}
-            className="flex items-center gap-2 text-sm"
+            className="flex items-center gap-2 text-sm text-neutral-700 dark:text-neutral-300"
           >
-            <ChevronRight className="w-3 h-3 text-green-500" />
+            <ChevronRight className="w-3 h-3 text-success-600 flex-shrink-0" />
             <span>{s}</span>
           </motion.div>
         ))}
       </div>
 
-      <div className="space-y-2">
-        <div className="flex items-center gap-2 mb-2">
-          <AlertTriangle className="w-4 h-4 text-red-500" />
-          <span className="font-semibold text-red-700">Weaknesses</span>
+      {/* Weaknesses - Semantic Red */}
+      <div className="space-y-3">
+        <div className="flex items-center gap-2 mb-3">
+          <AlertTriangle className="w-4 h-4 text-danger-600" />
+          <span className="section-header text-danger-700 dark:text-danger-500">Weaknesses</span>
         </div>
         {(competitor.weaknesses || []).map((w, i) => (
           <motion.div
@@ -507,18 +521,19 @@ export default function CompetitiveLandscape({ competitors = [], detailed = fals
             initial={{ opacity: 0, x: -20 }}
             animate={{ opacity: 1, x: 0 }}
             transition={{ delay: i * 0.1 }}
-            className="flex items-center gap-2 text-sm"
+            className="flex items-center gap-2 text-sm text-neutral-700 dark:text-neutral-300"
           >
-            <ChevronRight className="w-3 h-3 text-red-500" />
+            <ChevronRight className="w-3 h-3 text-danger-600 flex-shrink-0" />
             <span>{w}</span>
           </motion.div>
         ))}
       </div>
 
-      <div className="space-y-2">
-        <div className="flex items-center gap-2 mb-2">
-          <Zap className="w-4 h-4 text-blue-500" />
-          <span className="font-semibold text-blue-700">Opportunities</span>
+      {/* Opportunities - Semantic Interactive Blue */}
+      <div className="space-y-3">
+        <div className="flex items-center gap-2 mb-3">
+          <Zap className="w-4 h-4 text-interactive-600" />
+          <span className="section-header text-interactive-700 dark:text-interactive-500">Opportunities</span>
         </div>
         {(competitor.opportunities || []).map((o, i) => (
           <motion.div
@@ -526,18 +541,19 @@ export default function CompetitiveLandscape({ competitors = [], detailed = fals
             initial={{ opacity: 0, x: -20 }}
             animate={{ opacity: 1, x: 0 }}
             transition={{ delay: i * 0.1 }}
-            className="flex items-center gap-2 text-sm"
+            className="flex items-center gap-2 text-sm text-neutral-700 dark:text-neutral-300"
           >
-            <ChevronRight className="w-3 h-3 text-blue-500" />
+            <ChevronRight className="w-3 h-3 text-interactive-600 flex-shrink-0" />
             <span>{o}</span>
           </motion.div>
         ))}
       </div>
 
-      <div className="space-y-2">
-        <div className="flex items-center gap-2 mb-2">
-          <Swords className="w-4 h-4 text-orange-500" />
-          <span className="font-semibold text-orange-700">Threats</span>
+      {/* Threats - Semantic Warning */}
+      <div className="space-y-3">
+        <div className="flex items-center gap-2 mb-3">
+          <Swords className="w-4 h-4 text-warning-600" />
+          <span className="section-header text-warning-700 dark:text-warning-500">Threats</span>
         </div>
         {(competitor.threats || []).map((t, i) => (
           <motion.div
@@ -545,9 +561,9 @@ export default function CompetitiveLandscape({ competitors = [], detailed = fals
             initial={{ opacity: 0, x: -20 }}
             animate={{ opacity: 1, x: 0 }}
             transition={{ delay: i * 0.1 }}
-            className="flex items-center gap-2 text-sm"
+            className="flex items-center gap-2 text-sm text-neutral-700 dark:text-neutral-300"
           >
-            <ChevronRight className="w-3 h-3 text-orange-500" />
+            <ChevronRight className="w-3 h-3 text-warning-600 flex-shrink-0" />
             <span>{t}</span>
           </motion.div>
         ))}
@@ -556,61 +572,68 @@ export default function CompetitiveLandscape({ competitors = [], detailed = fals
   );
 
   return (
-    <Card className="p-6">
-      <div className="flex items-center justify-between mb-4">
-        <div>
-          <h3 className="text-lg font-semibold flex items-center gap-2">
-            <Trophy className="w-5 h-5 text-yellow-500" />
-            Competitive Landscape
-          </h3>
-          <p className="text-sm text-gray-500">AI perception of market competitors</p>
-        </div>
-        
-        <div className="flex gap-2">
-          <Button
-            variant={viewMode === 'bubble' ? 'default' : 'outline'}
-            size="sm"
-            onClick={() => setViewMode('bubble')}
-          >
-            Bubble
-          </Button>
-          <Button
-            variant={viewMode === 'matrix' ? 'default' : 'outline'}
-            size="sm"
-            onClick={() => setViewMode('matrix')}
-          >
-            Matrix
-          </Button>
-          {detailed && (
+    <Card className="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800">
+      <div className="border-b border-neutral-200 dark:border-neutral-800 p-6">
+        <div className="flex items-center justify-between mb-4">
+          <div>
+            <div className="section-header mb-2">Market Intelligence</div>
+            <h3 className="text-2xl font-bold text-neutral-900 dark:text-neutral-0 flex items-center gap-2">
+              <BarChart3 className="w-5 h-5 text-neutral-600" />
+              Competitive Landscape
+            </h3>
+            <p className="text-sm text-neutral-600 dark:text-neutral-400 mt-1">AI perception analysis across {competitorData.length} competitors</p>
+          </div>
+
+          <div className="flex gap-2">
             <Button
-              variant={viewMode === 'swot' ? 'default' : 'outline'}
+              variant={viewMode === 'bubble' ? 'default' : 'outline'}
               size="sm"
-              onClick={() => setViewMode('swot')}
+              onClick={() => setViewMode('bubble')}
+              className="text-xs font-semibold"
             >
-              SWOT
+              Bubble View
             </Button>
-          )}
+            <Button
+              variant={viewMode === 'matrix' ? 'default' : 'outline'}
+              size="sm"
+              onClick={() => setViewMode('matrix')}
+              className="text-xs font-semibold"
+            >
+              Matrix View
+            </Button>
+            {detailed && (
+              <Button
+                variant={viewMode === 'swot' ? 'default' : 'outline'}
+                size="sm"
+                onClick={() => setViewMode('swot')}
+                className="text-xs font-semibold"
+              >
+                SWOT Analysis
+              </Button>
+            )}
+          </div>
         </div>
       </div>
 
-      {viewMode === 'swot' ? (
-        <Tabs defaultValue={competitorData[0]?.name} className="w-full">
-          <TabsList className="grid grid-cols-4 w-full">
+      <div className="p-6">
+        {viewMode === 'swot' ? (
+          <Tabs defaultValue={competitorData[0]?.name} className="w-full">
+            <TabsList className="grid grid-cols-4 w-full mb-6">
+              {competitorData.map(comp => (
+                <TabsTrigger key={comp.name} value={comp.name} className="text-xs font-semibold">
+                  {comp.name}
+                </TabsTrigger>
+              ))}
+            </TabsList>
             {competitorData.map(comp => (
-              <TabsTrigger key={comp.name} value={comp.name}>
-                {comp.name}
-              </TabsTrigger>
+              <TabsContent key={comp.name} value={comp.name}>
+                <SwotAnalysis competitor={comp} />
+              </TabsContent>
             ))}
-          </TabsList>
-          {competitorData.map(comp => (
-            <TabsContent key={comp.name} value={comp.name}>
-              <SwotAnalysis competitor={comp} />
-            </TabsContent>
-          ))}
-        </Tabs>
-      ) : (
-        <>
-          <svg ref={svgRef} className="w-full" />
+          </Tabs>
+        ) : (
+          <>
+            <svg ref={svgRef} className="w-full" />
           
           <AnimatePresence>
             {selectedCompetitor && (
@@ -618,31 +641,32 @@ export default function CompetitiveLandscape({ competitors = [], detailed = fals
                 initial={{ opacity: 0, height: 0 }}
                 animate={{ opacity: 1, height: 'auto' }}
                 exit={{ opacity: 0, height: 0 }}
-                className="mt-4 p-4 bg-gray-50 rounded-lg"
+                className="mt-6 p-6 bg-neutral-50 dark:bg-neutral-800/30 border border-neutral-200 dark:border-neutral-700 rounded-md"
               >
-                <div className="flex items-center justify-between mb-3">
-                  <h4 className="font-semibold">{selectedCompetitor.name}</h4>
+                <div className="flex items-center justify-between mb-4">
+                  <h4 className="text-lg font-bold text-neutral-900 dark:text-neutral-0">{selectedCompetitor.name}</h4>
                   <Button
                     variant="ghost"
                     size="sm"
                     onClick={() => setSelectedCompetitor(null)}
+                    className="text-neutral-500 hover:text-neutral-900"
                   >
                     ×
                   </Button>
                 </div>
-                
-                <div className="grid grid-cols-3 gap-4">
+
+                <div className="grid grid-cols-3 gap-6">
                   <div>
-                    <p className="text-xs text-gray-500">Mentions</p>
-                    <p className="text-lg font-bold">{selectedCompetitor.mentionCount}</p>
+                    <p className="section-header mb-2">AI Mentions</p>
+                    <p className="font-mono tabular-nums text-2xl font-bold text-neutral-900 dark:text-neutral-0">{selectedCompetitor.mentionCount}</p>
                   </div>
                   <div>
-                    <p className="text-xs text-gray-500">Sentiment</p>
-                    <p className="text-lg font-bold">{selectedCompetitor.sentiment}%</p>
+                    <p className="section-header mb-2">Sentiment</p>
+                    <p className="font-mono tabular-nums text-2xl font-bold text-neutral-900 dark:text-neutral-0">{selectedCompetitor.sentiment}%</p>
                   </div>
                   <div>
-                    <p className="text-xs text-gray-500">Dominance</p>
-                    <p className="text-lg font-bold">{selectedCompetitor.dominance || 50}%</p>
+                    <p className="section-header mb-2">Market Share</p>
+                    <p className="font-mono tabular-nums text-2xl font-bold text-neutral-900 dark:text-neutral-0">{selectedCompetitor.dominance || 50}%</p>
                   </div>
                 </div>
               </motion.div>
@@ -651,17 +675,19 @@ export default function CompetitiveLandscape({ competitors = [], detailed = fals
         </>
       )}
 
-      {!detailed && (
-        <div className="mt-4 flex items-center justify-between p-3 bg-gradient-to-r from-purple-50 to-pink-50 rounded-lg">
-          <div className="flex items-center gap-2">
-            <Target className="w-4 h-4 text-purple-600" />
-            <span className="text-sm font-medium">Your competitive position:</span>
+        {!detailed && (
+          <div className="mt-6 flex items-center justify-between p-4 bg-neutral-50 dark:bg-neutral-800/30 border border-neutral-200 dark:border-neutral-700 rounded-md">
+            <div className="flex items-center gap-2">
+              <Building2 className="w-4 h-4 text-neutral-600" />
+              <span className="text-sm font-semibold text-neutral-700 dark:text-neutral-300">Your Competitive Position</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="font-mono tabular-nums text-xl font-bold text-neutral-900 dark:text-neutral-0">#2</span>
+              <span className="text-sm text-neutral-500 dark:text-neutral-400">of {competitorData.length}</span>
+            </div>
           </div>
-          <Badge className="bg-gradient-to-r from-purple-600 to-pink-600">
-            #2 of 4 competitors
-          </Badge>
-        </div>
-      )}
+        )}
+      </div>
     </Card>
   );
 }

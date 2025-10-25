@@ -5,6 +5,8 @@ import { motion, useMotionValue, useTransform, useSpring } from 'framer-motion';
 import { ArrowRight, Sparkles, Zap, Globe, Shield, TrendingUp } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import { Input } from '@/components/ui/input';
+import { Button } from '@/components/ui/button';
 
 export function FuturisticHero() {
   const router = useRouter();
@@ -63,20 +65,26 @@ export function FuturisticHero() {
   
   return (
     <section ref={containerRef} className="relative min-h-screen flex items-center justify-center overflow-hidden">
-      {/* Animated Gradient Mesh Background */}
-      <div className="absolute inset-0 -z-10">
-        <div className="absolute inset-0 gradient-mesh-animated opacity-30" />
-        
-        {/* Floating Orbs */}
+      {/* Professional Subtle Background */}
+      <div className="absolute inset-0 -z-10 bg-gradient-to-b from-neutral-50 to-white dark:from-neutral-950 dark:to-neutral-900">
+        {/* Subtle grid pattern */}
+        <div className="absolute inset-0 opacity-[0.02] dark:opacity-[0.03]"
+          style={{
+            backgroundImage: 'linear-gradient(rgba(0,0,0,0.1) 1px, transparent 1px), linear-gradient(90deg, rgba(0,0,0,0.1) 1px, transparent 1px)',
+            backgroundSize: '64px 64px'
+          }}
+        />
+
+        {/* Subtle floating elements for depth */}
         <motion.div
           className="absolute top-1/4 left-1/4 w-96 h-96 rounded-full"
           style={{
-            background: 'radial-gradient(circle, rgba(139, 92, 246, 0.3) 0%, transparent 70%)',
+            background: 'radial-gradient(circle, rgba(0, 0, 0, 0.03) 0%, transparent 70%)',
             x: moveX,
             y: moveY,
           }}
           animate={{
-            scale: [1, 1.2, 1],
+            scale: [1, 1.1, 1],
           }}
           transition={{
             duration: 8,
@@ -84,16 +92,16 @@ export function FuturisticHero() {
             ease: 'easeInOut',
           }}
         />
-        
+
         <motion.div
           className="absolute bottom-1/4 right-1/4 w-80 h-80 rounded-full"
           style={{
-            background: 'radial-gradient(circle, rgba(236, 72, 153, 0.3) 0%, transparent 70%)',
+            background: 'radial-gradient(circle, rgba(0, 0, 0, 0.02) 0%, transparent 70%)',
             x: moveXReverse,
             y: moveYReverse,
           }}
           animate={{
-            scale: [1, 1.3, 1],
+            scale: [1, 1.15, 1],
           }}
           transition={{
             duration: 10,
@@ -101,42 +109,6 @@ export function FuturisticHero() {
             ease: 'easeInOut',
           }}
         />
-        
-        <motion.div
-          className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[120%] h-[120%]"
-          style={{
-            background: 'radial-gradient(circle, rgba(6, 182, 212, 0.2) 0%, transparent 60%)',
-          }}
-          animate={{
-            rotate: [0, 360],
-          }}
-          transition={{
-            duration: 30,
-            repeat: Infinity,
-            ease: 'linear',
-          }}
-        />
-        
-        {/* Particle Field - Only render after mount to avoid hydration issues */}
-        {mounted && [...Array(50)].map((_, i) => (
-          <motion.div
-            key={i}
-            className="absolute w-1 h-1 bg-white/20 rounded-full"
-            initial={{
-              x: Math.random() * window.innerWidth,
-              y: Math.random() * window.innerHeight,
-            }}
-            animate={{
-              y: [null, Math.random() * window.innerHeight],
-            }}
-            transition={{
-              duration: Math.random() * 20 + 10,
-              repeat: Infinity,
-              repeatType: 'reverse',
-              ease: 'linear',
-            }}
-          />
-        ))}
       </div>
       
       {/* Main Content */}
@@ -147,22 +119,22 @@ export function FuturisticHero() {
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.8, ease: 'easeOut' }}
         >
-          {/* Badge */}
+          {/* Professional badge */}
           <motion.div
-            className="inline-flex items-center gap-2 px-4 py-2 rounded-full glass-panel-elevated mb-8"
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-full border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 mb-8"
             initial={{ scale: 0 }}
             animate={{ scale: 1 }}
             transition={{ delay: 0.2, type: 'spring', stiffness: 200 }}
           >
-            <Sparkles className="w-4 h-4 text-violet-500" />
-            <span className="text-sm font-medium bg-gradient-to-r from-violet-600 to-pink-600 bg-clip-text text-transparent">
+            <Sparkles className="w-4 h-4 text-neutral-600 dark:text-neutral-400" />
+            <span className="section-header">
               AI Visibility Platform
             </span>
           </motion.div>
           
-          {/* Main Heading */}
+          {/* Professional heading */}
           <motion.h1
-            className="fluid-heading font-bold mb-6 bg-gradient-to-r from-gray-900 via-violet-900 to-gray-900 dark:from-white dark:via-violet-200 dark:to-white bg-clip-text text-transparent"
+            className="fluid-heading font-bold mb-6 text-neutral-900 dark:text-neutral-0"
             initial={{ opacity: 0, scale: 0.9 }}
             animate={{ opacity: 1, scale: 1 }}
             transition={{ delay: 0.3, duration: 0.8 }}
@@ -170,28 +142,13 @@ export function FuturisticHero() {
             Track Your Brand Across
             <br />
             <span className="relative">
-              <motion.span
-                className="relative z-10"
-                animate={{
-                  backgroundImage: [
-                    'linear-gradient(90deg, #8B5CF6 0%, #EC4899 50%, #06B6D4 100%)',
-                    'linear-gradient(90deg, #06B6D4 0%, #8B5CF6 50%, #EC4899 100%)',
-                    'linear-gradient(90deg, #EC4899 0%, #06B6D4 50%, #8B5CF6 100%)',
-                  ],
-                }}
-                transition={{ duration: 5, repeat: Infinity }}
-                style={{
-                  backgroundClip: 'text',
-                  WebkitBackgroundClip: 'text',
-                  color: 'transparent',
-                }}
-              >
+              <span className="relative z-10">
                 AI Platforms
-              </motion.span>
-              
-              {/* Animated underline */}
+              </span>
+
+              {/* Professional underline */}
               <motion.div
-                className="absolute -bottom-2 left-0 right-0 h-1 bg-gradient-to-r from-violet-600 via-pink-600 to-cyan-600 rounded-full"
+                className="absolute -bottom-2 left-0 right-0 h-1 bg-neutral-900 dark:bg-neutral-0 rounded-full"
                 initial={{ scaleX: 0 }}
                 animate={{ scaleX: 1 }}
                 transition={{ delay: 0.5, duration: 0.8, ease: 'easeOut' }}
@@ -199,9 +156,9 @@ export function FuturisticHero() {
             </span>
           </motion.h1>
           
-          {/* Subtitle */}
+          {/* Professional subtitle */}
           <motion.p
-            className="fluid-text-xl text-gray-600 dark:text-gray-400 mb-12 max-w-3xl mx-auto"
+            className="fluid-text-xl text-neutral-600 dark:text-neutral-400 mb-12 max-w-3xl mx-auto"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             transition={{ delay: 0.6, duration: 0.8 }}
@@ -210,19 +167,21 @@ export function FuturisticHero() {
             Get real-time insights and optimize your AI presence.
           </motion.p>
           
-          {/* Domain Input Section */}
-          <div className="glass-panel-floating rounded-3xl p-8 mb-12 max-w-2xl mx-auto">
+          {/* Professional input section */}
+          <div className="border border-neutral-200 dark:border-neutral-800 rounded-3xl p-8 mb-12 max-w-2xl mx-auto bg-white dark:bg-neutral-900">
             <div className="flex flex-col sm:flex-row gap-4">
-              <input
+              <Input
                 type="text"
                 placeholder="Enter your domain (e.g., example.com)"
                 value={domain}
                 onChange={(e) => setDomain(e.target.value)}
-                className="flex-1 px-6 py-4 rounded-2xl bg-white/10 dark:bg-black/10 backdrop-blur-xl border border-white/20 dark:border-white/10 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-violet-500 transition-all"
+                inputSize="xl"
+                className="flex-1 bg-neutral-50 dark:bg-neutral-800 border-neutral-200 dark:border-neutral-700"
               />
-              {domain && domain.trim() ? (
-                <button
-                  onClick={async () => {
+              <Button
+                disabled={!domain || !domain.trim() || isAnalyzing}
+                loading={isAnalyzing}
+                onClick={async () => {
                     if (domain && typeof window !== 'undefined') {
                       setIsAnalyzing(true);
                       
@@ -335,48 +294,38 @@ export function FuturisticHero() {
                       }
                     }
                   }}
-                  disabled={!domain || isAnalyzing}
-                  className="px-8 py-4 rounded-2xl bg-gradient-to-r from-violet-600 to-pink-600 text-white font-semibold shadow-lg hover:shadow-xl transition-all hover:scale-105 active:scale-95 flex items-center gap-2 group disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  {isAnalyzing ? 'Analyzing...' : 'Start Free Analysis'}
-                  <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
-                </button>
-              ) : (
-                <button
-                  type="button"
-                  disabled
-                  className="px-8 py-4 rounded-2xl bg-gradient-to-r from-violet-600/50 to-pink-600/50 text-white/50 font-semibold shadow-lg cursor-not-allowed flex items-center gap-2 group inline-flex text-center"
-                >
-                  Start Free Analysis
-                  <ArrowRight className="w-4 h-4" />
-                </button>
-              )}
+                size="xl"
+                rightIcon={!isAnalyzing ? <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" /> : undefined}
+                className="px-8 rounded-2xl"
+              >
+                {isAnalyzing ? 'Analyzing...' : 'Start Free Analysis'}
+              </Button>
             </div>
 
-            {/* Trust Signals */}
-            <div className="flex items-center justify-center gap-4 mt-4 text-sm text-gray-600 dark:text-gray-400">
+            {/* Professional trust signals */}
+            <div className="flex items-center justify-center gap-4 mt-4 text-sm text-neutral-600 dark:text-neutral-400">
               <span className="flex items-center gap-1">
-                <svg className="w-4 h-4 text-green-500" fill="currentColor" viewBox="0 0 20 20">
+                <svg className="w-4 h-4 text-success-600" fill="currentColor" viewBox="0 0 20 20">
                   <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
                 </svg>
                 Free
               </span>
               <span className="flex items-center gap-1">
-                <svg className="w-4 h-4 text-green-500" fill="currentColor" viewBox="0 0 20 20">
+                <svg className="w-4 h-4 text-success-600" fill="currentColor" viewBox="0 0 20 20">
                   <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
                 </svg>
                 No signup required
               </span>
               <span className="flex items-center gap-1">
-                <svg className="w-4 h-4 text-green-500" fill="currentColor" viewBox="0 0 20 20">
+                <svg className="w-4 h-4 text-success-600" fill="currentColor" viewBox="0 0 20 20">
                   <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
                 </svg>
-                Results in 60 minutes
+                Results in <span className="font-mono tabular-nums">60</span> minutes
               </span>
             </div>
           </div>
           
-          {/* Features */}
+          {/* Professional features */}
           <motion.div
             className="grid grid-cols-2 md:grid-cols-4 gap-4"
             initial={{ opacity: 0 }}
@@ -386,7 +335,7 @@ export function FuturisticHero() {
             {features.map((feature, index) => (
               <motion.div
                 key={index}
-                className="glass-panel p-4 rounded-xl cursor-pointer"
+                className="border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 p-4 rounded-xl cursor-pointer"
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 1.3 + feature.delay, duration: 0.5 }}
@@ -400,9 +349,9 @@ export function FuturisticHero() {
                   }}
                   transition={{ duration: 0.5 }}
                 >
-                  <feature.icon className="w-6 h-6 mx-auto mb-2 text-violet-500" />
+                  <feature.icon className="w-6 h-6 mx-auto mb-2 text-neutral-600 dark:text-neutral-400" />
                 </motion.div>
-                <p className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                <p className="text-sm font-medium text-neutral-700 dark:text-neutral-300">
                   {feature.text}
                 </p>
               </motion.div>

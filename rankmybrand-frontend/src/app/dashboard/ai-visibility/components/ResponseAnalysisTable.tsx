@@ -1,12 +1,22 @@
 'use client';
 
+/**
+ * ResponseAnalysisTable - Professional B2B Data Table
+ * Design System: Monochrome + Semantic Colors
+ * - Professional table formatting (sticky headers, right-aligned numbers)
+ * - Monospace numbers with tabular-nums
+ * - Semantic colors for data only (green/red for sentiment)
+ * - Neutral badges for providers
+ * - Bloomberg/Stripe table aesthetic
+ */
+
 import React, { useState, useMemo } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { CheckCircle, XCircle, Search, Filter, X, SlidersHorizontal, ArrowUpDown } from 'lucide-react';
+import { CheckCircle, XCircle, Search, Filter, X, SlidersHorizontal } from 'lucide-react';
 
 interface ResponseData {
   id: string;
@@ -83,35 +93,35 @@ export default function ResponseAnalysisTable({ responses = [] }: ResponseAnalys
     setBrandMentionedFilter('all');
   };
 
+  // Semantic colors for sentiment data ONLY
   const getSentimentColor = (sentiment: string) => {
     switch (sentiment?.toLowerCase()) {
       case 'positive':
-        return 'bg-green-100 text-green-800';
+        return 'text-success-700 dark:text-success-500';
       case 'negative':
-        return 'bg-red-100 text-red-800';
+        return 'text-danger-700 dark:text-danger-500';
       default:
-        return 'bg-gray-100 text-gray-800';
+        return 'text-neutral-600 dark:text-neutral-400';
     }
   };
 
-  const getProviderBadgeColor = (provider: string) => {
-    const colors: { [key: string]: string } = {
-      'openai': 'bg-green-100 text-green-800',
-      'anthropic': 'bg-purple-100 text-purple-800',
-      'google': 'bg-blue-100 text-blue-800',
-      'perplexity': 'bg-indigo-100 text-indigo-800',
-    };
-    return colors[provider?.toLowerCase()] || 'bg-gray-100 text-gray-800';
+  // Professional neutral badge for provider (no decorative colors)
+  const getProviderBadge = (provider: string) => {
+    return 'bg-neutral-100 dark:bg-neutral-800 text-neutral-700 dark:text-neutral-300 border border-neutral-200 dark:border-neutral-700';
   };
 
   return (
-    <Card>
-      <CardHeader>
+    <Card className="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800">
+      <CardHeader className="border-b border-neutral-200 dark:border-neutral-800 pb-6">
         <div className="flex items-center justify-between">
           <div>
-            <CardTitle>Response Analysis</CardTitle>
-            <CardDescription>
-              Showing {filteredResponses.length} of {responses.length} responses
+            <div className="section-header mb-2">AI Response Analysis</div>
+            <CardTitle className="text-2xl font-bold text-neutral-900 dark:text-neutral-0 mb-1">
+              Detailed Response Data
+            </CardTitle>
+            <CardDescription className="text-sm text-neutral-600 dark:text-neutral-400">
+              Showing <span className="font-mono tabular-nums font-semibold">{filteredResponses.length}</span> of{' '}
+              <span className="font-mono tabular-nums font-semibold">{responses.length}</span> responses
             </CardDescription>
           </div>
           <Button
@@ -125,7 +135,7 @@ export default function ResponseAnalysisTable({ responses = [] }: ResponseAnalys
           </Button>
         </div>
       </CardHeader>
-      <CardContent>
+      <CardContent className="p-0">
         {/* Filters Section */}
         {showFilters && (
           <div className="mb-6 p-4 bg-gray-50 rounded-lg border border-gray-200 space-y-4">
@@ -299,98 +309,107 @@ export default function ResponseAnalysisTable({ responses = [] }: ResponseAnalys
           </div>
         )}
 
+        {/* Professional B2B Table */}
         <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-gray-200">
-            <thead className="bg-gray-50">
+          <table className="min-w-full">
+            {/* Professional Sticky Headers */}
+            <thead className="bg-neutral-50 dark:bg-neutral-900/50 sticky top-0 z-10 border-b-2 border-neutral-200 dark:border-neutral-800">
               <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="px-6 py-4 text-left section-header">
                   Query
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="px-6 py-4 text-left section-header">
                   Provider
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Brand Found
+                <th className="px-6 py-4 text-center section-header">
+                  Brand
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="px-6 py-4 text-left section-header">
                   Sentiment
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="px-6 py-4 text-left section-header">
                   Competitors
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="px-6 py-4 text-right section-header">
                   Strength
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="px-6 py-4 text-left section-header">
                   Response Preview
                 </th>
               </tr>
             </thead>
-            <tbody className="bg-white divide-y divide-gray-200">
+            <tbody className="bg-white dark:bg-neutral-950 divide-y divide-neutral-200 dark:divide-neutral-800">
               {filteredResponses.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="px-6 py-12 text-center text-gray-500">
-                    {responses.length === 0
-                      ? 'No responses found for this audit.'
-                      : 'No responses match your filters. Try adjusting your search criteria.'}
+                  <td colSpan={7} className="px-6 py-16 text-center">
+                    <div className="text-neutral-500 dark:text-neutral-400">
+                      {responses.length === 0
+                        ? 'No responses found for this audit.'
+                        : 'No responses match your filters. Try adjusting your search criteria.'}
+                    </div>
                   </td>
                 </tr>
               ) : (
                 filteredResponses.map((response) => (
-                  <tr key={response.id} className="hover:bg-gray-50">
+                  <tr key={response.id} className="hover:bg-neutral-50 dark:hover:bg-neutral-900/50 transition-colors duration-150">
+                    {/* Query */}
                     <td className="px-6 py-4">
-                      <div className="text-sm font-medium text-gray-900 max-w-xs">
+                      <div className="text-sm text-neutral-900 dark:text-neutral-0 max-w-xs">
                         {response.query_text?.substring(0, 60)}...
                       </div>
                     </td>
+
+                    {/* Provider - Neutral Badge */}
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <span className={`px-2 py-1 text-xs rounded-full ${getProviderBadgeColor(response.provider)}`}>
+                      <span className={`px-2.5 py-1 text-xs font-medium rounded-md ${getProviderBadge(response.provider)}`}>
                         {response.provider}
                       </span>
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
+
+                    {/* Brand Mentioned - Semantic Color */}
+                    <td className="px-6 py-4 whitespace-nowrap text-center">
                       {response.brand_mentioned ? (
-                        <CheckCircle className="w-5 h-5 text-green-500" />
+                        <CheckCircle className="w-5 h-5 text-success-600 inline-block" />
                       ) : (
-                        <XCircle className="w-5 h-5 text-red-500" />
+                        <XCircle className="w-5 h-5 text-neutral-400 inline-block" />
                       )}
                     </td>
+
+                    {/* Sentiment - Semantic Color for Text */}
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <span className={`px-2 py-1 text-xs rounded-full ${getSentimentColor(response.sentiment)}`}>
+                      <span className={`text-sm font-medium ${getSentimentColor(response.sentiment)}`}>
                         {response.sentiment || 'neutral'}
                       </span>
                     </td>
+
+                    {/* Competitors - Neutral Badges */}
                     <td className="px-6 py-4">
-                      <div className="flex flex-wrap gap-1 max-w-xs">
+                      <div className="flex flex-wrap gap-1.5 max-w-xs">
                         {response.competitors_mentioned && response.competitors_mentioned.length > 0 ? (
                           response.competitors_mentioned
                             .filter((competitor) => competitor.mentioned)
                             .slice(0, 3)
                             .map((competitor, idx) => (
-                              <Badge key={idx} variant="secondary" className="text-xs">
+                              <Badge key={idx} variant="outline" className="text-xs">
                                 {competitor.name}
                               </Badge>
                             ))
                         ) : (
-                          <span className="text-xs text-gray-400">None</span>
+                          <span className="text-xs text-neutral-400">—</span>
                         )}
                       </div>
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="flex items-center">
-                        <div className="w-16 bg-gray-200 rounded-full h-2 mr-2">
-                          <div
-                            className="bg-blue-600 h-2 rounded-full"
-                            style={{ width: `${response.recommendation_strength || 0}%` }}
-                          />
-                        </div>
-                        <span className="text-sm text-gray-600">
-                          {response.recommendation_strength || 0}%
-                        </span>
-                      </div>
+
+                    {/* Strength - Right-aligned Monospace */}
+                    <td className="px-6 py-4 whitespace-nowrap text-right">
+                      <span className="font-mono tabular-nums text-sm font-semibold text-neutral-900 dark:text-neutral-0">
+                        {response.recommendation_strength || 0}%
+                      </span>
                     </td>
+
+                    {/* Response Preview */}
                     <td className="px-6 py-4">
-                      <div className="text-xs text-gray-600 max-w-md truncate">
+                      <div className="text-xs text-neutral-600 dark:text-neutral-400 max-w-md truncate">
                         {response.response_text?.substring(0, 100)}...
                       </div>
                     </td>

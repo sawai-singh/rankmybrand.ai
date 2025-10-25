@@ -403,11 +403,11 @@ export default function CompetitorsPage() {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
-          <div className="inline-flex items-center justify-center w-16 h-16 bg-gradient-to-br from-primary-500 to-purple-500 rounded-2xl mb-4">
-            <Search className="w-8 h-8 text-white animate-pulse" />
+          <div className="inline-flex items-center justify-center w-16 h-16 bg-neutral-900 dark:bg-neutral-0 rounded-2xl mb-4">
+            <Search className="w-8 h-8 text-white dark:text-neutral-900 animate-pulse" />
           </div>
-          <h2 className="text-2xl font-bold mb-2">Discovering Competitors</h2>
-          <p className="text-gray-600 dark:text-gray-400">Analyzing SERP data and industry landscape...</p>
+          <h2 className="text-2xl font-bold mb-2 text-neutral-900 dark:text-neutral-0">Discovering Competitors</h2>
+          <p className="text-neutral-600 dark:text-neutral-400">Analyzing SERP data and industry landscape...</p>
         </div>
       </div>
     );
@@ -416,17 +416,17 @@ export default function CompetitorsPage() {
   return (
     <div className="min-h-screen py-12 px-4">
       <div className="max-w-5xl mx-auto">
-        {/* Progress Bar */}
+        {/* Professional progress bar */}
         <div className="mb-8">
-          <div className="flex items-center justify-between text-sm text-gray-700 dark:text-gray-300 mb-2">
-            <span>Step 3 of 3</span>
-            <span>Select Competitors</span>
+          <div className="flex items-center justify-between text-sm text-neutral-700 dark:text-neutral-300 mb-2">
+            <span className="section-header">Step <span className="font-mono tabular-nums">3</span> of <span className="font-mono tabular-nums">3</span></span>
+            <span className="font-semibold">Select Competitors</span>
           </div>
-          <div className="h-2 bg-gray-200 dark:bg-gray-700 rounded-full">
-            <motion.div 
-              className="h-full bg-gradient-to-r from-primary-500 to-purple-500 rounded-full"
-              initial={{ width: '50%' }}
-              animate={{ width: '75%' }}
+          <div className="h-2 bg-neutral-200 dark:bg-neutral-800 rounded-full">
+            <motion.div
+              className="h-full bg-neutral-900 dark:bg-neutral-0 rounded-full"
+              initial={{ width: '66%' }}
+              animate={{ width: '100%' }}
               transition={{ duration: 0.5 }}
             />
           </div>
@@ -437,21 +437,21 @@ export default function CompetitorsPage() {
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5 }}
         >
-          {/* Header */}
+          {/* Professional header */}
           <div className="text-center mb-8">
-            <div className="inline-flex items-center justify-center w-16 h-16 bg-gradient-to-br from-primary-500 to-purple-500 rounded-2xl mb-4">
-              <Users className="w-8 h-8 text-white" />
+            <div className="inline-flex items-center justify-center w-16 h-16 bg-neutral-900 dark:bg-neutral-0 rounded-2xl mb-4">
+              <Users className="w-8 h-8 text-white dark:text-neutral-900" />
             </div>
-            <h1 className="text-4xl font-bold mb-4">
+            <h1 className="text-4xl font-bold mb-4 text-neutral-900 dark:text-neutral-0">
               Who Are Your Competitors?
             </h1>
-            <p className="text-gray-600 dark:text-gray-400">
+            <p className="text-neutral-600 dark:text-neutral-400">
               We found these companies in your space. Select the ones you want to track.
             </p>
           </div>
 
-          {/* Add Custom Competitor */}
-          <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-xl p-6 mb-6">
+          {/* Professional custom competitor input */}
+          <div className="bg-white dark:bg-neutral-900 rounded-2xl shadow-xl p-6 mb-6 border border-neutral-200 dark:border-neutral-800">
             <div className="flex items-center gap-4">
               <div className="flex-1">
                 <input
@@ -460,16 +460,16 @@ export default function CompetitorsPage() {
                   onChange={(e) => setCustomDomain(e.target.value)}
                   onKeyPress={(e) => e.key === 'Enter' && addCustomCompetitor()}
                   placeholder="Add a competitor domain (e.g., competitor.com)"
-                  className="w-full px-4 py-3 border-2 border-gray-200 dark:border-gray-700 rounded-xl
-                           bg-gray-50 dark:bg-gray-800 focus:border-primary-500 focus:outline-none focus:ring-4 focus:ring-primary-500/20
+                  className="w-full px-4 py-3 border-2 border-neutral-200 dark:border-neutral-700 rounded-xl
+                           bg-neutral-50 dark:bg-neutral-800 focus:border-neutral-900 dark:focus:border-neutral-0 focus:outline-none focus:ring-4 focus:ring-neutral-900/20 dark:focus:ring-neutral-0/20
                            transition-all duration-300"
                 />
               </div>
               <button
                 onClick={addCustomCompetitor}
                 disabled={!customDomain}
-                className="px-6 py-3 bg-primary-600 text-white font-semibold rounded-xl
-                         hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed
+                className="px-6 py-3 bg-neutral-900 dark:bg-neutral-0 text-white dark:text-neutral-900 font-semibold rounded-xl
+                         hover:bg-neutral-700 dark:hover:bg-neutral-200 disabled:opacity-50 disabled:cursor-not-allowed
                          transition-all duration-300 flex items-center gap-2"
               >
                 <Plus className="w-5 h-5" />
@@ -478,23 +478,23 @@ export default function CompetitorsPage() {
             </div>
           </div>
 
-          {/* Competitors Grid */}
-          <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-xl p-6 mb-8">
+          {/* Professional competitors grid */}
+          <div className="bg-white dark:bg-neutral-900 rounded-2xl shadow-xl p-6 mb-8 border border-neutral-200 dark:border-neutral-800">
             <div className="flex items-center justify-between mb-6">
-              <h2 className="text-xl font-bold">
+              <h2 className="text-xl font-bold text-neutral-900 dark:text-neutral-0">
                 Discovered Competitors
               </h2>
               <div className="flex items-center gap-2 text-sm">
-                <CheckCircle className="w-4 h-4 text-green-500" />
-                <span>{selectedCount} selected</span>
+                <CheckCircle className="w-4 h-4 text-success-600" />
+                <span className="font-mono tabular-nums font-semibold">{selectedCount}</span> selected
               </div>
             </div>
 
             {competitors.length === 0 ? (
               <div className="text-center py-12">
-                <AlertCircle className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-                <p className="text-gray-600 dark:text-gray-400 mb-2">No competitors found automatically</p>
-                <p className="text-sm text-gray-500">Add your competitors manually using the form above</p>
+                <AlertCircle className="w-12 h-12 text-neutral-400 mx-auto mb-4" />
+                <p className="text-neutral-600 dark:text-neutral-400 mb-2">No competitors found automatically</p>
+                <p className="text-sm text-neutral-500">Add your competitors manually using the form above</p>
               </div>
             ) : (
               <div className="grid gap-4">
@@ -507,9 +507,9 @@ export default function CompetitorsPage() {
                       exit={{ opacity: 0, x: 20 }}
                       transition={{ delay: index * 0.05 }}
                       className={`relative p-4 rounded-xl border-2 transition-all cursor-pointer ${
-                        competitor.selected 
-                          ? 'border-primary-500 bg-primary-50 dark:bg-primary-900/20' 
-                          : 'border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600'
+                        competitor.selected
+                          ? 'border-neutral-900 dark:border-neutral-0 bg-neutral-50 dark:bg-neutral-800/50'
+                          : 'border-neutral-200 dark:border-neutral-700 hover:border-neutral-300 dark:hover:border-neutral-600'
                       }`}
                       onClick={() => toggleCompetitor(index)}
                     >
@@ -518,16 +518,16 @@ export default function CompetitorsPage() {
                           {/* Checkbox */}
                           <div className={`w-6 h-6 rounded-lg border-2 flex items-center justify-center transition-all ${
                             competitor.selected
-                              ? 'bg-primary-600 border-primary-600'
-                              : 'border-gray-300 dark:border-gray-600'
+                              ? 'bg-neutral-900 dark:bg-neutral-0 border-neutral-900 dark:border-neutral-0'
+                              : 'border-neutral-300 dark:border-neutral-600'
                           }`}>
                             {competitor.selected && (
-                              <CheckCircle className="w-4 h-4 text-white" />
+                              <CheckCircle className="w-4 h-4 text-white dark:text-neutral-900" />
                             )}
                           </div>
 
                           {/* Company Logo */}
-                          <div className="relative w-10 h-10 rounded-lg overflow-hidden bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 flex items-center justify-center flex-shrink-0">
+                          <div className="relative w-10 h-10 rounded-lg overflow-hidden bg-white dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 flex items-center justify-center flex-shrink-0">
                             <img
                               src={(competitor as any).logo || `https://www.google.com/s2/favicons?domain=${competitor.domain}&sz=128`}
                               alt={`${competitor.name} logo`}
@@ -539,7 +539,7 @@ export default function CompetitorsPage() {
                                 if (fallback) fallback.style.display = 'flex';
                               }}
                             />
-                            <div className="hidden absolute inset-0 items-center justify-center bg-primary-100 dark:bg-primary-900/20 text-primary-600 dark:text-primary-400 font-bold text-sm">
+                            <div className="hidden absolute inset-0 items-center justify-center bg-neutral-100 dark:bg-neutral-800 text-neutral-900 dark:text-neutral-0 font-bold text-sm">
                               {competitor.name[0]}
                             </div>
                           </div>
@@ -547,31 +547,31 @@ export default function CompetitorsPage() {
                           {/* Company Info */}
                           <div>
                             <div className="flex items-center gap-3">
-                              <h3 className="font-semibold text-gray-800 dark:text-gray-200">
+                              <h3 className="font-semibold text-neutral-800 dark:text-neutral-200">
                                 {competitor.name}
                               </h3>
-                              <div className="flex items-center gap-1 text-sm text-gray-500">
+                              <div className="flex items-center gap-1 text-sm text-neutral-500">
                                 <Globe className="w-3 h-3" />
                                 <span>{competitor.domain}</span>
                               </div>
                             </div>
-                            
+
                             {competitor.reason && (
-                              <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+                              <p className="text-sm text-neutral-600 dark:text-neutral-400 mt-1">
                                 {competitor.reason}
                               </p>
                             )}
-                            
+
                             {competitor.similarity && (
                               <div className="flex items-center gap-2 mt-2">
                                 <div className="flex items-center gap-1">
-                                  <TrendingUp className="w-3 h-3 text-green-500" />
-                                  <span className="text-xs text-gray-500">
-                                    {Math.round(competitor.similarity)}% match
+                                  <TrendingUp className="w-3 h-3 text-success-600" />
+                                  <span className="text-xs text-neutral-500">
+                                    <span className="font-mono tabular-nums">{Math.round(competitor.similarity)}%</span> match
                                   </span>
                                 </div>
                                 {competitor.source && (
-                                  <span className="text-xs px-2 py-0.5 bg-gray-100 dark:bg-gray-800 rounded-full">
+                                  <span className="text-xs px-2 py-0.5 bg-neutral-100 dark:bg-neutral-800 rounded-full">
                                     via {competitor.source}
                                   </span>
                                 )}
@@ -587,7 +587,7 @@ export default function CompetitorsPage() {
                               e.stopPropagation();
                               removeCompetitor(index);
                             }}
-                            className="p-2 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
+                            className="p-2 text-danger-600 hover:bg-danger-50 dark:hover:bg-danger-900/20 rounded-lg transition-colors"
                           >
                             <X className="w-4 h-4" />
                           </button>
@@ -600,52 +600,52 @@ export default function CompetitorsPage() {
             )}
           </div>
 
-          {/* Why Track Competitors */}
-          <div className="bg-gradient-to-r from-primary-50 to-purple-50 dark:from-primary-900/20 dark:to-purple-900/20 rounded-2xl p-6 mb-8">
-            <h3 className="font-semibold text-gray-800 dark:text-gray-200 mb-3 flex items-center gap-2">
-              <Sparkles className="w-5 h-5 text-primary-600" />
+          {/* Professional info box */}
+          <div className="bg-neutral-50 dark:bg-neutral-800/50 rounded-2xl p-6 mb-8 border border-neutral-200 dark:border-neutral-700">
+            <h3 className="font-semibold text-neutral-800 dark:text-neutral-200 mb-3 flex items-center gap-2">
+              <Sparkles className="w-5 h-5 text-neutral-600 dark:text-neutral-400" />
               Why track competitors?
             </h3>
             <div className="grid md:grid-cols-3 gap-4">
               <div className="flex items-start gap-3">
-                <CheckCircle className="w-5 h-5 text-green-500 mt-0.5" />
+                <CheckCircle className="w-5 h-5 text-success-600 mt-0.5" />
                 <div>
-                  <p className="font-medium text-sm">Benchmark Performance</p>
-                  <p className="text-xs text-gray-600 dark:text-gray-400">See how you rank against them</p>
+                  <p className="font-medium text-sm text-neutral-900 dark:text-neutral-0">Benchmark Performance</p>
+                  <p className="text-xs text-neutral-600 dark:text-neutral-400">See how you rank against them</p>
                 </div>
               </div>
               <div className="flex items-start gap-3">
-                <CheckCircle className="w-5 h-5 text-green-500 mt-0.5" />
+                <CheckCircle className="w-5 h-5 text-success-600 mt-0.5" />
                 <div>
-                  <p className="font-medium text-sm">Track Changes</p>
-                  <p className="text-xs text-gray-600 dark:text-gray-400">Get alerts when they improve</p>
+                  <p className="font-medium text-sm text-neutral-900 dark:text-neutral-0">Track Changes</p>
+                  <p className="text-xs text-neutral-600 dark:text-neutral-400">Get alerts when they improve</p>
                 </div>
               </div>
               <div className="flex items-start gap-3">
-                <CheckCircle className="w-5 h-5 text-green-500 mt-0.5" />
+                <CheckCircle className="w-5 h-5 text-success-600 mt-0.5" />
                 <div>
-                  <p className="font-medium text-sm">Find Opportunities</p>
-                  <p className="text-xs text-gray-600 dark:text-gray-400">Discover gaps to exploit</p>
+                  <p className="font-medium text-sm text-neutral-900 dark:text-neutral-0">Find Opportunities</p>
+                  <p className="text-xs text-neutral-600 dark:text-neutral-400">Discover gaps to exploit</p>
                 </div>
               </div>
             </div>
           </div>
 
-          {/* Actions */}
+          {/* Professional actions */}
           <div className="flex justify-between">
             <button
               onClick={handleBack}
-              className="flex items-center gap-2 px-6 py-3 text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 transition-colors"
+              className="flex items-center gap-2 px-6 py-3 text-neutral-600 dark:text-neutral-400 hover:text-neutral-800 dark:hover:text-neutral-200 transition-colors"
             >
               <ArrowLeft className="w-5 h-5" />
               Back
             </button>
-            
+
             <motion.button
               onClick={handleContinue}
               disabled={selectedCount === 0 || loading}
-              className="flex items-center gap-2 px-8 py-3 bg-gradient-to-r from-primary-600 to-purple-600 text-white font-semibold rounded-xl
-                       hover:from-primary-700 hover:to-purple-700 disabled:opacity-50 disabled:cursor-not-allowed
+              className="flex items-center gap-2 px-8 py-3 bg-neutral-900 dark:bg-neutral-0 text-white dark:text-neutral-900 font-semibold rounded-xl
+                       hover:bg-neutral-700 dark:hover:bg-neutral-200 disabled:opacity-50 disabled:cursor-not-allowed
                        transition-all duration-300"
               whileHover={{ scale: 1.05 }}
               whileTap={{ scale: 0.95 }}

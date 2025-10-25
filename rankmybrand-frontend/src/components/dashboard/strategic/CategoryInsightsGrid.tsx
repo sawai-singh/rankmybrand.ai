@@ -9,40 +9,34 @@ interface CategoryInsightsGridProps {
   isLoading?: boolean;
 }
 
-const CATEGORY_INFO: Record<string, { label: string; icon: string; color: string; description: string }> = {
+const CATEGORY_INFO: Record<string, { label: string; color: string; description: string }> = {
   problem_unaware: {
     label: 'Problem Unaware',
-    icon: '🤔',
     color: 'gray',
     description: 'Users who don\'t realize they have a problem yet'
   },
   solution_seeking: {
     label: 'Solution Seeking',
-    icon: '🔍',
     color: 'blue',
     description: 'Actively looking for solutions'
   },
   brand_specific: {
     label: 'Brand Specific',
-    icon: '🎯',
     color: 'purple',
     description: 'Searching for your brand directly'
   },
   comparison: {
     label: 'Comparison',
-    icon: '⚖️',
     color: 'orange',
     description: 'Comparing different options'
   },
   purchase_intent: {
     label: 'Purchase Intent',
-    icon: '💳',
     color: 'green',
     description: 'Ready to make a purchase decision'
   },
   use_case: {
     label: 'Use Case',
-    icon: '📋',
     color: 'indigo',
     description: 'Looking for specific use cases'
   },
@@ -110,11 +104,11 @@ export function CategoryInsightsGrid({ auditId, isLoading: externalLoading }: Ca
   const getColorClasses = (color: string) => {
     const colors = {
       gray: 'bg-gray-100 text-gray-700 border-gray-300',
-      blue: 'bg-blue-100 text-blue-700 border-blue-300',
-      purple: 'bg-purple-100 text-purple-700 border-purple-300',
+      blue: 'bg-neutral-100 dark:bg-neutral-800 text-neutral-900 dark:text-neutral-0 border-neutral-300 dark:border-neutral-700',
+      purple: 'bg-neutral-100 dark:bg-neutral-800 text-neutral-900 dark:text-neutral-0 border-neutral-300 dark:border-neutral-700',
       orange: 'bg-orange-100 text-orange-700 border-orange-300',
       green: 'bg-green-100 text-green-700 border-green-300',
-      indigo: 'bg-indigo-100 text-indigo-700 border-indigo-300',
+      indigo: 'bg-neutral-100 dark:bg-neutral-800 text-neutral-900 dark:text-neutral-0 border-neutral-300 dark:border-neutral-700',
     };
     return colors[color as keyof typeof colors] || colors.gray;
   };
@@ -183,21 +177,21 @@ export function CategoryInsightsGrid({ auditId, isLoading: externalLoading }: Ca
   return (
     <div className="bg-white rounded-xl shadow-lg border border-gray-100 overflow-hidden">
       {/* Header */}
-      <div className="bg-gradient-to-r from-indigo-600 to-blue-600 p-6 text-white">
+      <div className="bg-neutral-900 dark:bg-neutral-0 p-6 text-white dark:text-neutral-900">
         <div className="flex items-center justify-between">
           <div>
             <div className="flex items-center gap-2 mb-2">
               <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" />
               </svg>
-              <h2 className="text-xl font-bold">Category Insights</h2>
+              <h2 className="text-xl font-bold text-white dark:text-neutral-900">Category Insights</h2>
             </div>
-            <p className="text-indigo-100 text-sm">
+            <p className="text-white dark:text-neutral-900 text-sm">
               Top 3 personalized insights per buyer journey stage • Layer 1 Intelligence
             </p>
           </div>
           <div className="text-right">
-            <div className="text-sm text-indigo-100">Categories</div>
+            <div className="text-sm text-white dark:text-neutral-900">Categories</div>
             <div className="text-2xl font-bold">{categoryKeys.length}</div>
           </div>
         </div>
@@ -207,7 +201,7 @@ export function CategoryInsightsGrid({ auditId, isLoading: externalLoading }: Ca
       <div className="border-b border-gray-200 bg-gray-50 p-4">
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-2">
           {categoryKeys.map((category) => {
-            const info = CATEGORY_INFO[category] || { label: category, icon: '📊', color: 'gray', description: '' };
+            const info = CATEGORY_INFO[category] || { label: category, color: 'gray', description: '' };
             const colorClass = getColorClasses(info.color);
             return (
               <button
@@ -219,7 +213,6 @@ export function CategoryInsightsGrid({ auditId, isLoading: externalLoading }: Ca
                     : 'bg-white border-gray-200 hover:border-gray-300 text-gray-700'
                 }`}
               >
-                <div className="text-xl mb-1">{info.icon}</div>
                 <div className="text-xs font-medium">{info.label}</div>
               </button>
             );
@@ -231,9 +224,8 @@ export function CategoryInsightsGrid({ auditId, isLoading: externalLoading }: Ca
       {selectedCategory && selectedInsights && (
         <div className="p-6">
           {/* Category Description */}
-          <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+          <div className="mb-6 p-4 bg-neutral-50 dark:bg-neutral-800/50 border border-neutral-200 dark:border-neutral-700 rounded-lg">
             <div className="flex items-center gap-2 mb-2">
-              <span className="text-2xl">{CATEGORY_INFO[selectedCategory]?.icon}</span>
               <h3 className="font-semibold text-gray-900">{CATEGORY_INFO[selectedCategory]?.label}</h3>
             </div>
             <p className="text-sm text-gray-600">{CATEGORY_INFO[selectedCategory]?.description}</p>
@@ -242,20 +234,20 @@ export function CategoryInsightsGrid({ auditId, isLoading: externalLoading }: Ca
           {/* Type Tabs */}
           <div className="flex gap-2 mb-6">
             {[
-              { id: 'recommendations', label: 'Recommendations', icon: '💡' },
-              { id: 'competitive_gaps', label: 'Competitive Gaps', icon: '🎯' },
-              { id: 'content_opportunities', label: 'Content Opportunities', icon: '✨' },
+              { id: 'recommendations', label: 'Recommendations' },
+              { id: 'competitive_gaps', label: 'Competitive Gaps' },
+              { id: 'content_opportunities', label: 'Content Opportunities' },
             ].map((tab) => (
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id as any)}
                 className={`flex-1 px-4 py-2 rounded-lg text-sm font-medium transition-all ${
                   activeTab === tab.id
-                    ? 'bg-indigo-600 text-white shadow-md'
+                    ? 'bg-neutral-900 dark:bg-neutral-0 text-white dark:text-neutral-900 shadow-md'
                     : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
                 }`}
               >
-                <span className="mr-1">{tab.icon}</span>
+                
                 {tab.label}
               </button>
             ))}
