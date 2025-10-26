@@ -45,9 +45,9 @@ scrape_configs:
     scrape_interval: 10s
 
   # Web Crawler metrics
-  - job_name: 'web-crawler'
-    static_configs:
-      - targets: ['web-crawler:3002']
+# ARCHIVED:   - job_name: 'web-crawler'
+# ARCHIVED:     static_configs:
+# ARCHIVED:       - targets: ['web-crawler:3002']
     metrics_path: '/metrics'
     scrape_interval: 10s
 

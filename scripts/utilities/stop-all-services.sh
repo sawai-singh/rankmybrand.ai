@@ -36,7 +36,7 @@ stop_service() {
 # Stop all services
 stop_service "frontend" 3001
 stop_service "dashboard" 3000
-stop_service "web-crawler" 3002
+# web-crawler archived - no longer needed
 stop_service "api-gateway" 4000
 stop_service "intelligence-engine" 8002
 stop_service "action-center" 8082

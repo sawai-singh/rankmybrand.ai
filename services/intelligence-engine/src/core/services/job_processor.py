@@ -306,7 +306,7 @@ class AuditJobProcessor:
         audit_id = job_data.get('audit_id') or job_data.get('auditId')
         company_id = job_data.get('company_id') or job_data.get('companyId')
         user_id = job_data.get('user_id') or job_data.get('userId', 0)
-        query_count = job_data.get('query_count') or job_data.get('queryCount', 48)  # Default 48 queries
+        query_count = job_data.get('query_count') or job_data.get('queryCount', 42)  # Default 42 queries (5-phase framework)
         providers = job_data.get('providers', ['openai_gpt5', 'anthropic_claude', 'google_gemini', 'perplexity'])
         config = job_data.get('config', {})
 
@@ -480,7 +480,7 @@ class AuditJobProcessor:
                         audit_id
                     )
 
-                    # Extract insights for each category (6 categories × 2 batches × 3 extractions = 36 LLM calls max)
+                    # Extract insights for each phase (5 phases × ~4 batches × 3 extractions ≈ 60 LLM calls, varies by batch size)
                     category_insights = {}
                     for category, category_responses in grouped_responses.items():
                         if len(category_responses) == 0:
@@ -551,8 +551,8 @@ class AuditJobProcessor:
                     # Legacy mode - calculate from in-memory analyses
                     overall_metrics = self.response_analyzer.calculate_aggregate_metrics(analyses)
 
-                # LAYER 1: Per-category aggregation (18 LLM calls: 6 categories × 3 types)
-                logger.info("🎯 LAYER 1: Aggregating insights per category (18 LLM calls)")
+                # LAYER 1: Per-phase aggregation (15 LLM calls: 5 phases × 3 types)
+                logger.info("🎯 LAYER 1: Aggregating insights per phase (15 LLM calls: 5 phases × 3 types)")
                 category_aggregated = await self.strategic_aggregator.aggregate_by_category(
                     raw_insights=category_insights,
                     company_context=full_company_context,
@@ -581,7 +581,7 @@ class AuditJobProcessor:
                 )
                 logger.info(f"✅ LAYER 3 complete: Executive summary generated")
 
-                logger.info("🎉🎉🎉 COMPLETE: 118 LLM calls total (96 + 18 + 3 + 1)")
+                logger.info("🎉🎉🎉 COMPLETE: 103 LLM calls total (84 batch + 15 Layer1 + 3 Layer2 + 1 Layer3) - 12.7% cost reduction!")
 
                 # Store Layer 1-3 outputs to database
                 logger.info("💾 Storing strategic intelligence to database...")
@@ -842,8 +842,8 @@ class AuditJobProcessor:
                     cursor.execute(
                         """INSERT INTO audit_queries
                            (audit_id, query_text, category, intent, priority_score,
-                            complexity_score, buyer_journey_stage, query_category, created_at)
-                           VALUES (%s, %s, %s, %s, %s, %s, %s, %s, NOW())""",
+                            complexity_score, buyer_journey_stage, query_category, buyer_journey_phase, created_at)
+                           VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, NOW())""",
                         (
                             audit_id,
                             query.query_text,
@@ -852,7 +852,8 @@ class AuditJobProcessor:
                             query.priority_score,
                             query.complexity_score,
                             query.buyer_journey_stage,  # 3-stage (backward compat)
-                            query.buyer_journey_category  # 6-category (world-class batching)
+                            query.buyer_journey_category,  # OLD column: query_category (for backward compat reads)
+                            query.buyer_journey_category   # NEW column: buyer_journey_phase (5-phase framework)
                         )
                     )
                     saved_count += 1
@@ -1820,10 +1821,10 @@ class AuditJobProcessor:
 
     def _group_responses_by_buyer_journey_sync(self, audit_id: str) -> Dict[str, List[Dict]]:
         """
-        Group responses by buyer journey category (6 categories)
+        Group responses by buyer journey phase (5-phase framework)
 
-        Returns responses organized by: problem_unaware, solution_seeking,
-        brand_specific, comparison, purchase_intent, use_case
+        Returns responses organized by: discovery, research, evaluation, comparison, purchase
+        Strategic weighting: Comparison (29%) > Evaluation (24%) > Research (19%) > Discovery (14%) = Purchase (14%)
 
         World-class implementation for context-aware analysis batching.
         """
@@ -1850,18 +1851,18 @@ class AuditJobProcessor:
 
                 responses = cursor.fetchall()
 
-            # Group by category
+            # Group by category (5-phase framework)
+            # Strategic weighting: Comparison (29%) > Evaluation (24%) > Research (19%) > Discovery (14%) = Purchase (14%)
             grouped = {
-                'problem_unaware': [],
-                'solution_seeking': [],
-                'brand_specific': [],
-                'comparison': [],
-                'purchase_intent': [],
-                'use_case': []
+                'discovery': [],       # 6 queries, 14% - Problem awareness
+                'research': [],        # 8 queries, 19% - Solution landscape
+                'evaluation': [],      # 10 queries, 24% - Brand investigation
+                'comparison': [],      # 12 queries, 29% - CRITICAL (60-70% of B2B deals won/lost)
+                'purchase': []         # 6 queries, 14% - Conversion intent
             }
 
             for response in responses:
-                category = response['query_category'] or 'solution_seeking'
+                category = response['query_category'] or 'research'  # Default to research (was solution_seeking)
                 if category in grouped:
                     grouped[category].append(dict(response))
 
@@ -1891,8 +1892,8 @@ class AuditJobProcessor:
 
         Args:
             audit_id: Audit identifier
-            category: Buyer journey category (e.g., 'comparison', 'purchase_intent')
-            responses: List of responses in this category
+            category: Buyer journey phase (e.g., 'comparison', 'purchase', 'evaluation')
+            responses: List of responses in this phase
             context: Company context for analysis
 
         Returns:
@@ -2756,7 +2757,7 @@ class AuditJobProcessor:
                 metrics = cursor.fetchone()
 
                 # Phase 2 is complete if:
-                # - We have 60+ batch insights (6 categories × 4 batches × 3 types = 72, allow some variance)
+                # - We have 60+ batch insights (5 phases × ~4 batches × 3 types ≈ 60-84, varies by batch size)
                 # - 95%+ of responses have category (allow up to 5% missing for error tolerance)
                 # - 95%+ of responses have timestamp
                 completion_rate_category = metrics['with_category'] / metrics['total'] if metrics['total'] > 0 else 0
@@ -2930,14 +2931,13 @@ class AuditJobProcessor:
         conn = self._get_db_connection_sync()
         try:
             with conn.cursor() as cursor:
-                # Map category to funnel stage
+                # Map phase to funnel stage (5-phase framework)
                 funnel_stage_map = {
-                    'problem_unaware': 'awareness',
-                    'solution_seeking': 'awareness',
-                    'brand_specific': 'consideration',
-                    'comparison': 'consideration',
-                    'purchase_intent': 'decision',
-                    'use_case': 'decision'
+                    'discovery': 'awareness',        # 6 queries, 14%
+                    'research': 'awareness',         # 8 queries, 19%
+                    'evaluation': 'consideration',   # 10 queries, 24%
+                    'comparison': 'consideration',   # 12 queries, 29% - CRITICAL
+                    'purchase': 'decision'           # 6 queries, 14%
                 }
                 funnel_stage = funnel_stage_map.get(category, 'consideration')
 

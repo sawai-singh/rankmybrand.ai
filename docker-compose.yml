@@ -62,7 +62,6 @@ services:
       DATABASE_URL: postgresql://${DB_USER:-postgres}:${DB_PASSWORD}@postgres:5432/rankmybrand
       REDIS_URL: redis://:${REDIS_PASSWORD:-redis123}@redis:6379
       INTELLIGENCE_SERVICE: http://intelligence-engine:8002
-      CRAWLER_SERVICE: http://web-crawler:3002
       JWT_SECRET: ${JWT_SECRET}
     ports:
       - "4000:4000"
@@ -103,31 +102,6 @@ services:
         condition: service_healthy
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8002/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-    restart: unless-stopped
-
-  # Web Crawler - Used by enrichment service (Port 3002)
-  web-crawler:
-    build:
-      context: ./services/web-crawler
-      dockerfile: Dockerfile
-    container_name: rmb_crawler
-    environment:
-      PORT: 3002
-      DATABASE_URL: postgresql://${DB_USER:-postgres}:${DB_PASSWORD}@postgres:5432/rankmybrand
-      REDIS_HOST: redis
-      REDIS_PASSWORD: ${REDIS_PASSWORD:-redis123}
-    ports:
-      - "3002:3002"
-    depends_on:
-      postgres:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:3002/health"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -210,6 +184,7 @@ services:
 # ========================================
 # REMOVED SERVICES (Never called in code):
 # ========================================
+# ❌ web-crawler - Archived (legacy search intelligence, never used)
 # ❌ ai-response-monitor - No integration found
 # ❌ foundation - No API calls found
 # ❌ action-center - Configured but never called

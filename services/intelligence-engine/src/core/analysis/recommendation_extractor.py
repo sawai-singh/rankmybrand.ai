@@ -515,42 +515,43 @@ class WorldClassRecommendationAggregator:
     """
 
     # Buyer journey context mapping for intelligent prompting
+    # 5-Phase Framework - Strategic weighting: Comparison (29%) > Evaluation (24%) > Research (19%) > Discovery (14%) = Purchase (14%)
+    # Total: 42 queries for competitive intelligence
     CATEGORY_CONTEXT = {
-        'problem_unaware': {
-            'stage': 'Early Awareness',
-            'mindset': 'Users experiencing problems but unaware solutions exist',
+        'discovery': {
+            'stage': 'Problem Discovery',
+            'mindset': 'Users identifying pain points and recognizing problems',
             'focus': 'Educational content, problem identification, thought leadership',
-            'goal': 'Build awareness and establish authority as solution provider'
+            'goal': 'Build awareness and establish authority as solution provider',
+            'strategic_weight': 0.14  # 6 queries, 14%
         },
-        'solution_seeking': {
-            'stage': 'Active Research',
-            'mindset': 'Users actively searching for solutions to known problems',
+        'research': {
+            'stage': 'Solution Research',
+            'mindset': 'Exploring solution landscape and category options',
             'focus': 'Solution comparison, educational resources, case studies',
-            'goal': 'Position as best solution category and build consideration'
+            'goal': 'Position as best solution category and build consideration',
+            'strategic_weight': 0.19  # 8 queries, 19%
         },
-        'brand_specific': {
+        'evaluation': {
             'stage': 'Brand Evaluation',
-            'mindset': 'Users specifically researching your brand',
+            'mindset': 'Investigating specific brands and capabilities',
             'focus': 'Brand differentiation, unique value props, trust signals',
-            'goal': 'Reinforce brand strengths and address concerns'
+            'goal': 'Establish trust and demonstrate unique value',
+            'strategic_weight': 0.24  # 10 queries, 24%
         },
         'comparison': {
-            'stage': 'Competitive Analysis',
-            'mindset': 'Users comparing multiple solutions/brands',
-            'focus': 'Competitive advantages, feature comparisons, ROI evidence',
-            'goal': 'Win competitive evaluations and demonstrate superiority'
+            'stage': 'Competitive Comparison',
+            'mindset': 'Head-to-head competitive comparison (60-70% of B2B deals won/lost here)',
+            'focus': 'Competitive advantages, feature comparisons, ROI evidence, win/loss factors',
+            'goal': 'Win competitive evaluations and demonstrate superiority',
+            'strategic_weight': 0.29  # 12 queries, 29% - CRITICAL PHASE
         },
-        'purchase_intent': {
-            'stage': 'Decision Making',
-            'mindset': 'Users ready to buy, looking for final validation',
-            'focus': 'Conversion triggers, pricing clarity, risk mitigation',
-            'goal': 'Remove friction and drive conversions'
-        },
-        'use_case': {
-            'stage': 'Application Research',
-            'mindset': 'Users exploring specific use cases and applications',
-            'focus': 'Use case examples, implementation guides, success stories',
-            'goal': 'Demonstrate versatility and practical value'
+        'purchase': {
+            'stage': 'Purchase Decision',
+            'mindset': 'Ready to buy, seeking final validation and conversion signals',
+            'focus': 'Conversion triggers, pricing clarity, risk mitigation, trial/demo opportunities',
+            'goal': 'Remove friction and drive conversions',
+            'strategic_weight': 0.14  # 6 queries, 14%
         }
     }
 
@@ -583,7 +584,7 @@ class WorldClassRecommendationAggregator:
         This is the secret sauce - prompts adapt to the buyer's mindset at each stage.
         """
 
-        category_info = self.CATEGORY_CONTEXT.get(category, self.CATEGORY_CONTEXT['solution_seeking'])
+        category_info = self.CATEGORY_CONTEXT.get(category, self.CATEGORY_CONTEXT['research'])
         competitor_str = ', '.join(competitors) if competitors else 'general market competitors'
 
         # Base context shared across all extraction types
@@ -912,9 +913,9 @@ Return JSON:
 {{
   "executive_brief": "3-4 sentence strategic overview",
   "buyer_journey_analysis": {{
-    "awareness_stage": "Key insights for problem_unaware + solution_seeking",
-    "consideration_stage": "Key insights for brand_specific + comparison",
-    "decision_stage": "Key insights for purchase_intent + use_case"
+    "awareness_stage": "Key insights for discovery + research phases",
+    "consideration_stage": "Key insights for evaluation + comparison phases (CRITICAL - 29% weight)",
+    "decision_stage": "Key insights for purchase phase"
   }},
   "strategic_priorities": ["Priority 1", "Priority 2", "Priority 3"],
   "quick_wins": ["Immediate action 1", "Immediate action 2"],
@@ -1065,7 +1066,7 @@ Return JSON:
         """
 
         # Get category context
-        category_info = self.CATEGORY_CONTEXT.get(category, self.CATEGORY_CONTEXT['solution_seeking'])
+        category_info = self.CATEGORY_CONTEXT.get(category, self.CATEGORY_CONTEXT['research'])
         competitor_str = ', '.join(competitors[:5]) if competitors else 'general market competitors'
 
         # Format responses for prompt (limit each to 1500 chars to fit in context)

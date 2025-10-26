@@ -4,7 +4,6 @@ import { env } from './env';
 // API configuration - Use validated environment variables
 const API_GATEWAY = env.NEXT_PUBLIC_API_GATEWAY;
 const GEO_CALCULATOR = env.NEXT_PUBLIC_GEO_CALCULATOR;
-const WEB_CRAWLER = env.NEXT_PUBLIC_WEB_CRAWLER;
 const INTELLIGENCE_ENGINE = env.NEXT_PUBLIC_INTELLIGENCE_ENGINE;
 const ACTION_CENTER = process.env.NEXT_PUBLIC_ACTION_CENTER || 'http://localhost:8002';
 
@@ -145,20 +144,6 @@ class ApiClient {
   
   async getGeoScores() {
     const response = await fetchWithTimeout(`${GEO_CALCULATOR}/api/v1/geo/scores`);
-    return response.json();
-  }
-  
-  // Web Crawler endpoints
-  async startCrawl(url: string, depth = 2) {
-    const response = await fetchWithTimeout(`${WEB_CRAWLER}/api/crawl`, {
-      method: 'POST',
-      body: JSON.stringify({ url, depth }),
-    });
-    return response.json();
-  }
-  
-  async getCrawlStatus(jobId: string) {
-    const response = await fetchWithTimeout(`${WEB_CRAWLER}/api/crawl/${jobId}`);
     return response.json();
   }
   

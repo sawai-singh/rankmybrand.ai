@@ -109,7 +109,7 @@ else
 fi
 
 # Web Crawler - Port 3002
-start_service "web-crawler" "/Users/sawai/Desktop/rankmybrand.ai/services/web-crawler" "npm run dev" 3002
+# web-crawler archived - no longer needed
 
 # WebSocket Server - Port 3001 (if separate from frontend)
 # Note: May conflict with frontend if both use 3001

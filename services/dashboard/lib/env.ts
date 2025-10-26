@@ -15,7 +15,6 @@ const envSchema = z.object({
   NEXT_PUBLIC_API_GATEWAY: z.string().url().default('http://localhost:4000'),
   NEXT_PUBLIC_INTELLIGENCE_ENGINE: z.string().url().default('http://localhost:8002'),
   NEXT_PUBLIC_GEO_CALCULATOR: z.string().url().default('http://localhost:8002'),
-  NEXT_PUBLIC_WEB_CRAWLER: z.string().url().default('http://localhost:3002'),
 
   // WebSocket URL - must start with ws:// or wss://
   NEXT_PUBLIC_WS_URL: z.string()
@@ -43,7 +42,6 @@ export const env = envSchema.parse({
   NEXT_PUBLIC_API_GATEWAY: process.env.NEXT_PUBLIC_API_GATEWAY,
   NEXT_PUBLIC_INTELLIGENCE_ENGINE: process.env.NEXT_PUBLIC_INTELLIGENCE_ENGINE,
   NEXT_PUBLIC_GEO_CALCULATOR: process.env.NEXT_PUBLIC_GEO_CALCULATOR,
-  NEXT_PUBLIC_WEB_CRAWLER: process.env.NEXT_PUBLIC_WEB_CRAWLER,
   NEXT_PUBLIC_WS_URL: process.env.NEXT_PUBLIC_WS_URL,
   NEXTAUTH_URL: process.env.NEXTAUTH_URL,
   NEXTAUTH_SECRET: process.env.NEXTAUTH_SECRET,

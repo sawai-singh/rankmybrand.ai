@@ -140,7 +140,7 @@ echo ""
 echo "📝 Service Logs:"
 echo "================"
 echo "View logs with: docker-compose -f docker-compose.production.yml logs -f [service-name]"
-echo "Services: postgres, redis, api-gateway, intelligence-engine, web-crawler, websocket-server, dashboard, frontend, action-center"
+echo "Services: postgres, redis, api-gateway, intelligence-engine, dashboard, frontend, action-center"
 
 echo ""
 echo "🌐 Access Points:"

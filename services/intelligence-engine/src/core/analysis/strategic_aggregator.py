@@ -167,45 +167,46 @@ def determine_persona_context(company_context: CompanyContext) -> PersonaContext
 
 
 # =====================================================
-# Buyer Journey Category Mapping
+# Buyer Journey Phase Mapping (5-Phase Framework)
 # =====================================================
+# Strategic weighting: Comparison (29%) > Evaluation (24%) > Research (19%) > Discovery (14%) = Purchase (14%)
+# Total: 42 queries for competitive intelligence
 
 CATEGORY_MAPPING = {
-    'problem_unaware': {
-        'stage': 'Early Awareness',
+    'discovery': {
+        'stage': 'Problem Discovery',
         'funnel_stage': 'awareness',
-        'mindset': 'Users experiencing problems but unaware solutions exist',
-        'focus': 'Educational content, problem identification, thought leadership'
+        'mindset': 'Users identifying pain points and recognizing problems',
+        'focus': 'Educational content, problem identification, thought leadership',
+        'strategic_weight': 0.14  # 6 queries, 14% of total
     },
-    'solution_seeking': {
-        'stage': 'Active Research',
+    'research': {
+        'stage': 'Solution Research',
         'funnel_stage': 'awareness',
-        'mindset': 'Users actively searching for solutions to known problems',
-        'focus': 'Solution comparison, educational resources, case studies'
+        'mindset': 'Users exploring solution landscape and category options',
+        'focus': 'Solution comparison, educational resources, case studies',
+        'strategic_weight': 0.19  # 8 queries, 19% of total
     },
-    'brand_specific': {
+    'evaluation': {
         'stage': 'Brand Evaluation',
         'funnel_stage': 'consideration',
-        'mindset': 'Users specifically researching your brand',
-        'focus': 'Brand differentiation, unique value props, trust signals'
+        'mindset': 'Users specifically investigating your brand and capabilities',
+        'focus': 'Brand differentiation, unique value props, trust signals',
+        'strategic_weight': 0.24  # 10 queries, 24% of total
     },
     'comparison': {
-        'stage': 'Competitive Analysis',
+        'stage': 'Competitive Comparison',
         'funnel_stage': 'consideration',
-        'mindset': 'Users comparing multiple solutions/brands',
-        'focus': 'Competitive advantages, feature comparisons, ROI evidence'
+        'mindset': 'Users comparing specific solutions head-to-head (60-70% of B2B deals won/lost here)',
+        'focus': 'Competitive advantages, feature comparisons, ROI evidence, win/loss factors',
+        'strategic_weight': 0.29  # 12 queries, 29% of total - HIGHEST PRIORITY
     },
-    'purchase_intent': {
-        'stage': 'Decision Making',
+    'purchase': {
+        'stage': 'Purchase Decision',
         'funnel_stage': 'decision',
-        'mindset': 'Users ready to buy, looking for final validation',
-        'focus': 'Conversion triggers, pricing clarity, risk mitigation'
-    },
-    'use_case': {
-        'stage': 'Application Research',
-        'funnel_stage': 'decision',
-        'mindset': 'Users exploring specific use cases and applications',
-        'focus': 'Use case examples, implementation guides, success stories'
+        'mindset': 'Users ready to buy, seeking final validation and conversion signals',
+        'focus': 'Conversion triggers, pricing clarity, risk mitigation, onboarding confidence',
+        'strategic_weight': 0.14  # 6 queries, 14% of total
     }
 }
 
@@ -218,10 +219,12 @@ class StrategicIntelligenceAggregator:
     """
     Implements Layers 1, 2, 3 for world-class strategic insights.
 
-    Total: 22 LLM calls
-    - Layer 1: 18 calls (6 categories × 3 types)
+    Total: 15 LLM calls
+    - Layer 1: 15 calls (5 phases × 3 types)
     - Layer 2: 3 calls (3 types)
     - Layer 3: 1 call (executive summary)
+
+    5-Phase Framework: Discovery → Research → Evaluation → Comparison (29% focus) → Purchase
     """
 
     def __init__(self, openai_api_key: str, model: str = "gpt-5-nano"):
@@ -301,31 +304,31 @@ class StrategicIntelligenceAggregator:
         persona_context: PersonaContext
     ) -> Dict[str, Dict[str, List[Dict]]]:
         """
-        Layer 1: Aggregate 40 items → 3 personalized items per type per category.
+        Layer 1: Aggregate items → 3 personalized items per type per phase.
 
-        For each of 6 categories:
-        - Input: 40 recs + 40 gaps + 40 opps (from 4 batches)
+        For each of 5 phases:
+        - Input: Variable recs + gaps + opps (based on phase query count)
         - Make 3 parallel LLM calls
         - Output: 3 recs + 3 gaps + 3 opps (personalized)
 
-        Total: 6 categories × 3 calls = 18 LLM calls
+        Total: 5 phases × 3 calls = 15 LLM calls
 
         Args:
-            raw_insights: Dict[category] -> List[batch_insights]
+            raw_insights: Dict[phase] -> List[batch_insights]
             company_context: Company profile
             persona_context: Decision-maker profile
 
         Returns:
-            Dict[category] -> Dict[type] -> List[3 personalized items]
+            Dict[phase] -> Dict[type] -> List[3 personalized items]
         """
 
-        logger.info("🎯 LAYER 1: Starting per-category aggregation (18 LLM calls)")
+        logger.info("🎯 LAYER 1: Starting per-phase aggregation (15 LLM calls)")
         start_time = datetime.now()
 
-        category_insights = {}
+        phase_insights = {}
 
-        for category, batch_insights in raw_insights.items():
-            logger.info(f"   Processing category: {category}")
+        for phase, batch_insights in raw_insights.items():
+            logger.info(f"   Processing phase: {phase}")
 
             # Collect all items from 4 batches
             all_recommendations = []
@@ -345,49 +348,49 @@ class StrategicIntelligenceAggregator:
             # Make 3 parallel aggregation calls
             tasks = [
                 self._aggregate_with_personalization(
-                    all_recommendations, category, 'recommendations',
+                    all_recommendations, phase, 'recommendations',
                     company_context, persona_context, top_n=3
                 ),
                 self._aggregate_with_personalization(
-                    all_gaps, category, 'competitive_gaps',
+                    all_gaps, phase, 'competitive_gaps',
                     company_context, persona_context, top_n=3
                 ),
                 self._aggregate_with_personalization(
-                    all_opportunities, category, 'content_opportunities',
+                    all_opportunities, phase, 'content_opportunities',
                     company_context, persona_context, top_n=3
                 )
             ]
 
             results = await asyncio.gather(*tasks, return_exceptions=True)
 
-            category_insights[category] = {
+            phase_insights[phase] = {
                 'recommendations': results[0] if not isinstance(results[0], Exception) else [],
                 'competitive_gaps': results[1] if not isinstance(results[1], Exception) else [],
                 'content_opportunities': results[2] if not isinstance(results[2], Exception) else []
             }
 
             logger.info(
-                f"     ✅ Output: {len(category_insights[category]['recommendations'])} recs, "
-                f"{len(category_insights[category]['competitive_gaps'])} gaps, "
-                f"{len(category_insights[category]['content_opportunities'])} opps"
+                f"     ✅ Output: {len(phase_insights[phase]['recommendations'])} recs, "
+                f"{len(phase_insights[phase]['competitive_gaps'])} gaps, "
+                f"{len(phase_insights[phase]['content_opportunities'])} opps"
             )
 
         elapsed = (datetime.now() - start_time).total_seconds()
-        logger.info(f"✅ LAYER 1 COMPLETE: 18 LLM calls in {elapsed:.1f}s")
+        logger.info(f"✅ LAYER 1 COMPLETE: 15 LLM calls in {elapsed:.1f}s")
 
-        return category_insights
+        return phase_insights
 
     async def _aggregate_with_personalization(
         self,
         items: List[Dict],
-        category: str,
+        phase: str,
         extraction_type: str,
         company_context: CompanyContext,
         persona_context: PersonaContext,
         top_n: int = 3
     ) -> List[Dict]:
         """
-        Consolidate 40 items → top 3 with company-specific personalization.
+        Consolidate items → top 3 with company-specific personalization.
 
         Makes 1 LLM call to:
         1. Deduplicate and merge similar items
@@ -397,12 +400,12 @@ class StrategicIntelligenceAggregator:
         """
 
         if not items or len(items) == 0:
-            logger.warning(f"No items to aggregate for {category} {extraction_type}")
+            logger.warning(f"No items to aggregate for {phase} {extraction_type}")
             return []
 
         # Build personalized prompt
         prompt = self._build_layer1_prompt(
-            items, category, extraction_type,
+            items, phase, extraction_type,
             company_context, persona_context, top_n
         )
 
@@ -434,22 +437,22 @@ class StrategicIntelligenceAggregator:
             # Parse with fallback
             result = self._parse_json_response(content)
             if not result:
-                logger.error(f"Failed to parse JSON for {category}/{extraction_type}")
+                logger.error(f"Failed to parse JSON for {phase}/{extraction_type}")
                 return []
 
             consolidated = result.get(extraction_type, [])[:top_n]
 
-            logger.info(f"       {category}/{extraction_type}: {len(items)} → {len(consolidated)} items")
+            logger.info(f"       {phase}/{extraction_type}: {len(items)} → {len(consolidated)} items")
             return consolidated
 
         except Exception as e:
-            logger.error(f"Error in Layer 1 aggregation for {category} {extraction_type}: {e}")
+            logger.error(f"Error in Layer 1 aggregation for {phase} {extraction_type}: {e}")
             return []
 
     def _build_layer1_prompt(
         self,
         items: List[Dict],
-        category: str,
+        phase: str,
         extraction_type: str,
         company_context: CompanyContext,
         persona_context: PersonaContext,
@@ -457,10 +460,10 @@ class StrategicIntelligenceAggregator:
     ) -> str:
         """Build personalized aggregation prompt for Layer 1"""
 
-        category_info = CATEGORY_MAPPING.get(category, {})
+        phase_info = CATEGORY_MAPPING.get(phase, {})
         competitor_str = ', '.join(company_context.main_competitors[:3]) if company_context.main_competitors else 'competitors'
 
-        return f"""You have {len(items)} {extraction_type.replace('_', ' ')} for the "{category}" buyer journey stage ({category_info.get('stage', category)}) for {company_context.company_name}.
+        return f"""You have {len(items)} {extraction_type.replace('_', ' ')} for the "{phase}" buyer journey phase ({phase_info.get('stage', phase)}) for {company_context.company_name}.
 
 COMPANY CONTEXT:
 - Name: {company_context.company_name}
@@ -481,11 +484,12 @@ DECISION MAKER:
 - Risk Tolerance: {persona_context.risk_tolerance}
 
 BUYER JOURNEY CONTEXT:
-- Stage: {category_info.get('stage', category)}
-- User Mindset: {category_info.get('mindset', '')}
-- Strategic Focus: {category_info.get('focus', '')}
+- Phase: {phase_info.get('stage', phase)}
+- User Mindset: {phase_info.get('mindset', '')}
+- Strategic Focus: {phase_info.get('focus', '')}
+- Strategic Weight: {phase_info.get('strategic_weight', 0)*100:.0f}% of total query focus
 
-ALL ITEMS FROM 4 BATCHES:
+ALL ITEMS FROM BATCHES:
 {json.dumps(items[:30], indent=2)}
 {"... (truncated)" if len(items) > 30 else ""}
 
@@ -512,7 +516,7 @@ Return JSON with top {top_n} personalized items:
       "impact": "Low|Medium|High|Critical",
       "difficulty": "Easy|Moderate|Hard|Complex",
       "timeline": "Specific realistic timeline",
-      "buyer_journey_context": "{category}",
+      "buyer_journey_context": "{phase}",
       "implementation": {{
         "budget": "Range in their budget authority",
         "team": "Team size they have",
@@ -545,9 +549,9 @@ CRITICAL: Return ONLY the JSON object above. No explanations, no markdown, no ad
         overall_metrics: Dict[str, Any]
     ) -> Dict[str, List[Dict]]:
         """
-        Layer 2: Select top 3-5 items across all categories.
+        Layer 2: Select top 3-5 items across all phases.
 
-        Input: 18 recs + 18 gaps + 18 opps (3 per category × 6 categories)
+        Input: 15 recs + 15 gaps + 15 opps (3 per phase × 5 phases)
         Make 3 parallel LLM calls (one per type)
         Output: 3-5 recs + 3-5 gaps + 3-5 opps (final strategic priorities)
 
@@ -596,25 +600,25 @@ CRITICAL: Return ONLY the JSON object above. No explanations, no markdown, no ad
 
     async def _select_strategic_priorities(
         self,
-        category_insights: Dict[str, Dict[str, List[Dict]]],
+        phase_insights: Dict[str, Dict[str, List[Dict]]],
         extraction_type: str,
         company_context: CompanyContext,
         persona_context: PersonaContext,
         overall_metrics: Dict[str, Any]
     ) -> List[Dict]:
         """
-        Select top 3-5 items from all 18 category-level items.
+        Select top 3-5 items from all 15 phase-level items.
 
-        Cross-category pattern recognition with company-specific ROI calculations.
+        Cross-phase pattern recognition with company-specific ROI calculations.
         """
 
-        # Collect all items with category context
+        # Collect all items with phase context
         all_items = []
-        for category, insights in category_insights.items():
+        for phase, insights in phase_insights.items():
             for item in insights.get(extraction_type, []):
                 item_copy = item.copy()
-                item_copy['source_category'] = category
-                item_copy['funnel_stage'] = CATEGORY_MAPPING.get(category, {}).get('funnel_stage', 'consideration')
+                item_copy['source_phase'] = phase
+                item_copy['funnel_stage'] = CATEGORY_MAPPING.get(phase, {}).get('funnel_stage', 'consideration')
                 all_items.append(item_copy)
 
         if not all_items:
@@ -704,7 +708,7 @@ CURRENT AUDIT RESULTS:
 - GEO Score: {overall_metrics.get('geo', 0):.1f}/100
 - SOV Score: {overall_metrics.get('sov', 0):.1f}/100
 
-ALL CATEGORY-LEVEL {extraction_type.upper().replace('_', ' ')} (18 items):
+ALL PHASE-LEVEL {extraction_type.upper().replace('_', ' ')} (15 items):
 {json.dumps(items, indent=2)[:5000]}
 
 SELECTION CRITERIA:
@@ -712,7 +716,7 @@ SELECTION CRITERIA:
 2. **Feasibility**: Realistic with {persona_context.resource_availability} resources and {persona_context.budget_authority} budget?
 3. **Urgency**: What matters most RIGHT NOW for {company_context.growth_stage} stage?
 4. **Strategic Fit**: Aligns with {persona_context.primary_persona}'s priorities?
-5. **Cross-Category Synergy**: Unlocks multiple buyer journey stages?
+5. **Cross-Phase Synergy**: Unlocks multiple buyer journey phases?
 6. **Competitive Advantage**: Gives decisive advantage vs {company_context.main_competitors[0] if company_context.main_competitors else 'competitors'}?
 
 Return JSON with 3-5 items (lean toward 3 for focus):
@@ -723,7 +727,7 @@ Return JSON with 3-5 items (lean toward 3 for focus):
       "title": "Compelling headline",
       "executive_pitch": "2-sentence board pitch",
       "strategic_rationale": "Why THIS is THE priority",
-      "source_categories": ["comparison", "purchase_intent"],
+      "source_phases": ["comparison", "purchase"],
       "funnel_stages_impacted": ["consideration", "decision"],
       "business_impact": {{
         "pipeline_impact": "Specific $ or %",

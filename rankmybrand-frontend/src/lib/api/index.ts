@@ -10,7 +10,6 @@ import { env } from '../env';
 // Service URLs from validated environment - Use API Gateway for all services
 const API_GATEWAY = env.NEXT_PUBLIC_API_GATEWAY;
 const GEO_API = API_GATEWAY; // Use API Gateway
-const CRAWLER_API = API_GATEWAY; // Use API Gateway
 const SEARCH_API = API_GATEWAY; // Use API Gateway
 const WS_URL = env.NEXT_PUBLIC_WS_URL;
 const DASHBOARD_WS = env.NEXT_PUBLIC_WS_URL;
@@ -46,18 +45,6 @@ export interface GEOScore {
   timestamp: string;
 }
 
-export interface CrawlJob {
-  id: string;
-  url: string;
-  status: 'pending' | 'processing' | 'completed' | 'failed';
-  progress: number;
-  results?: {
-    pages: number;
-    keywords: string[];
-    content: any;
-  };
-}
-
 export interface SearchIntelligence {
   query: string;
   results: Array<{
@@ -87,7 +74,6 @@ export interface RealTimeMetrics {
  */
 class RankMyBrandAPI {
   private geoClient: AxiosInstance;
-  private crawlerClient: AxiosInstance;
   private searchClient: AxiosInstance;
   private wsConnection: Socket | null = null;
   private subscribers: Map<string, Set<Function>> = new Map();
@@ -95,7 +81,6 @@ class RankMyBrandAPI {
   constructor() {
     // Initialize HTTP clients with interceptors
     this.geoClient = this.createClient(GEO_API, 'GEO');
-    this.crawlerClient = this.createClient(CRAWLER_API, 'Crawler');
     this.searchClient = this.createClient(SEARCH_API, 'Search');
   }
 
@@ -224,48 +209,6 @@ class RankMyBrandAPI {
       params: { days }
     });
     return data;
-  }
-
-  // ========================================
-  // Web Crawler API Methods
-  // ========================================
-
-  /**
-   * Start a crawl job
-   */
-  async startCrawl(url: string, options?: { depth?: number; limit?: number }): Promise<CrawlJob> {
-    const { data } = await this.crawlerClient.post('/api/crawl', {
-      url,
-      depth: options?.depth || 2,
-      limit: options?.limit || 50,
-    });
-    return data;
-  }
-
-  /**
-   * Get crawl job status
-   */
-  async getCrawlStatus(jobId: string): Promise<CrawlJob> {
-    const { data } = await this.crawlerClient.get(`/api/crawl/${jobId}`);
-    return data;
-  }
-
-  /**
-   * Subscribe to crawl job updates via WebSocket
-   */
-  subscribeToCrawlUpdates(jobId: string, callback: (data: any) => void) {
-    const ws = new WebSocket(`${CRAWLER_API.replace('http', 'ws')}/ws/crawl/${jobId}`);
-    
-    ws.onmessage = (event) => {
-      const data = JSON.parse(event.data);
-      callback(data);
-    };
-
-    ws.onerror = (error) => {
-      console.error('Crawl WebSocket error:', error);
-    };
-
-    return () => ws.close();
   }
 
   // ========================================
@@ -786,15 +729,13 @@ class RankMyBrandAPI {
   async getCompleteBrandAnalysis(domain: string): Promise<any> {
     try {
       // Run all analyses in parallel
-      const [geoScore, crawlJob, recommendations] = await Promise.all([
+      const [geoScore, recommendations] = await Promise.all([
         this.getDetailedAnalysis(domain),
-        this.startCrawl(`https://${domain}`, { depth: 2, limit: 20 }),
         this.getContentRecommendations(domain).catch(() => null),
       ]);
 
       return {
         geoScore,
-        crawlJob,
         recommendations,
         timestamp: new Date().toISOString(),
       };

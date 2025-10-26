@@ -45,7 +45,7 @@ class GenerateQueriesRequest(BaseModel):
     # Enhanced generation fields
     prompt: Optional[str] = None
     use_enhanced_generation: bool = False
-    query_count: int = 48
+    query_count: int = 42
     include_metadata: bool = False
 
 class QueryResponse(BaseModel):
@@ -145,20 +145,19 @@ async def generate_queries(
                 table_exists = cursor.fetchone()
                 logger.info(f"Table ai_queries exists: {table_exists['exists']}")
                 for query in queries:
-                    # Map buyer journey stage to our category system
+                    # Map buyer journey stage to 5-phase framework
+                    # Strategic weighting: Comparison (29%) > Evaluation (24%) > Research (19%) > Discovery (14%) = Purchase (14%)
                     category_mapping = {
-                        'problem_unaware': 'problem_unaware',
-                        'awareness': 'problem_unaware',
-                        'solution_seeking': 'solution_seeking',
-                        'consideration': 'solution_seeking',
-                        'brand_specific': 'brand_specific',
-                        'evaluation': 'comparison',
+                        'discovery': 'discovery',
+                        'awareness': 'discovery',
+                        'research': 'research',
+                        'consideration': 'research',
+                        'evaluation': 'evaluation',
                         'comparison': 'comparison',
-                        'purchase': 'purchase_intent',
-                        'decision': 'purchase_intent',
-                        'use_case': 'use_case'
+                        'purchase': 'purchase',
+                        'decision': 'purchase'
                     }
-                    category = category_mapping.get(query.buyer_journey_stage, 'solution_seeking')
+                    category = category_mapping.get(query.buyer_journey_stage, 'research')
                     
                     # Determine priority based on query characteristics
                     priority = int(query.priority_score * 10) if query.priority_score else 5

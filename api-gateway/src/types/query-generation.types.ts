@@ -1,16 +1,36 @@
 /**
- * Enhanced Query Generation Types
- * Defines the structure for comprehensive brand visibility query generation
+ * Enhanced Query Generation Types - 5-Phase Buyer Journey Framework
+ * Strategic weighting: Comparison (29%) > Evaluation (24%) > Research (19%) > Discovery (14%) = Purchase (14%)
+ * Total: 42 queries optimized from 48 for focused competitive intelligence
  */
 
-export enum QueryCategory {
-  PROBLEM_UNAWARE = 'problem_unaware',
-  SOLUTION_SEEKING = 'solution_seeking',
-  BRAND_SPECIFIC = 'brand_specific',
-  COMPARISON = 'comparison',
-  PURCHASE_INTENT = 'purchase_intent',
-  USE_CASE = 'use_case'
+export enum BuyerJourneyPhase {
+  DISCOVERY = 'discovery',              // 6 queries, 14% - Problem awareness
+  RESEARCH = 'research',                // 8 queries, 19% - Solution landscape
+  EVALUATION = 'evaluation',            // 10 queries, 24% - Brand investigation
+  COMPARISON = 'comparison',            // 12 queries, 29% - CRITICAL (60-70% of B2B deals won/lost here)
+  PURCHASE = 'purchase'                 // 6 queries, 14% - Conversion intent
 }
+
+// Legacy enum - to be deprecated
+export enum QueryCategory {
+  PROBLEM_UNAWARE = 'problem_unaware',    // Maps to: DISCOVERY
+  SOLUTION_SEEKING = 'solution_seeking',  // Maps to: RESEARCH
+  BRAND_SPECIFIC = 'brand_specific',      // Maps to: EVALUATION
+  COMPARISON = 'comparison',              // Maps to: COMPARISON
+  PURCHASE_INTENT = 'purchase_intent',    // Maps to: PURCHASE
+  USE_CASE = 'use_case'                   // REMOVED in 5-phase framework
+}
+
+// Legacy to new phase mapping
+export const LEGACY_TO_PHASE_MAP: Record<string, BuyerJourneyPhase> = {
+  'problem_unaware': BuyerJourneyPhase.DISCOVERY,
+  'solution_seeking': BuyerJourneyPhase.RESEARCH,
+  'brand_specific': BuyerJourneyPhase.EVALUATION,
+  'comparison': BuyerJourneyPhase.COMPARISON,
+  'purchase_intent': BuyerJourneyPhase.PURCHASE,
+  'use_case': BuyerJourneyPhase.PURCHASE  // Fallback for legacy data
+};
 
 export enum QueryIntent {
   INFORMATIONAL = 'informational',
@@ -39,7 +59,8 @@ export enum PlatformOptimization {
 
 export interface QueryMetadata {
   query: string;
-  category: QueryCategory;
+  phase?: BuyerJourneyPhase;  // New 5-phase framework (preferred)
+  category?: QueryCategory;    // Legacy support (deprecated)
   intent: QueryIntent;
   priority: number; // 1-10 scale
   persona: TargetPersona;
@@ -134,7 +155,8 @@ export interface QueryGenerationResponse {
 export interface QueryPerformanceMetrics {
   query_id: number;
   query: string;
-  category: QueryCategory;
+  phase?: BuyerJourneyPhase;  // New 5-phase framework (preferred)
+  category?: QueryCategory;    // Legacy support (deprecated)
   times_searched: number;
   brand_appeared: number;
   average_position: number;
@@ -147,6 +169,16 @@ export interface QueryPerformanceMetrics {
   last_checked: Date;
 }
 
+export interface PhaseDistribution {
+  phase: BuyerJourneyPhase;
+  count: number;
+  percentage: number;
+  strategic_weight: number;  // 0.14, 0.19, 0.24, 0.29, 0.14
+  high_priority_count: number;
+  coverage_score: number; // 0-100
+}
+
+// Legacy support
 export interface QueryCategoryDistribution {
   category: QueryCategory;
   count: number;

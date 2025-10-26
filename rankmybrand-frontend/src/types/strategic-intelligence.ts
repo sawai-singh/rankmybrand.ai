@@ -236,19 +236,63 @@ export interface MetadataResponse {
 }
 
 // ============================================
-// Buyer Journey Categories (for filtering)
+// Buyer Journey Phases (5-Phase Framework)
 // ============================================
+// Strategic weighting: Comparison (29%) > Evaluation (24%) > Research (19%) > Discovery (14%) = Purchase (14%)
+// Total: 42 queries optimized from 48 for focused competitive intelligence
 
-export const BUYER_JOURNEY_CATEGORIES = [
-  'problem_unaware',
-  'solution_seeking',
-  'brand_specific',
-  'comparison',
-  'purchase_intent',
-  'use_case',
+export const BUYER_JOURNEY_PHASES = [
+  'discovery',        // 6 queries, 14% - Problem awareness
+  'research',         // 8 queries, 19% - Solution landscape
+  'evaluation',       // 10 queries, 24% - Brand investigation
+  'comparison',       // 12 queries, 29% - CRITICAL (60-70% of B2B deals won/lost here)
+  'purchase',         // 6 queries, 14% - Conversion intent
 ] as const;
 
-export type BuyerJourneyCategory = typeof BUYER_JOURNEY_CATEGORIES[number];
+export type BuyerJourneyPhase = typeof BUYER_JOURNEY_PHASES[number];
+
+// Legacy support - to be deprecated
+export const BUYER_JOURNEY_CATEGORIES = BUYER_JOURNEY_PHASES;
+export type BuyerJourneyCategory = BuyerJourneyPhase;
+
+// Phase metadata for strategic prioritization
+export const PHASE_METADATA = {
+  discovery: {
+    weight: 0.14,
+    queries: 6,
+    stage: 'Problem Discovery',
+    funnel: 'awareness',
+    color: '#3B82F6', // blue
+  },
+  research: {
+    weight: 0.19,
+    queries: 8,
+    stage: 'Solution Research',
+    funnel: 'awareness',
+    color: '#8B5CF6', // purple
+  },
+  evaluation: {
+    weight: 0.24,
+    queries: 10,
+    stage: 'Brand Evaluation',
+    funnel: 'consideration',
+    color: '#10B981', // green
+  },
+  comparison: {
+    weight: 0.29,
+    queries: 12,
+    stage: 'Competitive Comparison',
+    funnel: 'consideration',
+    color: '#F59E0B', // amber - HIGHEST PRIORITY
+  },
+  purchase: {
+    weight: 0.14,
+    queries: 6,
+    stage: 'Purchase Decision',
+    funnel: 'decision',
+    color: '#EF4444', // red
+  },
+} as const;
 
 // ============================================
 // Priority Types (for filtering)

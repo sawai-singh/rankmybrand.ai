@@ -30,13 +30,16 @@ class QueryIntent(Enum):
 
 
 class BuyerJourneyCategory(Enum):
-    """Buyer journey stages - maps customer awareness to query categories"""
-    PROBLEM_UNAWARE = "problem_unaware"  # Users experiencing problems but don't know solutions exist
-    SOLUTION_SEEKING = "solution_seeking"  # Users actively looking for solutions
-    BRAND_SPECIFIC = "brand_specific"  # Users specifically searching for the brand
-    COMPARISON = "comparison"  # Users comparing solutions and alternatives
-    PURCHASE_INTENT = "purchase_intent"  # Users ready to buy or sign up
-    USE_CASE = "use_case"  # Users looking for specific applications
+    """
+    5-Phase Buyer Journey Framework
+    Strategic weighting: Comparison (29%) > Evaluation (24%) > Research (19%) > Discovery (14%) = Purchase (14%)
+    Total: 42 queries for competitive intelligence
+    """
+    DISCOVERY = "discovery"              # Problem awareness - users identifying pain points (6 queries, 14%)
+    RESEARCH = "research"                # Solution landscape - category exploration (8 queries, 19%)
+    EVALUATION = "evaluation"            # Brand investigation - specific brand research (10 queries, 24%)
+    COMPARISON = "comparison"            # Head-to-head - competitive decision point (12 queries, 29% - CRITICAL)
+    PURCHASE = "purchase"                # Conversion intent - ready to buy/sign up (6 queries, 14%)
 
 
 @dataclass
@@ -71,7 +74,7 @@ class GeneratedQuery:
     complexity_score: float  # 0-1, higher = more complex/specific
     competitive_relevance: float  # 0-1, likelihood of competitive comparison
     buyer_journey_stage: str  # Simplified 3-stage: awareness, consideration, decision (backward compatibility)
-    buyer_journey_category: str  # Detailed 6-category: problem_unaware, solution_seeking, brand_specific, comparison, purchase_intent, use_case
+    buyer_journey_category: str  # Detailed 5-phase: discovery, research, evaluation, comparison, purchase
     expected_serp_features: List[str]  # featured snippet, local pack, etc.
     semantic_variations: List[str]
     priority_score: float  # 0-1, importance for brand visibility
@@ -88,14 +91,13 @@ class IntelligentQueryGenerator:
     Integrates Google's search intent taxonomy with buyer journey stages.
     """
 
-    # Mapping between buyer journey categories and query intents
+    # Mapping between buyer journey phases and query intents (5-phase framework)
     CATEGORY_TO_INTENT_MAP = {
-        BuyerJourneyCategory.PROBLEM_UNAWARE: [QueryIntent.INFORMATIONAL, QueryIntent.PROBLEM_SOLVING],
-        BuyerJourneyCategory.SOLUTION_SEEKING: [QueryIntent.PROBLEM_SOLVING, QueryIntent.INFORMATIONAL],
-        BuyerJourneyCategory.BRAND_SPECIFIC: [QueryIntent.NAVIGATIONAL, QueryIntent.REVIEW_SEEKING],
+        BuyerJourneyCategory.DISCOVERY: [QueryIntent.INFORMATIONAL, QueryIntent.PROBLEM_SOLVING],
+        BuyerJourneyCategory.RESEARCH: [QueryIntent.PROBLEM_SOLVING, QueryIntent.COMMERCIAL_INVESTIGATION],
+        BuyerJourneyCategory.EVALUATION: [QueryIntent.NAVIGATIONAL, QueryIntent.REVIEW_SEEKING],
         BuyerJourneyCategory.COMPARISON: [QueryIntent.COMPARATIVE, QueryIntent.COMMERCIAL_INVESTIGATION],
-        BuyerJourneyCategory.PURCHASE_INTENT: [QueryIntent.TRANSACTIONAL, QueryIntent.COMMERCIAL_INVESTIGATION],
-        BuyerJourneyCategory.USE_CASE: [QueryIntent.INFORMATIONAL, QueryIntent.PROBLEM_SOLVING]
+        BuyerJourneyCategory.PURCHASE: [QueryIntent.TRANSACTIONAL, QueryIntent.COMMERCIAL_INVESTIGATION]
     }
 
     def __init__(self, openai_api_key: str, model: str = "gpt-5-nano"):
@@ -119,14 +121,14 @@ class IntelligentQueryGenerator:
             QueryIntent.LOCAL: 0.02
         }
 
-        # Buyer journey category distribution (single-shot generation)
+        # Strategic phase distribution (5-phase framework - 42 total queries)
+        # Rationale: Comparison phase gets 29% (12 queries) where 60-70% of B2B deals are won/lost
         self.category_distribution = {
-            BuyerJourneyCategory.PROBLEM_UNAWARE: 8,
-            BuyerJourneyCategory.SOLUTION_SEEKING: 8,
-            BuyerJourneyCategory.BRAND_SPECIFIC: 8,
-            BuyerJourneyCategory.COMPARISON: 8,
-            BuyerJourneyCategory.PURCHASE_INTENT: 8,
-            BuyerJourneyCategory.USE_CASE: 8
+            BuyerJourneyCategory.DISCOVERY: 6,       # 14% - Problem awareness baseline
+            BuyerJourneyCategory.RESEARCH: 8,        # 19% - Category positioning
+            BuyerJourneyCategory.EVALUATION: 10,     # 24% - Brand perception (critical)
+            BuyerJourneyCategory.COMPARISON: 12,     # 29% - MAXIMUM FOCUS (deals won/lost here)
+            BuyerJourneyCategory.PURCHASE: 6         # 14% - Conversion funnel check
         }
     
     def _build_comparison_section(
@@ -270,7 +272,7 @@ class IntelligentQueryGenerator:
         return f"""
 📚 B2C CONSUMER SHOPPING EXAMPLES (Learn from these before generating):
 
-=== 1. PROBLEM_UNAWARE ===
+=== 1. DISCOVERY ===
 Purpose: Test if {company_name} appears when consumers experience problems but don't know solutions exist
 
 ✅ EXCELLENT Consumer Examples:
@@ -288,12 +290,12 @@ Purpose: Test if {company_name} appears when consumers experience problems but d
 
 ✗ BAD Examples:
   - "AI problems" (B2B language, not consumer)
-  - "{company_name} issues" (wrong category - this is branded, not problem-unaware)
+  - "{company_name} issues" (wrong category - this is branded, not discovery phase)
   - "enterprise challenges" (B2B, not B2C)
 
 CRITICAL: DO NOT mention {company_name} or product names. Focus on CONSUMER pain points.
 
-=== 2. SOLUTION_SEEKING ===
+=== 2. RESEARCH ===
 Purpose: Test if {company_name} appears when consumers actively shop for products
 
 ✅ EXCELLENT Consumer Shopping Examples:
@@ -314,12 +316,12 @@ Purpose: Test if {company_name} appears when consumers actively shop for product
 
 ✗ BAD Examples:
   - "good software tools" (B2B language)
-  - "{company_name} features" (belongs in BRAND_SPECIFIC)
+  - "{company_name} features" (belongs in EVALUATION)
   - "enterprise solutions" (B2B, not consumer)
 
 RATIO: 70% non-branded, 30% can mention competitor brands
 
-=== 3. BRAND_SPECIFIC ===
+=== 3. EVALUATION ===
 Purpose: Verify {company_name} owns consumer brand queries
 
 ✅ EXCELLENT Consumer Brand Examples:
@@ -380,7 +382,7 @@ Purpose: Track competitive positioning in consumer shopping comparisons
 
 REQUIRED: At least 60% must have direct competitor brand mentions
 
-=== 5. PURCHASE_INTENT ===
+=== 5. PURCHASE ===
 Purpose: Track visibility in high-intent consumer shopping queries
 
 ✅ EXCELLENT Consumer Purchase Examples:
@@ -411,32 +413,6 @@ Purpose: Track visibility in high-intent consumer shopping queries
   - "sign up for {product_name} enterprise" (B2B, not consumer purchase)
 
 RATIO: 60% branded, 40% generic (tests category dominance)
-
-=== 6. USE_CASE ===
-Purpose: Track visibility in specific consumer use scenarios
-
-✅ EXCELLENT Consumer Use Case Examples:
-  - "{product_name} for {consumer_use}"
-    Real: "running shoes for flat feet"
-
-  - "best {industry} products for {consumer_use}"
-    Real: "best jeans for construction work"
-
-  - "{product_name} for outdoor activities"
-    Real: "North Face jackets for hiking"
-
-  - "durable {product_name} for daily use"
-    Real: "durable backpacks for students"
-
-  - "{company_name} products for {consumer_use}"
-    Real: "Nike shoes for basketball"
-
-✗ BAD Examples:
-  - "{product_name} use cases" (too broad, B2B language)
-  - "AI for business" (B2B, not consumer)
-  - "{product_name} for enterprise deployment" (B2B, not consumer)
-
-REQUIRED: Be VERY specific with consumer use cases from context
 
 === CONSUMER SHOPPING QUALITY CHECKLIST ===
 ✓ Consumer language (not business/enterprise/B2B terms)
@@ -477,7 +453,7 @@ REQUIRED: Be VERY specific with consumer use cases from context
         return f"""
 📚 B2B FEW-SHOT EXAMPLES (Learn from these before generating):
 
-=== 1. PROBLEM_UNAWARE ===
+=== 1. DISCOVERY ===
 Purpose: Test if {company_name} appears when users don't know solutions exist
 
 ✅ EXCELLENT Examples:
@@ -492,12 +468,12 @@ Purpose: Test if {company_name} appears when users don't know solutions exist
 
 ✗ BAD Examples:
   - "AI problems" (too vague, no specific pain point)
-  - "{company_name} issues" (wrong category - this is branded, not problem-unaware)
+  - "{company_name} issues" (wrong category - this is branded, not discovery phase)
   - "help with technology" (could mean anything)
 
 CRITICAL: DO NOT mention {company_name} or product names in these queries.
 
-=== 2. SOLUTION_SEEKING ===
+=== 2. RESEARCH ===
 Purpose: Test if {company_name} appears in solution research queries
 
 ✅ EXCELLENT Examples:
@@ -515,11 +491,11 @@ Purpose: Test if {company_name} appears in solution research queries
 
 ✗ BAD Examples:
   - "good AI tools" (no specificity)
-  - "{company_name} features" (belongs in BRAND_SPECIFIC)
+  - "{company_name} features" (belongs in EVALUATION)
 
 RATIO: 60% non-branded, 40% can mention competitors
 
-=== 3. BRAND_SPECIFIC ===
+=== 3. EVALUATION ===
 Purpose: Verify {company_name} owns brand queries
 
 ✅ EXCELLENT Examples:
@@ -569,7 +545,7 @@ Purpose: Track competitive positioning in head-to-head scenarios
 
 REQUIRED: At least 60% must have direct competitor mentions
 
-=== 5. PURCHASE_INTENT ===
+=== 5. PURCHASE ===
 Purpose: Track visibility in high-intent buying queries
 
 ✅ EXCELLENT Examples:
@@ -594,28 +570,6 @@ Purpose: Track visibility in high-intent buying queries
 
 RATIO: 50% branded, 50% generic (tests category dominance)
 
-=== 6. USE_CASE ===
-Purpose: Track visibility in specific application scenarios
-
-✅ EXCELLENT Examples:
-  - "{product_name} for {use_case} in {industry}"
-    Real: "{product_name} for contract review in legal industry"
-
-  - "using {product_name} to solve {pain_point}"
-    Real: "using {product_name} for automated compliance checking"
-
-  - "best {industry} tool for {use_case}"
-    Real: "best AI platform for HIPAA compliant patient communication"
-
-  - "how to implement {product_name} for {use_case}"
-    Real: "how to implement {product_name} for customer support"
-
-✗ BAD Examples:
-  - "{product_name} use cases" (too broad)
-  - "AI for business" (no specific use case)
-
-REQUIRED: Be VERY specific with use cases from context
-
 === QUALITY CHECKLIST ===
 ✓ Realistic (what real users would type)
 ✓ Natural language (not keyword stuffing)
@@ -627,14 +581,14 @@ REQUIRED: Be VERY specific with use cases from context
   ✗ Generic terms without context ("best AI", "AI tools")
   ✗ Keyword stuffing ("AI AI company best AI 2025")
   ✗ Unnatural phrasing ("AI company which is good")
-  ✗ Wrong category placement (branded query in problem_unaware)
+  ✗ Wrong category placement (branded query in discovery phase)
   ✗ Too short without meaning ("AI", "software", "tools")
 """
 
     async def generate_enhanced_queries(
         self,
         prompt: str,
-        query_count: int = 48,
+        query_count: int = 42,
         include_metadata: bool = True
     ) -> List[GeneratedQuery]:
         """Generate queries using enhanced prompt with category-based approach"""
@@ -663,14 +617,13 @@ REQUIRED: Be VERY specific with use cases from context
             # Convert to GeneratedQuery objects
             generated_queries = []
             for idx, q in enumerate(queries_data[:query_count]):
-                category_str = q.get('category', 'solution_seeking')
+                category_str = q.get('category', 'research')
                 category_to_stage_map = {
-                    'problem_unaware': 'awareness',
-                    'solution_seeking': 'consideration',
-                    'brand_specific': 'consideration',
+                    'discovery': 'awareness',
+                    'research': 'consideration',
+                    'evaluation': 'consideration',
                     'comparison': 'consideration',
-                    'purchase_intent': 'decision',
-                    'use_case': 'consideration'
+                    'purchase': 'decision'
                 }
                 simplified_stage = category_to_stage_map.get(category_str, 'consideration')
 
@@ -850,9 +803,9 @@ Business Model: {_business_model}
                 pain_points=_pain_points
             )
 
-        # Calculate queries per category
-        queries_per_category = target_count // 6  # 6 buyer-journey categories
-        remaining = target_count % 6
+        # Calculate queries per category (5-phase framework)
+        queries_per_category = target_count // 5  # 5 buyer-journey phases
+        remaining = target_count % 5
 
         # Build enhanced competitor comparison section
         comparison_section = self._build_comparison_section(
@@ -985,7 +938,7 @@ Business Model: {_business_model}
                     seen_queries.add(query_text_lower)
 
                     # Map category to intent and stage
-                    category_str = q_data.get('category', 'solution_seeking')
+                    category_str = q_data.get('category', 'research')
                     try:
                         buyer_category = BuyerJourneyCategory(category_str)
                         primary_intent = self.CATEGORY_TO_INTENT_MAP[buyer_category][0]
@@ -993,14 +946,13 @@ Business Model: {_business_model}
                         logger.debug(f"Unknown category '{category_str}', using INFORMATIONAL")
                         primary_intent = QueryIntent.INFORMATIONAL
 
-                    # Map 6-category to 3-stage for backward compatibility
+                    # Map 5-phase to 3-stage for backward compatibility
                     category_to_stage_map = {
-                        'problem_unaware': 'awareness',
-                        'solution_seeking': 'consideration',
-                        'brand_specific': 'consideration',
+                        'discovery': 'awareness',
+                        'research': 'consideration',
+                        'evaluation': 'consideration',
                         'comparison': 'consideration',
-                        'purchase_intent': 'decision',
-                        'use_case': 'consideration'
+                        'purchase': 'decision'
                     }
                     simplified_stage = category_to_stage_map.get(category_str, 'consideration')
 
@@ -1149,34 +1101,29 @@ Context:
 
 NOW GENERATE {target_count} CONSUMER SHOPPING QUERIES following the quality standards shown above.
 
-Generate queries across these 6 buyer journey categories ({queries_per_category} queries each, {queries_per_category + remaining} for first category):
+Generate queries across these 5 buyer journey phases ({queries_per_category} queries each, {queries_per_category + remaining} for first phase):
 
-1. PROBLEM_UNAWARE ({queries_per_category + remaining} queries): Consumers experiencing problems but don't know solutions exist
+1. DISCOVERY ({queries_per_category + remaining} queries): Consumers experiencing problems but don't know solutions exist
    - Focus on consumer pain points: "why do my jeans fade", "uncomfortable shoes problem"
    - "Why is X happening?" or "X not working properly"
    - Examples: "why do {industry} products fail", "how to fix {pain_points[0] if pain_points else 'common issues'}"
 
-2. SOLUTION_SEEKING ({queries_per_category} queries): Consumers actively looking for products/solutions
+2. RESEARCH ({queries_per_category} queries): Consumers actively looking for products/solutions
    - "best {industry} products 2025", "top {product_name} alternatives"
    - "how to choose {industry} product", "what to look for in {product_name}"
    - Examples: "best {industry} for [consumer need]", "affordable {product_name} options"
 
-3. BRAND_SPECIFIC ({queries_per_category} queries): Consumers specifically searching for {company_name}
+3. EVALUATION ({queries_per_category} queries): Consumers specifically searching for {company_name}
    - Direct brand mentions: "{company_name} review", "{product_name} price", "buy {product_name}"
    - "{company_name} near me", "{product_name} sale", "{company_name} store locations"
    - "{product_name} reviews 2025", "is {product_name} worth it"
 
 {comparison_section}
 
-5. PURCHASE_INTENT ({queries_per_category} queries): Consumers ready to buy
+5. PURCHASE ({queries_per_category} queries): Consumers ready to buy
    - "buy {product_name} online", "{product_name} price", "order {product_name}"
    - "where to buy {product_name}", "{company_name} store", "{product_name} discount"
    - "{product_name} on sale", "cheap {product_name}", "{product_name} deals"
-
-6. USE_CASE ({queries_per_category} queries): Consumers looking for specific applications
-   - "{product_name} for [specific consumer need]"
-   - "best {industry} product for [use case]"
-   - Examples: "{product_name} for outdoor activities", "durable {product_name} for work"
 
 CONSUMER SHOPPING QUERY PATTERNS:
 ✓ Shopping: "buy X", "X on sale", "X discount", "cheap X", "affordable X"
@@ -1194,7 +1141,7 @@ CONSUMER SHOPPING QUERY PATTERNS:
 Return as a JSON object with a "queries" array containing exactly {target_count} objects, each with:
 {{
     "query": "the search query text (CONSUMER SHOPPING ONLY)",
-    "category": "problem_unaware|solution_seeking|brand_specific|comparison|purchase_intent|use_case",
+    "category": "discovery|research|evaluation|comparison|purchase",
     "intent": "informational|navigational|commercial|transactional",
     "priority": 1-10 (higher = more important for visibility),
     "complexity": 0-1 (0=simple, 1=complex/specific),
@@ -1238,29 +1185,25 @@ Context:
 
 NOW GENERATE {target_count} QUERIES following the quality standards shown above.
 
-Generate queries across these 6 buyer journey categories ({queries_per_category} queries each, {queries_per_category + remaining} for first category):
+Generate queries across these 5 buyer journey phases ({queries_per_category} queries each, {queries_per_category + remaining} for first phase):
 
-1. PROBLEM_UNAWARE ({queries_per_category + remaining} queries): Users experiencing problems but don't know solutions exist
+1. DISCOVERY ({queries_per_category + remaining} queries): Users experiencing problems but don't know solutions exist
    - Focus on pain points and symptoms
    - "Why is X happening?" or "X not working properly"
 
-2. SOLUTION_SEEKING ({queries_per_category} queries): Users actively looking for solutions in this space
+2. RESEARCH ({queries_per_category} queries): Users actively looking for solutions in this space
    - "How to solve X" or "Best way to improve Y"
    - Solution-oriented searches
 
-3. BRAND_SPECIFIC ({queries_per_category} queries): Users specifically searching for {company_name}
+3. EVALUATION ({queries_per_category} queries): Users specifically searching for {company_name}
    - Direct brand mentions
    - "{company_name} review", "{company_name} pricing", "{company_name} vs"
 
 {comparison_section}
 
-5. PURCHASE_INTENT ({queries_per_category} queries): Users ready to buy or sign up
+5. PURCHASE ({queries_per_category} queries): Users ready to buy or sign up
    - "buy {industry} software", "{company_name} pricing"
    - "get started with X", "sign up for Y"
-
-6. USE_CASE ({queries_per_category} queries): Users looking for specific applications
-   - "{industry} for [specific use case]"
-   - "How to use X for Y"
 
 CRITICAL REQUIREMENTS:
 ✓ Make queries realistic and natural - exactly what real users would type
@@ -1282,7 +1225,7 @@ CRITICAL REQUIREMENTS:
 Return as a JSON object with a "queries" array containing exactly {target_count} objects, each with:
 {{
     "query": "the search query text",
-    "category": "problem_unaware|solution_seeking|brand_specific|comparison|purchase_intent|use_case",
+    "category": "discovery|research|evaluation|comparison|purchase",
     "intent": "informational|navigational|commercial|transactional",
     "priority": 1-10 (higher = more important for visibility),
     "complexity": 0-1 (0=simple, 1=complex/specific),
@@ -1344,19 +1287,18 @@ NOW GENERATE {target_count} HYBRID QUERIES with the following distribution:
    - "how to start online store", "accept payments online"
    - "{company_name} for small business selling to consumers"
 
-Generate queries across these 6 buyer journey categories (split between B2B and B2C-influenced):
+Generate queries across these 5 buyer journey phases (split between B2B and B2C-influenced):
 
-1. PROBLEM_UNAWARE: Business pain points that affect consumer-facing operations
-2. SOLUTION_SEEKING: Businesses looking for platforms to serve consumers
-3. BRAND_SPECIFIC: Direct brand searches from potential business customers
+1. DISCOVERY: Business pain points that affect consumer-facing operations
+2. RESEARCH: Businesses looking for platforms to serve consumers
+3. EVALUATION: Direct brand searches from potential business customers
 {comparison_section}
-5. PURCHASE_INTENT: Businesses ready to sign up
-6. USE_CASE: Specific business use cases for serving consumers
+5. PURCHASE: Businesses ready to sign up
 
 Return as a JSON object with a "queries" array containing exactly {target_count} objects, each with:
 {{
     "query": "the search query text",
-    "category": "problem_unaware|solution_seeking|brand_specific|comparison|purchase_intent|use_case",
+    "category": "discovery|research|evaluation|comparison|purchase",
     "intent": "informational|navigational|commercial|transactional",
     "priority": 1-10 (higher = more important for visibility),
     "complexity": 0-1 (0=simple, 1=complex/specific),
@@ -1581,11 +1523,11 @@ IMPORTANT: Return ONLY the JSON object, no additional text or explanation.
                 buyer_stage = query.get('buyer_stage', 'consideration')
                 # Infer category from stage for backward compatibility
                 stage_to_category_map = {
-                    'awareness': 'problem_unaware',
-                    'consideration': 'solution_seeking',
-                    'decision': 'purchase_intent'
+                    'awareness': 'discovery',
+                    'consideration': 'research',
+                    'decision': 'purchase'
                 }
-                buyer_category = stage_to_category_map.get(buyer_stage, 'solution_seeking')
+                buyer_category = stage_to_category_map.get(buyer_stage, 'research')
 
                 enhanced_query = GeneratedQuery(
                     query_text=query['query_text'],

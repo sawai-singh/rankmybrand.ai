@@ -9,13 +9,13 @@ interface BuyerJourneyInsightsViewProps {
   isLoading?: boolean;
 }
 
-const CATEGORY_INFO: Record<string, { label: string; color: string }> = {
-  problem_unaware: { label: 'Problem Unaware', color: 'gray' },
-  solution_seeking: { label: 'Solution Seeking', color: 'blue' },
-  brand_specific: { label: 'Brand Specific', color: 'purple' },
-  comparison: { label: 'Comparison', color: 'orange' },
-  purchase_intent: { label: 'Purchase Intent', color: 'green' },
-  use_case: { label: 'Use Case', color: 'indigo' },
+// 5-Phase Buyer Journey Framework
+const PHASE_INFO: Record<string, { label: string; color: string; badge?: string }> = {
+  discovery: { label: 'Discovery', color: 'blue' },
+  research: { label: 'Research', color: 'purple' },
+  evaluation: { label: 'Evaluation', color: 'green' },
+  comparison: { label: 'Comparison', color: 'orange', badge: 'CRITICAL' },
+  purchase: { label: 'Purchase', color: 'red' },
 };
 
 export function BuyerJourneyInsightsView({ auditId, isLoading: externalLoading }: BuyerJourneyInsightsViewProps) {
@@ -90,10 +90,10 @@ export function BuyerJourneyInsightsView({ auditId, isLoading: externalLoading }
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
           </svg>
           <span className="font-semibold">Advanced: Buyer Journey Batch Insights</span>
-          <span className="text-xs text-gray-300 ml-2">(Phase 2 • 96 LLM Calls)</span>
+          <span className="text-xs text-gray-300 ml-2">(Phase 2 • 5-Phase Framework • 84 LLM Calls)</span>
         </div>
         <div className="flex items-center gap-2 text-xs text-gray-300">
-          <span>Raw batch-level data</span>
+          <span>Raw batch-level data per phase</span>
           <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
           </svg>
@@ -102,11 +102,11 @@ export function BuyerJourneyInsightsView({ auditId, isLoading: externalLoading }
 
       {isExpanded && (
         <>
-          {/* Category Selector */}
+          {/* Phase Selector */}
           <div className="border-b border-gray-200 bg-gray-50 p-3">
             <div className="flex flex-wrap gap-2">
               {categoryKeys.map((category) => {
-                const info = CATEGORY_INFO[category] || { label: category, color: 'gray' };
+                const info = PHASE_INFO[category] || { label: category, color: 'gray' };
                 return (
                   <button
                     key={category}
@@ -115,13 +115,18 @@ export function BuyerJourneyInsightsView({ auditId, isLoading: externalLoading }
                       const batches = Object.keys(buyer_journey[category]);
                       if (batches.length > 0) setSelectedBatch(parseInt(batches[0]));
                     }}
-                    className={`px-3 py-2 rounded-lg text-sm font-medium transition-all ${
+                    className={`px-3 py-2 rounded-lg text-sm font-medium transition-all relative ${
                       selectedCategory === category
                         ? 'bg-gray-800 text-white shadow-md'
                         : 'bg-white text-gray-600 hover:bg-gray-100 border border-gray-200'
                     }`}
                   >
                     {info.label}
+                    {info.badge && (
+                      <span className="absolute -top-1 -right-1 px-1.5 py-0.5 bg-orange-500 text-white text-[8px] font-bold rounded">
+                        {info.badge}
+                      </span>
+                    )}
                   </button>
                 );
               })}
@@ -221,7 +226,7 @@ export function BuyerJourneyInsightsView({ auditId, isLoading: externalLoading }
           <div className="bg-gray-50 px-6 py-3 border-t border-gray-200">
             <div className="flex items-center justify-between text-xs text-gray-600">
               <div>
-                <span className="font-medium">Phase 2:</span> Raw batch insights • 4 calls per batch • 24 batches total = 96 LLM calls
+                <span className="font-medium">Phase 2:</span> Raw batch insights • 4 calls per batch • ~21 batches total (5 phases) = 84 LLM calls
               </div>
               <div className="text-gray-500">
                 Viewing: Batch {selectedBatch} of {batchNumbers.length}

@@ -2,43 +2,46 @@
 
 import React, { useState, useEffect } from 'react';
 import { api } from '@/lib/api';
-import type { CategoryInsightsResponse, CategoryInsights, CategoryInsight, BuyerJourneyCategory } from '@/types/strategic-intelligence';
+import type { CategoryInsightsResponse, CategoryInsights, CategoryInsight, BuyerJourneyPhase, PHASE_METADATA } from '@/types/strategic-intelligence';
 
 interface CategoryInsightsGridProps {
   auditId: string;
   isLoading?: boolean;
 }
 
-const CATEGORY_INFO: Record<string, { label: string; color: string; description: string }> = {
-  problem_unaware: {
-    label: 'Problem Unaware',
-    color: 'gray',
-    description: 'Users who don\'t realize they have a problem yet'
-  },
-  solution_seeking: {
-    label: 'Solution Seeking',
+// 5-Phase Buyer Journey Framework
+// Strategic weighting: Comparison (29%) > Evaluation (24%) > Research (19%) > Discovery (14%) = Purchase (14%)
+const PHASE_INFO: Record<string, { label: string; color: string; description: string; weight: string; badge?: string }> = {
+  discovery: {
+    label: 'Discovery',
     color: 'blue',
-    description: 'Actively looking for solutions'
+    description: 'Users identifying pain points and recognizing problems (14% strategic weight)',
+    weight: '14%'
   },
-  brand_specific: {
-    label: 'Brand Specific',
+  research: {
+    label: 'Research',
     color: 'purple',
-    description: 'Searching for your brand directly'
+    description: 'Exploring solution landscape and category options (19% strategic weight)',
+    weight: '19%'
+  },
+  evaluation: {
+    label: 'Evaluation',
+    color: 'green',
+    description: 'Investigating your brand and specific capabilities (24% strategic weight)',
+    weight: '24%'
   },
   comparison: {
     label: 'Comparison',
     color: 'orange',
-    description: 'Comparing different options'
+    description: 'Head-to-head competitive comparison - 60-70% of B2B deals won/lost here (29% strategic weight)',
+    weight: '29%',
+    badge: 'CRITICAL'
   },
-  purchase_intent: {
-    label: 'Purchase Intent',
-    color: 'green',
-    description: 'Ready to make a purchase decision'
-  },
-  use_case: {
-    label: 'Use Case',
-    color: 'indigo',
-    description: 'Looking for specific use cases'
+  purchase: {
+    label: 'Purchase',
+    color: 'red',
+    description: 'Ready to buy, seeking final validation and conversion signals (14% strategic weight)',
+    weight: '14%'
   },
 };
 
@@ -103,14 +106,13 @@ export function CategoryInsightsGrid({ auditId, isLoading: externalLoading }: Ca
 
   const getColorClasses = (color: string) => {
     const colors = {
-      gray: 'bg-gray-100 text-gray-700 border-gray-300',
-      blue: 'bg-neutral-100 dark:bg-neutral-800 text-neutral-900 dark:text-neutral-0 border-neutral-300 dark:border-neutral-700',
-      purple: 'bg-neutral-100 dark:bg-neutral-800 text-neutral-900 dark:text-neutral-0 border-neutral-300 dark:border-neutral-700',
-      orange: 'bg-orange-100 text-orange-700 border-orange-300',
+      blue: 'bg-blue-100 text-blue-700 border-blue-300',
+      purple: 'bg-purple-100 text-purple-700 border-purple-300',
       green: 'bg-green-100 text-green-700 border-green-300',
-      indigo: 'bg-neutral-100 dark:bg-neutral-800 text-neutral-900 dark:text-neutral-0 border-neutral-300 dark:border-neutral-700',
+      orange: 'bg-orange-100 text-orange-700 border-orange-300 font-semibold', // CRITICAL phase
+      red: 'bg-red-100 text-red-700 border-red-300',
     };
-    return colors[color as keyof typeof colors] || colors.gray;
+    return colors[color as keyof typeof colors] || 'bg-gray-100 text-gray-700 border-gray-300';
   };
 
   const renderInsightCard = (insight: CategoryInsight, index: number) => (
@@ -187,33 +189,39 @@ export function CategoryInsightsGrid({ auditId, isLoading: externalLoading }: Ca
               <h2 className="text-xl font-bold text-white dark:text-neutral-900">Category Insights</h2>
             </div>
             <p className="text-white dark:text-neutral-900 text-sm">
-              Top 3 personalized insights per buyer journey stage • Layer 1 Intelligence
+              Top 3 personalized insights per buyer journey phase • 5-Phase Framework • Layer 1 Intelligence
             </p>
           </div>
           <div className="text-right">
-            <div className="text-sm text-white dark:text-neutral-900">Categories</div>
-            <div className="text-2xl font-bold">{categoryKeys.length}</div>
+            <div className="text-sm text-white dark:text-neutral-900">Phases</div>
+            <div className="text-2xl font-bold">{categoryKeys.length}/5</div>
           </div>
         </div>
       </div>
 
-      {/* Category Selector */}
+      {/* Phase Selector */}
       <div className="border-b border-gray-200 bg-gray-50 p-4">
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-2">
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-2">
           {categoryKeys.map((category) => {
-            const info = CATEGORY_INFO[category] || { label: category, color: 'gray', description: '' };
+            const info = PHASE_INFO[category] || { label: category, color: 'gray', description: '', weight: '' };
             const colorClass = getColorClasses(info.color);
             return (
               <button
                 key={category}
                 onClick={() => setSelectedCategory(category)}
-                className={`p-3 rounded-lg border-2 transition-all text-left ${
+                className={`p-3 rounded-lg border-2 transition-all text-left relative ${
                   selectedCategory === category
                     ? `${colorClass} border-current shadow-md`
                     : 'bg-white border-gray-200 hover:border-gray-300 text-gray-700'
                 }`}
               >
                 <div className="text-xs font-medium">{info.label}</div>
+                <div className="text-[10px] text-gray-500 mt-0.5">{info.weight}</div>
+                {info.badge && (
+                  <span className="absolute -top-1 -right-1 px-1.5 py-0.5 bg-orange-500 text-white text-[8px] font-bold rounded">
+                    {info.badge}
+                  </span>
+                )}
               </button>
             );
           })}
@@ -223,12 +231,20 @@ export function CategoryInsightsGrid({ auditId, isLoading: externalLoading }: Ca
       {/* Content */}
       {selectedCategory && selectedInsights && (
         <div className="p-6">
-          {/* Category Description */}
+          {/* Phase Description */}
           <div className="mb-6 p-4 bg-neutral-50 dark:bg-neutral-800/50 border border-neutral-200 dark:border-neutral-700 rounded-lg">
             <div className="flex items-center gap-2 mb-2">
-              <h3 className="font-semibold text-gray-900">{CATEGORY_INFO[selectedCategory]?.label}</h3>
+              <h3 className="font-semibold text-gray-900">{PHASE_INFO[selectedCategory]?.label}</h3>
+              {PHASE_INFO[selectedCategory]?.badge && (
+                <span className="px-2 py-0.5 bg-orange-500 text-white text-xs font-bold rounded">
+                  {PHASE_INFO[selectedCategory].badge}
+                </span>
+              )}
+              <span className="ml-auto text-xs text-gray-500">
+                Strategic Weight: {PHASE_INFO[selectedCategory]?.weight}
+              </span>
             </div>
-            <p className="text-sm text-gray-600">{CATEGORY_INFO[selectedCategory]?.description}</p>
+            <p className="text-sm text-gray-600">{PHASE_INFO[selectedCategory]?.description}</p>
           </div>
 
           {/* Type Tabs */}
@@ -259,7 +275,7 @@ export function CategoryInsightsGrid({ auditId, isLoading: externalLoading }: Ca
               selectedInsights[activeTab].map((insight, index) => renderInsightCard(insight, index))
             ) : (
               <div className="col-span-full text-center py-8 text-gray-500">
-                No {activeTab.replace('_', ' ')} available for this category.
+                No {activeTab.replace('_', ' ')} available for this phase.
               </div>
             )}
           </div>
@@ -273,7 +289,7 @@ export function CategoryInsightsGrid({ auditId, isLoading: externalLoading }: Ca
             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
             </svg>
-            <span>Personalized by category • 18 LLM Calls • Layer 1</span>
+            <span>Personalized by phase • 15 LLM Calls (5 phases × 3 types) • Layer 1</span>
           </div>
           <div className="text-gray-500">
             Company: {data.company_name}
