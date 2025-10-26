@@ -14,7 +14,7 @@ export const crawlerRoutes: FastifyPluginAsync = async (server) => {
   await crawler.initialize();
   
   // Start crawl job
-  server.post('/crawl', async (request, reply) => {
+  server.post('/', async (request, reply) => {
     try {
       const { url, depth = 2, userId } = request.body as any;
       
@@ -37,7 +37,7 @@ export const crawlerRoutes: FastifyPluginAsync = async (server) => {
   });
   
   // Get crawl job status
-  server.get('/crawl/:jobId', async (request, reply) => {
+  server.get('/:jobId', async (request, reply) => {
     try {
       const { jobId } = request.params as any;
       const job = await db.getCrawlJob(jobId);
@@ -54,7 +54,7 @@ export const crawlerRoutes: FastifyPluginAsync = async (server) => {
   });
   
   // Get crawl results
-  server.get('/crawl/:jobId/results', async (request, reply) => {
+  server.get('/:jobId/results', async (request, reply) => {
     try {
       const { jobId } = request.params as any;
       const job = await db.getCrawlJob(jobId);

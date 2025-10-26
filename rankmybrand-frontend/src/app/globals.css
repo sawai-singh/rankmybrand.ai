@@ -286,10 +286,87 @@
     animation: fade-in 0.2s ease-out;
   }
 
+  /* Clip-path glitch animation - adapted from Uiverse.io */
+  @keyframes text-glitch {
+    0% {
+      clip-path: inset(50% 50% 50% 50%);
+      transform: translate(0px, -10px);
+    }
+    10% {
+      clip-path: inset(31% 0 40% 0);
+      transform: translate(-10px, 10px);
+    }
+    20% {
+      clip-path: inset(39% 0 15% 0);
+      transform: translate(10px, 0px);
+    }
+    30% {
+      clip-path: inset(45% 0 40% 0);
+      transform: translate(-10px, 10px);
+    }
+    40% {
+      clip-path: inset(45% 0 6% 0);
+      transform: translate(10px, -10px);
+    }
+    50% {
+      clip-path: inset(14% 0 61% 0);
+      transform: translate(-10px, 10px);
+    }
+    60% {
+      clip-path: inset(50% 50% 50% 50%);
+      transform: translate(10px, -10px);
+    }
+    70% {
+      clip-path: inset(39% 0 15% 0);
+      transform: translate(-10px, 10px);
+    }
+    80% {
+      clip-path: inset(31% 0 40% 0);
+      transform: translate(10px, -10px);
+    }
+    90% {
+      clip-path: inset(45% 0 40% 0);
+      transform: translate(-10px, 10px);
+    }
+    100% {
+      clip-path: inset(50% 50% 50% 50%);
+      transform: translate(0);
+    }
+  }
+
+  /* Glitch text wrapper */
+  .glitch-text {
+    position: relative;
+    display: inline-block;
+  }
+
+  /* Glitch pseudo-element with color shadows */
+  .glitch-text::after {
+    content: attr(data-text);
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    clip-path: inset(50% 50% 50% 50%);
+  }
+
+  /* Active glitch state */
+  .glitch-text.active {
+    text-shadow: -1px -1px 0px #1df2f0, 1px 1px 0px #E94BE8;
+  }
+
+  .glitch-text.active::after {
+    animation: text-glitch 0.5s;
+    animation-timing-function: steps(2, end);
+    text-shadow: -3px -3px 0px #1df2f0, 3px 3px 0px #E94BE8;
+  }
+
   /* Respect user preferences */
   @media (prefers-reduced-motion: reduce) {
     .animate-fade-in,
-    .skeleton {
+    .skeleton,
+    .glitch-text.active::after {
       animation: none;
     }
 

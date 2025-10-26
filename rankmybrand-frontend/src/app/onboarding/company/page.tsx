@@ -9,7 +9,7 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Building2, Globe, Users, MapPin, Tag, Loader2, Edit2, Check, ArrowRight, X, Sparkles } from 'lucide-react';
+import { Building2, Globe, Users, MapPin, Tag, Loader2, Edit2, Check, ArrowRight, X, Sparkles, ShoppingCart, Briefcase, GitMerge, AlertCircle, CheckCircle, ChevronDown } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
@@ -60,7 +60,21 @@ export default function CompanyDetailsPage() {
   const [saving, setSaving] = useState(false);
   const [sessionId, setSessionId] = useState<string>('');
   const [stepStartTime] = useState(Date.now());
+  const [dropdownOpen, setDropdownOpen] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement>(null);
   const wsRef = useRef<WebSocket | null>(null);
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setDropdownOpen(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   useEffect(() => {
     // Only run on client side
@@ -399,28 +413,121 @@ export default function CompanyDetailsPage() {
                 </div>
               </div>
 
-              {/* Business Model Selector */}
-              <div className="mb-4">
+              {/* Business Model Selector - Custom Dropdown */}
+              <div className="mb-4" ref={dropdownRef}>
                 <label className="text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-2 block">
                   Who are your customers?
                 </label>
-                <select
-                  value={company.business_model || 'B2B'}
-                  onChange={(e) => handleFieldEdit('business_model', e.target.value as 'B2C' | 'B2B' | 'B2B2C')}
-                  className="w-full px-4 py-3 border-2 border-neutral-300 dark:border-neutral-700 rounded-lg bg-white dark:bg-neutral-900 focus:outline-none focus:ring-2 focus:ring-neutral-900 dark:focus:ring-neutral-0 focus:border-transparent text-base"
-                >
-                  <option value="B2C">🛍️  B2C - We sell to individual consumers (e.g., shoppers, families)</option>
-                  <option value="B2B">🏢 B2B - We sell to businesses and enterprises</option>
-                  <option value="B2B2C">🔀 B2B2C - We sell to businesses who serve consumers (e.g., Shopify, Stripe)</option>
-                </select>
+                <div className="relative">
+                  {/* Dropdown Button */}
+                  <button
+                    type="button"
+                    onClick={() => setDropdownOpen(!dropdownOpen)}
+                    className="w-full px-4 py-3 border-2 border-neutral-300 dark:border-neutral-700 rounded-lg bg-white dark:bg-neutral-900 focus:outline-none focus:ring-2 focus:ring-neutral-900 dark:focus:ring-neutral-0 focus:border-transparent text-base transition-all hover:border-neutral-400 dark:hover:border-neutral-600 flex items-center justify-between gap-3"
+                  >
+                    <div className="flex items-center gap-3">
+                      {company.business_model === 'B2C' && <ShoppingCart className="w-5 h-5 text-neutral-600 dark:text-neutral-400" />}
+                      {company.business_model === 'B2B' && <Briefcase className="w-5 h-5 text-neutral-600 dark:text-neutral-400" />}
+                      {company.business_model === 'B2B2C' && <GitMerge className="w-5 h-5 text-neutral-600 dark:text-neutral-400" />}
+                      <div className="text-left">
+                        <span className="font-semibold text-neutral-900 dark:text-neutral-0">
+                          {company.business_model || 'B2B'}
+                        </span>
+                        <span className="text-neutral-600 dark:text-neutral-400 ml-2">
+                          {company.business_model === 'B2C' && '— Individual consumers, shoppers, families'}
+                          {company.business_model === 'B2B' && '— Businesses and enterprises'}
+                          {company.business_model === 'B2B2C' && '— Businesses serving consumers'}
+                        </span>
+                      </div>
+                    </div>
+                    <ChevronDown className={`w-5 h-5 text-neutral-400 transition-transform ${dropdownOpen ? 'rotate-180' : ''}`} />
+                  </button>
+
+                  {/* Dropdown Menu */}
+                  <AnimatePresence>
+                    {dropdownOpen && (
+                      <motion.div
+                        initial={{ opacity: 0, y: -10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: -10 }}
+                        transition={{ duration: 0.15 }}
+                        className="absolute z-10 w-full mt-2 bg-white dark:bg-neutral-900 border-2 border-neutral-200 dark:border-neutral-700 rounded-lg shadow-xl overflow-hidden"
+                      >
+                        {/* B2C Option */}
+                        <button
+                          type="button"
+                          onClick={() => {
+                            handleFieldEdit('business_model', 'B2C');
+                            setDropdownOpen(false);
+                          }}
+                          className={`w-full px-4 py-3 flex items-center gap-3 text-left transition-colors hover:bg-neutral-50 dark:hover:bg-neutral-800 ${
+                            company.business_model === 'B2C' ? 'bg-neutral-50 dark:bg-neutral-800' : ''
+                          }`}
+                        >
+                          <ShoppingCart className="w-5 h-5 text-neutral-600 dark:text-neutral-400 flex-shrink-0" />
+                          <div>
+                            <div className="font-semibold text-neutral-900 dark:text-neutral-0">B2C</div>
+                            <div className="text-sm text-neutral-600 dark:text-neutral-400">Individual consumers, shoppers, families</div>
+                          </div>
+                          {company.business_model === 'B2C' && (
+                            <Check className="w-5 h-5 text-neutral-900 dark:text-neutral-0 ml-auto" />
+                          )}
+                        </button>
+
+                        {/* B2B Option */}
+                        <button
+                          type="button"
+                          onClick={() => {
+                            handleFieldEdit('business_model', 'B2B');
+                            setDropdownOpen(false);
+                          }}
+                          className={`w-full px-4 py-3 flex items-center gap-3 text-left transition-colors hover:bg-neutral-50 dark:hover:bg-neutral-800 border-t border-neutral-200 dark:border-neutral-700 ${
+                            company.business_model === 'B2B' ? 'bg-neutral-50 dark:bg-neutral-800' : ''
+                          }`}
+                        >
+                          <Briefcase className="w-5 h-5 text-neutral-600 dark:text-neutral-400 flex-shrink-0" />
+                          <div>
+                            <div className="font-semibold text-neutral-900 dark:text-neutral-0">B2B</div>
+                            <div className="text-sm text-neutral-600 dark:text-neutral-400">Businesses and enterprises</div>
+                          </div>
+                          {company.business_model === 'B2B' && (
+                            <Check className="w-5 h-5 text-neutral-900 dark:text-neutral-0 ml-auto" />
+                          )}
+                        </button>
+
+                        {/* B2B2C Option */}
+                        <button
+                          type="button"
+                          onClick={() => {
+                            handleFieldEdit('business_model', 'B2B2C');
+                            setDropdownOpen(false);
+                          }}
+                          className={`w-full px-4 py-3 flex items-center gap-3 text-left transition-colors hover:bg-neutral-50 dark:hover:bg-neutral-800 border-t border-neutral-200 dark:border-neutral-700 ${
+                            company.business_model === 'B2B2C' ? 'bg-neutral-50 dark:bg-neutral-800' : ''
+                          }`}
+                        >
+                          <GitMerge className="w-5 h-5 text-neutral-600 dark:text-neutral-400 flex-shrink-0" />
+                          <div>
+                            <div className="font-semibold text-neutral-900 dark:text-neutral-0">B2B2C</div>
+                            <div className="text-sm text-neutral-600 dark:text-neutral-400">Businesses serving consumers (e.g., Shopify, Stripe)</div>
+                          </div>
+                          {company.business_model === 'B2B2C' && (
+                            <Check className="w-5 h-5 text-neutral-900 dark:text-neutral-0 ml-auto" />
+                          )}
+                        </button>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </div>
               </div>
 
               {/* Business Model Explanation */}
               <div className="p-4 bg-white dark:bg-neutral-900/50 rounded-lg">
                 {company.business_model === 'B2C' && (
                   <div>
-                    <p className="font-medium text-neutral-900 dark:text-neutral-0 mb-2">
-                      🛍️  Consumer Shopping Queries
+                    <p className="font-medium text-neutral-900 dark:text-neutral-0 mb-2 flex items-center gap-2">
+                      <ShoppingCart className="w-4 h-4" />
+                      Consumer Shopping Queries
                     </p>
                     <p className="text-sm text-neutral-600 dark:text-neutral-400 mb-3">
                       {company.customer_type?.description || "Your customers are individual people shopping for products or services."}
@@ -442,8 +549,9 @@ export default function CompanyDetailsPage() {
 
                 {company.business_model === 'B2B' && (
                   <div>
-                    <p className="font-medium text-neutral-900 dark:text-neutral-0 mb-2">
-                      🏢 Enterprise & Business Queries
+                    <p className="font-medium text-neutral-900 dark:text-neutral-0 mb-2 flex items-center gap-2">
+                      <Briefcase className="w-4 h-4" />
+                      Enterprise & Business Queries
                     </p>
                     <p className="text-sm text-neutral-600 dark:text-neutral-400 mb-3">
                       {company.customer_type?.description || "Your customers are businesses, enterprises, or developers."}
@@ -462,8 +570,9 @@ export default function CompanyDetailsPage() {
 
                 {company.business_model === 'B2B2C' && (
                   <div>
-                    <p className="font-medium text-neutral-900 dark:text-neutral-0 mb-2">
-                      🔀 Hybrid Business & Consumer Queries
+                    <p className="font-medium text-neutral-900 dark:text-neutral-0 mb-2 flex items-center gap-2">
+                      <GitMerge className="w-4 h-4" />
+                      Hybrid Business & Consumer Queries
                     </p>
                     <p className="text-sm text-neutral-600 dark:text-neutral-400 mb-3">
                       {company.customer_type?.description || "You sell to businesses who then serve end consumers."}
@@ -484,8 +593,9 @@ export default function CompanyDetailsPage() {
               {/* Warning if LLM confidence is low - semantic color */}
               {company.confidence < 0.7 && (
                 <div className="mt-4 p-3 bg-warning-50 dark:bg-warning-900/20 border border-warning-200 dark:border-warning-800 rounded-lg">
-                  <p className="text-sm text-warning-800 dark:text-warning-200">
-                    ⚠️ We're not <span className="font-mono tabular-nums">100%</span> sure about this classification. Please verify it's correct for your business.
+                  <p className="text-sm text-warning-800 dark:text-warning-200 flex items-center gap-2">
+                    <AlertCircle className="w-4 h-4 flex-shrink-0" />
+                    <span>We're not <span className="font-mono tabular-nums">100%</span> sure about this classification. Please verify it's correct for your business.</span>
                   </p>
                 </div>
               )}
@@ -538,7 +648,7 @@ export default function CompanyDetailsPage() {
                 </label>
                 <EditableField
                   value={
-                    company.location 
+                    company.location
                       ? `${company.location.city || ''}${company.location.state ? ', ' + company.location.state : ''}${company.location.country ? ', ' + company.location.country : ''}`
                       : 'Not specified'
                   }
@@ -557,27 +667,6 @@ export default function CompanyDetailsPage() {
                   onCancel={() => setEditingField(null)}
                   icon={<MapPin className="w-4 h-4" />}
                 />
-              </div>
-
-              {/* Tech Stack */}
-              <div>
-                <label className="text-sm text-neutral-500 dark:text-neutral-400 mb-1 block">
-                  Tech Stack
-                </label>
-                <div className="flex flex-wrap gap-2">
-                  {company.techStack && company.techStack.length > 0 ? (
-                    company.techStack.slice(0, 5).map((tech, index) => (
-                      <span
-                        key={index}
-                        className="px-3 py-1 bg-neutral-100 dark:bg-neutral-800 text-neutral-900 dark:text-neutral-0 rounded-full text-sm font-medium"
-                      >
-                        {tech}
-                      </span>
-                    ))
-                  ) : (
-                    <span className="text-neutral-500">Not detected</span>
-                  )}
-                </div>
               </div>
 
               {/* Products & Services */}
@@ -617,8 +706,9 @@ export default function CompanyDetailsPage() {
                 </span>
               </div>
               {company.userEdited && (
-                <span className="text-sm text-neutral-900 dark:text-neutral-0 font-medium">
-                  ✓ User verified
+                <span className="text-sm text-neutral-900 dark:text-neutral-0 font-medium flex items-center gap-1">
+                  <CheckCircle className="w-4 h-4" />
+                  User verified
                 </span>
               )}
             </div>

@@ -1,12 +1,13 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { motion, useMotionValue, useTransform, useSpring } from 'framer-motion';
 import { ArrowRight, Sparkles, Zap, Globe, Shield, TrendingUp } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
+import { EnrichmentProgressDashboard } from '@/components/onboarding/EnrichmentProgressDashboard';
 
 export function FuturisticHero() {
   const router = useRouter();
@@ -14,7 +15,12 @@ export function FuturisticHero() {
   const [hoveredFeature, setHoveredFeature] = useState<number | null>(null);
   const [mounted, setMounted] = useState(false);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [showProgressDashboard, setShowProgressDashboard] = useState(false);
+  const [sessionId, setSessionId] = useState('');
+  const [enrichmentPromise, setEnrichmentPromise] = useState<Promise<Response> | undefined>();
   const containerRef = useRef<HTMLDivElement>(null);
+  const [revolutionIndex, setRevolutionIndex] = useState(0);
+  const [isGlitching, setIsGlitching] = useState(false);
   
   // Mouse tracking for parallax
   const mouseX = useMotionValue(0);
@@ -56,13 +62,51 @@ export function FuturisticHero() {
   }, [mouseX, mouseY, mounted]);
   
   
+  // Toggle between Happening/Happened with glitch effect
+  useEffect(() => {
+    if (!mounted) return;
+    const interval = setInterval(() => {
+      // Trigger glitch first
+      setIsGlitching(true);
+
+      // Change text after glitch starts
+      setTimeout(() => {
+        setRevolutionIndex((prev) => (prev === 0 ? 1 : 0));
+      }, 250);
+
+      // End glitch (0.5s animation duration)
+      setTimeout(() => {
+        setIsGlitching(false);
+      }, 500);
+    }, 3000); // Change every 3 seconds
+    return () => clearInterval(interval);
+  }, [mounted]);
+
   const features = [
     { icon: Zap, text: 'Real-time AI tracking', delay: 0 },
     { icon: Globe, text: 'Multi-platform coverage', delay: 0.1 },
     { icon: Shield, text: 'Enterprise security', delay: 0.2 },
     { icon: TrendingUp, text: 'Growth insights', delay: 0.3 },
   ];
-  
+
+  // Memoize onComplete callback to prevent unnecessary re-renders
+  const handleEnrichmentComplete = useCallback(() => {
+    // Navigate to company page after enrichment completes
+    router.push('/onboarding/company');
+  }, [router]);
+
+  // Show progress dashboard if enrichment is in progress
+  if (showProgressDashboard) {
+    return (
+      <EnrichmentProgressDashboard
+        domain={domain}
+        sessionId={sessionId}
+        enrichmentPromise={enrichmentPromise}
+        onComplete={handleEnrichmentComplete}
+      />
+    );
+  }
+
   return (
     <section ref={containerRef} className="relative min-h-screen flex items-center justify-center overflow-hidden">
       {/* Professional Subtle Background */}
@@ -134,28 +178,25 @@ export function FuturisticHero() {
           
           {/* Professional heading */}
           <motion.h1
-            className="fluid-heading font-bold mb-6 text-neutral-900 dark:text-neutral-0"
+            className="fluid-heading font-bold mb-6"
             initial={{ opacity: 0, scale: 0.9 }}
             animate={{ opacity: 1, scale: 1 }}
             transition={{ delay: 0.3, duration: 0.8 }}
           >
-            Track Your Brand Across
-            <br />
-            <span className="relative">
-              <span className="relative z-10">
-                AI Platforms
+            {/* Static part + Glitchy transition part - single line, no wrap */}
+            <div className="text-neutral-500 dark:text-neutral-400 whitespace-nowrap overflow-visible">
+              {/* Static text - never moves */}
+              <span className="inline">The Search Revolution </span>
+              {/* Glitching text - clip-path effect - darker color, same font */}
+              <span
+                className={`glitch-text text-neutral-800 dark:text-neutral-200 ${isGlitching ? 'active' : ''}`}
+                data-text={revolutionIndex === 0 ? 'is Happening' : 'Happened....'}
+              >
+                {revolutionIndex === 0 ? 'is Happening' : 'Happened....'}
               </span>
-
-              {/* Professional underline */}
-              <motion.div
-                className="absolute -bottom-2 left-0 right-0 h-1 bg-neutral-900 dark:bg-neutral-0 rounded-full"
-                initial={{ scaleX: 0 }}
-                animate={{ scaleX: 1 }}
-                transition={{ delay: 0.5, duration: 0.8, ease: 'easeOut' }}
-              />
-            </span>
+            </div>
           </motion.h1>
-          
+
           {/* Professional subtitle */}
           <motion.p
             className="fluid-text-xl text-neutral-600 dark:text-neutral-400 mb-12 max-w-3xl mx-auto"
@@ -163,8 +204,8 @@ export function FuturisticHero() {
             animate={{ opacity: 1 }}
             transition={{ delay: 0.6, duration: 0.8 }}
           >
-            Monitor your visibility across all major AI platforms.
-            Get real-time insights and optimize your AI presence.
+            Your customers aren't Googling anymore—they're asking ChatGPT. Track how AI platforms answer questions about your brand before your competitors do.{' '}
+            <span className="text-neutral-900 dark:text-neutral-0 font-semibold">Are You Visible?</span>
           </motion.p>
           
           {/* Professional input section */}
@@ -184,30 +225,20 @@ export function FuturisticHero() {
                 onClick={async () => {
                     if (domain && typeof window !== 'undefined') {
                       setIsAnalyzing(true);
-                      
+
                       try {
-                        // Call the enrichment API
-                        const response = await fetch(`${process.env.NEXT_PUBLIC_API_GATEWAY || 'http://localhost:4000'}/api/onboarding/enrich`, {
+                        // Call the enrichment API in background
+                        const apiPromise = fetch(`${process.env.NEXT_PUBLIC_API_GATEWAY || 'http://localhost:4000'}/api/onboarding/enrich`, {
                           method: 'POST',
                           headers: { 'Content-Type': 'application/json' },
                           body: JSON.stringify({ email: domain })
                         });
-                        
-                        let enrichmentData = null;
-                        let sessionId = null;
-                        if (response.ok) {
-                          const data = await response.json();
-                          enrichmentData = data.enrichmentData || data.company || data;
-                          sessionId = data.sessionId;
-                        }
-                        
-                        // Extract company name from domain/email more intelligently
+
+                        // Extract company name from domain/email
                         let companyName = domain;
                         if (domain.includes('@')) {
-                          // Extract domain from email
                           companyName = domain.split('@')[1];
                         }
-                        // Remove common TLDs and clean up
                         companyName = companyName
                           .replace(/\.(com|org|net|io|ai|co|dev|app|tech)$/i, '')
                           .replace(/^www\./i, '')
@@ -215,28 +246,20 @@ export function FuturisticHero() {
                           .split(' ')
                           .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
                           .join(' ');
-                        
-                        // Create session data with enriched information
+
+                        // Generate session ID
+                        const newSessionId = `session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+
+                        // Create initial session data
                         const sessionData = {
-                          sessionId: sessionId || `session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+                          sessionId: newSessionId,
                           domain: domain,
                           email: domain,
-                          company: enrichmentData || {
+                          enrichmentData: {
                             name: companyName,
                             domain: domain.includes('@') ? domain.split('@')[1] : domain,
                             industry: 'Technology',
-                            description: `${companyName} is a leading technology company focused on innovation and digital transformation.`,
-                            size: '10-50 employees',
-                            location: { city: 'San Francisco', state: 'CA', country: 'USA' },
-                            techStack: ['React', 'Node.js', 'TypeScript'],
-                            confidence: 0.85,
-                            enrichmentSource: 'fallback'
-                          },
-                          enrichmentData: enrichmentData || {
-                            name: companyName,
-                            domain: domain.includes('@') ? domain.split('@')[1] : domain,
-                            industry: 'Technology',
-                            description: `${companyName} is a leading technology company focused on innovation and digital transformation.`,
+                            description: `${companyName} is a technology company.`,
                             size: '10-50 employees',
                             employeeCount: 50,
                             location: { city: 'San Francisco', state: 'CA', country: 'USA' },
@@ -245,51 +268,23 @@ export function FuturisticHero() {
                             techStack: ['React', 'Node.js', 'TypeScript'],
                             competitors: [],
                             confidence: 0.85,
-                            enrichmentSource: 'fallback'
+                            enrichmentSource: 'initial'
                           },
                           startedAt: new Date().toISOString()
                         };
-                        
-                        // Store domain and session data
+
+                        // Store domain and initial session data
                         localStorage.setItem('onboarding_domain', domain);
                         sessionStorage.setItem('onboarding_session', JSON.stringify(sessionData));
-                        
-                        // Navigate to company page
-                        router.push('/onboarding/company');
+
+                        // Pass API promise to dashboard and show it
+                        setSessionId(newSessionId);
+                        setEnrichmentPromise(apiPromise);
+                        setIsAnalyzing(false);
+                        setShowProgressDashboard(true);
+
                       } catch (error) {
-                        console.error('Enrichment error:', error);
-                        
-                        // Fallback: navigate with basic data
-                        let companyName = domain;
-                        if (domain.includes('@')) {
-                          companyName = domain.split('@')[1];
-                        }
-                        companyName = companyName
-                          .replace(/\.(com|org|net|io|ai|co)$/i, '')
-                          .replace(/^www\./i, '')
-                          .replace(/[-_]/g, ' ')
-                          .split(' ')
-                          .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
-                          .join(' ');
-                        
-                        const sessionData = {
-                          sessionId: `session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-                          domain: domain,
-                          enrichmentData: {
-                            name: companyName,
-                            domain: domain.includes('@') ? domain.split('@')[1] : domain,
-                            industry: 'Technology',
-                            description: `${companyName} is a technology company.`,
-                            confidence: 0.5,
-                            enrichmentSource: 'fallback'
-                          },
-                          startedAt: new Date().toISOString()
-                        };
-                        
-                        localStorage.setItem('onboarding_domain', domain);
-                        sessionStorage.setItem('onboarding_session', JSON.stringify(sessionData));
-                        router.push('/onboarding/company');
-                      } finally {
+                        console.error('Initial setup error:', error);
                         setIsAnalyzing(false);
                       }
                     }
