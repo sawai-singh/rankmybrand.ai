@@ -232,10 +232,106 @@ export const routeSchemas = {
       settings: z.record(z.string(), z.unknown()).optional(),
       preferences: z.record(z.string(), z.unknown()).optional(),
     }),
-    
+
     changePassword: z.object({
       current_password: z.string().min(1),
       new_password: schemas.password,
+    }),
+  },
+
+  // LLM Configuration routes
+  llmConfig: {
+    // Valid providers and their models
+    providers: ['openai', 'anthropic', 'google', 'perplexity', 'cohere'] as const,
+
+    validModels: {
+      openai: ['gpt-4o', 'gpt-4o-mini', 'gpt-4-turbo', 'gpt-4', 'gpt-3.5-turbo', 'gpt-5-nano', 'gpt-5-chat-latest'],
+      anthropic: ['claude-3-opus-20240229', 'claude-3-sonnet-20240229', 'claude-3-haiku-20240307', 'claude-3.5-sonnet-20240620'],
+      google: ['gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-pro', 'gemini-ultra', 'gemini-1.5-pro'],
+      perplexity: ['sonar', 'sonar-pro', 'sonar-medium-online', 'sonar-small-online'],
+      cohere: ['command', 'command-light', 'command-r', 'command-r-plus']
+    } as const,
+
+    useCases: [
+      'query_generation',
+      'response_analysis',
+      'recommendation_extraction',
+      'strategic_aggregation',
+      'company_enrichment',
+      'provider_orchestration'
+    ] as const,
+
+    create: z.object({
+      use_case: z.enum([
+        'query_generation',
+        'response_analysis',
+        'recommendation_extraction',
+        'strategic_aggregation',
+        'company_enrichment',
+        'provider_orchestration',
+        'custom'
+      ]),
+      use_case_description: z.string().min(1).max(500).optional(),
+      provider: z.enum(['openai', 'anthropic', 'google', 'perplexity', 'cohere']),
+      model: z.string().min(1).max(100).regex(
+        /^[a-zA-Z0-9\-\.\_]+$/,
+        'Model name can only contain letters, numbers, hyphens, dots, and underscores'
+      ),
+      priority: z.number().int().min(1).max(10).default(1),
+      weight: z.number().min(0).max(2).default(1.0),
+      enabled: z.boolean().default(true),
+      temperature: z.number().min(0).max(2).default(0.7),
+      max_tokens: z.number().int().min(1).max(100000).default(4000),
+      timeout_ms: z.number().int().min(1000).max(300000).default(30000),
+      cost_per_1k_tokens: z.number().min(0).max(1000).optional(),
+      notes: z.string().max(1000).optional(),
+      updated_by: z.string().email().optional(),
+    }).refine(
+      (data) => {
+        // Validate provider-model combination
+        const validModels = routeSchemas.llmConfig.validModels[data.provider as keyof typeof routeSchemas.llmConfig.validModels];
+        if (!validModels) return true; // Allow if provider not in predefined list
+        return validModels.includes(data.model as any);
+      },
+      {
+        message: 'Invalid model for the specified provider',
+        path: ['model'],
+      }
+    ),
+
+    update: z.object({
+      model: z.string().min(1).max(100).regex(
+        /^[a-zA-Z0-9\-\.\_]+$/,
+        'Model name can only contain letters, numbers, hyphens, dots, and underscores'
+      ).optional(),
+      provider: z.enum(['openai', 'anthropic', 'google', 'perplexity', 'cohere']).optional(),
+      priority: z.number().int().min(1).max(10).optional(),
+      weight: z.number().min(0).max(2).optional(),
+      enabled: z.boolean().optional(),
+      temperature: z.number().min(0).max(2).optional(),
+      max_tokens: z.number().int().min(1).max(100000).optional(),
+      timeout_ms: z.number().int().min(1000).max(300000).optional(),
+      cost_per_1k_tokens: z.number().min(0).max(1000).optional(),
+      notes: z.string().max(1000).optional(),
+      updated_by: z.string().email().optional(),
+    }).refine(
+      (data) => {
+        // If both provider and model are provided, validate combination
+        if (data.provider && data.model) {
+          const validModels = routeSchemas.llmConfig.validModels[data.provider as keyof typeof routeSchemas.llmConfig.validModels];
+          if (!validModels) return true;
+          return validModels.includes(data.model as any);
+        }
+        return true;
+      },
+      {
+        message: 'Invalid model for the specified provider',
+        path: ['model'],
+      }
+    ),
+
+    toggle: z.object({
+      updated_by: z.string().email().optional(),
     }),
   },
 };

@@ -88,7 +88,16 @@ INSERT INTO llm_configurations (
     4000,
     30000,
     'Primary model for query generation. Currently using gpt-4o (override from gpt-5-nano default)'
-);
+)
+ON CONFLICT (use_case, provider) DO UPDATE SET
+    model = EXCLUDED.model,
+    priority = EXCLUDED.priority,
+    enabled = EXCLUDED.enabled,
+    temperature = EXCLUDED.temperature,
+    max_tokens = EXCLUDED.max_tokens,
+    timeout_ms = EXCLUDED.timeout_ms,
+    notes = EXCLUDED.notes,
+    updated_at = NOW();
 
 -- Intelligence Engine: Response Analysis
 INSERT INTO llm_configurations (
@@ -105,7 +114,16 @@ INSERT INTO llm_configurations (
     2000,
     30000,
     'Per-response analysis. Currently hardcoded in job_processor.py:158'
-);
+)
+ON CONFLICT (use_case, provider) DO UPDATE SET
+    model = EXCLUDED.model,
+    priority = EXCLUDED.priority,
+    enabled = EXCLUDED.enabled,
+    temperature = EXCLUDED.temperature,
+    max_tokens = EXCLUDED.max_tokens,
+    timeout_ms = EXCLUDED.timeout_ms,
+    notes = EXCLUDED.notes,
+    updated_at = NOW();
 
 -- Intelligence Engine: Recommendation Extraction
 INSERT INTO llm_configurations (
@@ -122,7 +140,16 @@ INSERT INTO llm_configurations (
     8000,
     30000,
     'Batch processing: 36 LLM calls (6 categories × 2 batches × 3 types). Currently hardcoded in job_processor.py:164'
-);
+)
+ON CONFLICT (use_case, provider) DO UPDATE SET
+    model = EXCLUDED.model,
+    priority = EXCLUDED.priority,
+    enabled = EXCLUDED.enabled,
+    temperature = EXCLUDED.temperature,
+    max_tokens = EXCLUDED.max_tokens,
+    timeout_ms = EXCLUDED.timeout_ms,
+    notes = EXCLUDED.notes,
+    updated_at = NOW();
 
 -- Intelligence Engine: Strategic Aggregation
 INSERT INTO llm_configurations (
@@ -139,7 +166,16 @@ INSERT INTO llm_configurations (
     6000,
     30000,
     'Strategic intelligence layer: 4 LLM calls per audit. Currently hardcoded in job_processor.py:170'
-);
+)
+ON CONFLICT (use_case, provider) DO UPDATE SET
+    model = EXCLUDED.model,
+    priority = EXCLUDED.priority,
+    enabled = EXCLUDED.enabled,
+    temperature = EXCLUDED.temperature,
+    max_tokens = EXCLUDED.max_tokens,
+    timeout_ms = EXCLUDED.timeout_ms,
+    notes = EXCLUDED.notes,
+    updated_at = NOW();
 
 -- API Gateway: Company Enrichment
 INSERT INTO llm_configurations (
@@ -156,7 +192,16 @@ INSERT INTO llm_configurations (
     2000,
     30000,
     'Company data enrichment. Currently hardcoded in llm-enrichment.service.ts (4 locations: lines 281, 578, 620, 712)'
-);
+)
+ON CONFLICT (use_case, provider) DO UPDATE SET
+    model = EXCLUDED.model,
+    priority = EXCLUDED.priority,
+    enabled = EXCLUDED.enabled,
+    temperature = EXCLUDED.temperature,
+    max_tokens = EXCLUDED.max_tokens,
+    timeout_ms = EXCLUDED.timeout_ms,
+    notes = EXCLUDED.notes,
+    updated_at = NOW();
 
 -- Multi-Provider Orchestration: Primary (OpenAI)
 INSERT INTO llm_configurations (
@@ -174,7 +219,17 @@ INSERT INTO llm_configurations (
     30000,
     1.2,
     'Primary provider with highest priority. Currently hardcoded in llm_provider_manager.py:97'
-);
+)
+ON CONFLICT (use_case, provider) DO UPDATE SET
+    model = EXCLUDED.model,
+    priority = EXCLUDED.priority,
+    enabled = EXCLUDED.enabled,
+    temperature = EXCLUDED.temperature,
+    max_tokens = EXCLUDED.max_tokens,
+    timeout_ms = EXCLUDED.timeout_ms,
+    weight = EXCLUDED.weight,
+    notes = EXCLUDED.notes,
+    updated_at = NOW();
 
 -- Multi-Provider Orchestration: Fallback #1 (Anthropic)
 INSERT INTO llm_configurations (
@@ -192,7 +247,17 @@ INSERT INTO llm_configurations (
     30000,
     1.2,
     'Secondary provider fallback. Currently hardcoded in llm_provider_manager.py:107'
-);
+)
+ON CONFLICT (use_case, provider) DO UPDATE SET
+    model = EXCLUDED.model,
+    priority = EXCLUDED.priority,
+    enabled = EXCLUDED.enabled,
+    temperature = EXCLUDED.temperature,
+    max_tokens = EXCLUDED.max_tokens,
+    timeout_ms = EXCLUDED.timeout_ms,
+    weight = EXCLUDED.weight,
+    notes = EXCLUDED.notes,
+    updated_at = NOW();
 
 -- Multi-Provider Orchestration: Fallback #2 (Google AI)
 INSERT INTO llm_configurations (
@@ -210,7 +275,17 @@ INSERT INTO llm_configurations (
     30000,
     1.0,
     'Tertiary provider fallback. Currently hardcoded in llm_provider_manager.py:117'
-);
+)
+ON CONFLICT (use_case, provider) DO UPDATE SET
+    model = EXCLUDED.model,
+    priority = EXCLUDED.priority,
+    enabled = EXCLUDED.enabled,
+    temperature = EXCLUDED.temperature,
+    max_tokens = EXCLUDED.max_tokens,
+    timeout_ms = EXCLUDED.timeout_ms,
+    weight = EXCLUDED.weight,
+    notes = EXCLUDED.notes,
+    updated_at = NOW();
 
 -- Multi-Provider Orchestration: Fallback #3 (Perplexity)
 INSERT INTO llm_configurations (
@@ -228,7 +303,17 @@ INSERT INTO llm_configurations (
     30000,
     1.1,
     'Quaternary provider fallback. Currently hardcoded in llm_provider_manager.py:128'
-);
+)
+ON CONFLICT (use_case, provider) DO UPDATE SET
+    model = EXCLUDED.model,
+    priority = EXCLUDED.priority,
+    enabled = EXCLUDED.enabled,
+    temperature = EXCLUDED.temperature,
+    max_tokens = EXCLUDED.max_tokens,
+    timeout_ms = EXCLUDED.timeout_ms,
+    weight = EXCLUDED.weight,
+    notes = EXCLUDED.notes,
+    updated_at = NOW();
 
 -- ========================================
 -- AUDIT LOG TABLE: Track Configuration Changes

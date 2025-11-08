@@ -5,6 +5,8 @@
 
 import { Router, Request, Response } from 'express';
 import { asyncHandler } from '../middleware/error.middleware.js';
+import { authenticate, requireAdmin } from '../middleware/auth.js';
+import { validate, routeSchemas } from '../middleware/validation.middleware.js';
 import { exec } from 'child_process';
 import { promisify } from 'util';
 import * as fs from 'fs';
@@ -12,6 +14,120 @@ import * as path from 'path';
 
 const router = Router();
 const execAsync = promisify(exec);
+
+// ========================================
+// LLM CONFIG HELPER FUNCTIONS
+// ========================================
+
+/**
+ * Get LLM configuration from database with Redis caching and fallback to .env
+ */
+async function getLLMConfigWithFallback(
+  db: any,
+  redis: any,
+  useCase: string,
+  fallbackEnv?: Record<string, string>
+): Promise<any> {
+  const cacheKey = `llm_config:${useCase}`;
+  const CACHE_TTL = 300; // 5 minutes
+
+  try {
+    // Try Redis cache first
+    if (redis) {
+      const cached = await redis.get(cacheKey);
+      if (cached) {
+        return JSON.parse(cached);
+      }
+    }
+
+    // Try database
+    const result = await db.query(
+      `SELECT * FROM llm_configurations
+       WHERE use_case = $1 AND enabled = true
+       ORDER BY priority
+       LIMIT 1`,
+      [useCase]
+    );
+
+    if (result.rows && result.rows.length > 0) {
+      const config = result.rows[0];
+
+      // Cache in Redis
+      if (redis) {
+        await redis.setex(cacheKey, CACHE_TTL, JSON.stringify(config));
+      }
+
+      return config;
+    }
+
+    // Fallback to environment variables
+    console.warn(`[LLM Config] No database config for ${useCase}, falling back to .env`);
+    const fallback = getFallbackConfig(useCase, fallbackEnv);
+    return fallback;
+
+  } catch (error) {
+    console.error(`[LLM Config] Database error for ${useCase}:`, error);
+
+    // Try cache even if DB failed
+    if (redis) {
+      try {
+        const cached = await redis.get(cacheKey);
+        if (cached) {
+          console.warn(`[LLM Config] Using stale cache for ${useCase}`);
+          return JSON.parse(cached);
+        }
+      } catch (cacheError) {
+        console.error('[LLM Config] Redis cache error:', cacheError);
+      }
+    }
+
+    // Final fallback to .env
+    console.warn(`[LLM Config] All sources failed for ${useCase}, using .env fallback`);
+    return getFallbackConfig(useCase, fallbackEnv);
+  }
+}
+
+/**
+ * Get fallback configuration from environment variables
+ */
+function getFallbackConfig(useCase: string, envOverrides?: Record<string, string>): any {
+  const env = { ...process.env, ...envOverrides };
+
+  return {
+    id: -1, // Indicates fallback config
+    use_case: useCase,
+    provider: env.LLM_PROVIDER || 'openai',
+    model: env.OPENAI_MODEL || env.LLM_MODEL || 'gpt-4o',
+    priority: 1,
+    weight: 1.0,
+    enabled: true,
+    temperature: parseFloat(env.LLM_TEMPERATURE || '0.7'),
+    max_tokens: parseInt(env.LLM_MAX_TOKENS || '4000', 10),
+    timeout_ms: parseInt(env.LLM_TIMEOUT_MS || '30000', 10),
+    source: 'env_fallback'
+  };
+}
+
+/**
+ * Invalidate Redis cache for LLM configs
+ */
+async function invalidateLLMConfigCache(redis: any, useCase?: string) {
+  if (!redis) return;
+
+  try {
+    if (useCase) {
+      await redis.del(`llm_config:${useCase}`);
+    } else {
+      // Invalidate all LLM config caches
+      const keys = await redis.keys('llm_config:*');
+      if (keys.length > 0) {
+        await redis.del(...keys);
+      }
+    }
+  } catch (error) {
+    console.error('[LLM Config] Cache invalidation error:', error);
+  }
+}
 
 // ========================================
 // SYSTEM HEALTH MONITORING
@@ -903,76 +1019,63 @@ router.post('/audits/:auditId/fix-stuck', asyncHandler(async (req: Request, res:
 
 /**
  * Get all LLM configurations
+ * @auth Required - Admin only
  */
-router.get('/llm-config', asyncHandler(async (req: Request, res: Response) => {
-  const { db } = req.app.locals;
+router.get('/llm-config',
+  authenticate,
+  requireAdmin,
+  asyncHandler(async (req: Request, res: Response) => {
+    const { db } = req.app.locals;
 
-  try {
-    const result = await db.query(`
-      SELECT
-        id,
-        use_case,
-        use_case_description,
-        provider,
-        model,
-        priority,
-        weight,
-        enabled,
-        temperature,
-        max_tokens,
-        timeout_ms,
-        cost_per_1k_tokens,
-        updated_at,
-        updated_by,
-        notes
-      FROM llm_configurations
-      ORDER BY use_case, priority
-    `);
+    try {
+      const result = await db.query(`
+        SELECT
+          id,
+          use_case,
+          use_case_description,
+          provider,
+          model,
+          priority,
+          weight,
+          enabled,
+          temperature,
+          max_tokens,
+          timeout_ms,
+          cost_per_1k_tokens,
+          updated_at,
+          updated_by,
+          notes
+        FROM llm_configurations
+        ORDER BY use_case, priority
+      `);
 
-    res.json({
-      success: true,
-      configurations: result.rows,
-      total: result.rows.length
-    });
-  } catch (error: any) {
-    res.status(500).json({
-      success: false,
-      error: error.message
-    });
-  }
-}));
+      res.json({
+        success: true,
+        configurations: result.rows,
+        total: result.rows.length
+      });
+    } catch (error: any) {
+      res.status(500).json({
+        success: false,
+        error: error.message
+      });
+    }
+  })
+);
 
 /**
- * Get LLM configuration for a specific use case
+ * Get LLM configuration for a specific use case (with caching and fallback)
+ * @auth Not required - Used by services for config lookup
  */
 router.get('/llm-config/:use_case', asyncHandler(async (req: Request, res: Response) => {
-  const { db } = req.app.locals;
+  const { db, redis } = req.app.locals;
   const { use_case } = req.params;
 
   try {
-    const result = await db.query(`
-      SELECT
-        id,
-        use_case,
-        use_case_description,
-        provider,
-        model,
-        priority,
-        weight,
-        enabled,
-        temperature,
-        max_tokens,
-        timeout_ms,
-        cost_per_1k_tokens,
-        updated_at,
-        updated_by,
-        notes
-      FROM llm_configurations
-      WHERE use_case = $1
-      ORDER BY priority
-    `, [use_case]);
+    // Use caching and fallback helper
+    const config = await getLLMConfigWithFallback(db, redis, use_case);
 
-    if (result.rows.length === 0) {
+    if (!config) {
       return res.status(404).json({
         success: false,
         error: `No configuration found for use case: ${use_case}`
@@ -982,8 +1085,8 @@ router.get('/llm-config/:use_case', asyncHandler(async (req: Request, res: Respo
     res.json({
       success: true,
       use_case,
-      configurations: result.rows,
-      primary: result.rows.find(c => c.enabled) || result.rows[0]
+      configuration: config,
+      source: config.source || 'database'
     });
   } catch (error: any) {
     res.status(500).json({
@@ -995,9 +1098,15 @@ router.get('/llm-config/:use_case', asyncHandler(async (req: Request, res: Respo
 
 /**
  * Update LLM configuration
+ * @auth Required - Admin only
+ * @validation Validates provider-model combinations and ranges
  */
-router.patch('/llm-config/:id', asyncHandler(async (req: Request, res: Response) => {
-  const { db } = req.app.locals;
+router.patch('/llm-config/:id',
+  authenticate,
+  requireAdmin,
+  validate(routeSchemas.llmConfig.update, 'body'),
+  asyncHandler(async (req: Request, res: Response) => {
+    const { db, redis } = req.app.locals;
   const { id } = req.params;
   const {
     model,
@@ -1112,6 +1221,9 @@ router.patch('/llm-config/:id', asyncHandler(async (req: Request, res: Response)
       JSON.stringify(result.rows[0])
     ]);
 
+    // Invalidate cache for this use case
+    await invalidateLLMConfigCache(redis, currentConfig.use_case);
+
     res.json({
       success: true,
       message: 'Configuration updated successfully',
@@ -1127,9 +1239,15 @@ router.patch('/llm-config/:id', asyncHandler(async (req: Request, res: Response)
 
 /**
  * Create new LLM configuration
+ * @auth Required - Admin only
+ * @validation Validates all fields and provider-model combination
  */
-router.post('/llm-config', asyncHandler(async (req: Request, res: Response) => {
-  const { db } = req.app.locals;
+router.post('/llm-config',
+  authenticate,
+  requireAdmin,
+  validate(routeSchemas.llmConfig.create, 'body'),
+  asyncHandler(async (req: Request, res: Response) => {
+    const { db, redis } = req.app.locals;
   const {
     use_case,
     use_case_description,
@@ -1180,6 +1298,9 @@ router.post('/llm-config', asyncHandler(async (req: Request, res: Response) => {
       JSON.stringify(result.rows[0])
     ]);
 
+    // Invalidate cache for this use case
+    await invalidateLLMConfigCache(redis, use_case);
+
     res.status(201).json({
       success: true,
       message: 'Configuration created successfully',
@@ -1203,9 +1324,13 @@ router.post('/llm-config', asyncHandler(async (req: Request, res: Response) => {
 
 /**
  * Delete LLM configuration
+ * @auth Required - Admin only
  */
-router.delete('/llm-config/:id', asyncHandler(async (req: Request, res: Response) => {
-  const { db } = req.app.locals;
+router.delete('/llm-config/:id',
+  authenticate,
+  requireAdmin,
+  asyncHandler(async (req: Request, res: Response) => {
+    const { db, redis } = req.app.locals;
   const { id } = req.params;
   const { updated_by = 'system' } = req.body;
 
@@ -1240,6 +1365,9 @@ router.delete('/llm-config/:id', asyncHandler(async (req: Request, res: Response
     // Delete configuration
     await db.query('DELETE FROM llm_configurations WHERE id = $1', [id]);
 
+    // Invalidate cache for this use case
+    await invalidateLLMConfigCache(redis, config.use_case);
+
     res.json({
       success: true,
       message: 'Configuration deleted successfully',
@@ -1255,8 +1383,12 @@ router.delete('/llm-config/:id', asyncHandler(async (req: Request, res: Response
 
 /**
  * Get LLM configuration summary (grouped by use case)
+ * @auth Required - Admin only
  */
-router.get('/llm-config-summary', asyncHandler(async (req: Request, res: Response) => {
+router.get('/llm-config-summary',
+  authenticate,
+  requireAdmin,
+  asyncHandler(async (req: Request, res: Response) => {
   const { db } = req.app.locals;
 
   try {
@@ -1279,8 +1411,12 @@ router.get('/llm-config-summary', asyncHandler(async (req: Request, res: Respons
 
 /**
  * Get LLM configuration audit log
+ * @auth Required - Admin only
  */
-router.get('/llm-config-audit-log', asyncHandler(async (req: Request, res: Response) => {
+router.get('/llm-config-audit-log',
+  authenticate,
+  requireAdmin,
+  asyncHandler(async (req: Request, res: Response) => {
   const { db } = req.app.locals;
   const { limit = 50, config_id } = req.query;
 
@@ -1322,9 +1458,15 @@ router.get('/llm-config-audit-log', asyncHandler(async (req: Request, res: Respo
 
 /**
  * Toggle LLM configuration enabled/disabled
+ * @auth Required - Admin only
+ * @validation Validates updated_by field
  */
-router.post('/llm-config/:id/toggle', asyncHandler(async (req: Request, res: Response) => {
-  const { db } = req.app.locals;
+router.post('/llm-config/:id/toggle',
+  authenticate,
+  requireAdmin,
+  validate(routeSchemas.llmConfig.toggle, 'body'),
+  asyncHandler(async (req: Request, res: Response) => {
+    const { db, redis } = req.app.locals;
   const { id } = req.params;
   const { updated_by = 'system' } = req.body;
 
@@ -1365,6 +1507,9 @@ router.post('/llm-config/:id/toggle', asyncHandler(async (req: Request, res: Res
       JSON.stringify({ enabled: currentConfig.enabled }),
       JSON.stringify({ enabled: newEnabledState })
     ]);
+
+    // Invalidate cache for this use case
+    await invalidateLLMConfigCache(redis, currentConfig.use_case);
 
     res.json({
       success: true,
