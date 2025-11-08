@@ -897,4 +897,486 @@ router.post('/audits/:auditId/fix-stuck', asyncHandler(async (req: Request, res:
   }
 }));
 
+// ========================================
+// LLM CONFIGURATION MANAGEMENT
+// ========================================
+
+/**
+ * Get all LLM configurations
+ */
+router.get('/llm-config', asyncHandler(async (req: Request, res: Response) => {
+  const { db } = req.app.locals;
+
+  try {
+    const result = await db.query(`
+      SELECT
+        id,
+        use_case,
+        use_case_description,
+        provider,
+        model,
+        priority,
+        weight,
+        enabled,
+        temperature,
+        max_tokens,
+        timeout_ms,
+        cost_per_1k_tokens,
+        updated_at,
+        updated_by,
+        notes
+      FROM llm_configurations
+      ORDER BY use_case, priority
+    `);
+
+    res.json({
+      success: true,
+      configurations: result.rows,
+      total: result.rows.length
+    });
+  } catch (error: any) {
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+}));
+
+/**
+ * Get LLM configuration for a specific use case
+ */
+router.get('/llm-config/:use_case', asyncHandler(async (req: Request, res: Response) => {
+  const { db } = req.app.locals;
+  const { use_case } = req.params;
+
+  try {
+    const result = await db.query(`
+      SELECT
+        id,
+        use_case,
+        use_case_description,
+        provider,
+        model,
+        priority,
+        weight,
+        enabled,
+        temperature,
+        max_tokens,
+        timeout_ms,
+        cost_per_1k_tokens,
+        updated_at,
+        updated_by,
+        notes
+      FROM llm_configurations
+      WHERE use_case = $1
+      ORDER BY priority
+    `, [use_case]);
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        error: `No configuration found for use case: ${use_case}`
+      });
+    }
+
+    res.json({
+      success: true,
+      use_case,
+      configurations: result.rows,
+      primary: result.rows.find(c => c.enabled) || result.rows[0]
+    });
+  } catch (error: any) {
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+}));
+
+/**
+ * Update LLM configuration
+ */
+router.patch('/llm-config/:id', asyncHandler(async (req: Request, res: Response) => {
+  const { db } = req.app.locals;
+  const { id } = req.params;
+  const {
+    model,
+    provider,
+    priority,
+    weight,
+    enabled,
+    temperature,
+    max_tokens,
+    timeout_ms,
+    cost_per_1k_tokens,
+    notes,
+    updated_by
+  } = req.body;
+
+  try {
+    // Get current config for audit log
+    const currentResult = await db.query(
+      'SELECT * FROM llm_configurations WHERE id = $1',
+      [id]
+    );
+
+    if (currentResult.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        error: 'Configuration not found'
+      });
+    }
+
+    const currentConfig = currentResult.rows[0];
+
+    // Build dynamic update query
+    const updates: string[] = [];
+    const values: any[] = [];
+    let paramCount = 1;
+
+    if (model !== undefined) {
+      updates.push(`model = $${paramCount++}`);
+      values.push(model);
+    }
+    if (provider !== undefined) {
+      updates.push(`provider = $${paramCount++}`);
+      values.push(provider);
+    }
+    if (priority !== undefined) {
+      updates.push(`priority = $${paramCount++}`);
+      values.push(priority);
+    }
+    if (weight !== undefined) {
+      updates.push(`weight = $${paramCount++}`);
+      values.push(weight);
+    }
+    if (enabled !== undefined) {
+      updates.push(`enabled = $${paramCount++}`);
+      values.push(enabled);
+    }
+    if (temperature !== undefined) {
+      updates.push(`temperature = $${paramCount++}`);
+      values.push(temperature);
+    }
+    if (max_tokens !== undefined) {
+      updates.push(`max_tokens = $${paramCount++}`);
+      values.push(max_tokens);
+    }
+    if (timeout_ms !== undefined) {
+      updates.push(`timeout_ms = $${paramCount++}`);
+      values.push(timeout_ms);
+    }
+    if (cost_per_1k_tokens !== undefined) {
+      updates.push(`cost_per_1k_tokens = $${paramCount++}`);
+      values.push(cost_per_1k_tokens);
+    }
+    if (notes !== undefined) {
+      updates.push(`notes = $${paramCount++}`);
+      values.push(notes);
+    }
+    if (updated_by !== undefined) {
+      updates.push(`updated_by = $${paramCount++}`);
+      values.push(updated_by);
+    }
+
+    if (updates.length === 0) {
+      return res.status(400).json({
+        success: false,
+        error: 'No fields to update'
+      });
+    }
+
+    // Add ID as last parameter
+    values.push(id);
+
+    // Update configuration
+    const updateQuery = `
+      UPDATE llm_configurations
+      SET ${updates.join(', ')}, updated_at = NOW()
+      WHERE id = $${paramCount}
+      RETURNING *
+    `;
+
+    const result = await db.query(updateQuery, values);
+
+    // Log to audit table
+    await db.query(`
+      INSERT INTO llm_config_audit_log (
+        config_id, action, changed_by, old_values, new_values
+      ) VALUES ($1, $2, $3, $4, $5)
+    `, [
+      id,
+      'updated',
+      updated_by || 'system',
+      JSON.stringify(currentConfig),
+      JSON.stringify(result.rows[0])
+    ]);
+
+    res.json({
+      success: true,
+      message: 'Configuration updated successfully',
+      configuration: result.rows[0]
+    });
+  } catch (error: any) {
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+}));
+
+/**
+ * Create new LLM configuration
+ */
+router.post('/llm-config', asyncHandler(async (req: Request, res: Response) => {
+  const { db } = req.app.locals;
+  const {
+    use_case,
+    use_case_description,
+    provider,
+    model,
+    priority = 1,
+    weight = 1.0,
+    enabled = true,
+    temperature = 0.7,
+    max_tokens = 4000,
+    timeout_ms = 30000,
+    cost_per_1k_tokens,
+    notes,
+    updated_by = 'system'
+  } = req.body;
+
+  // Validate required fields
+  if (!use_case || !provider || !model) {
+    return res.status(400).json({
+      success: false,
+      error: 'Missing required fields: use_case, provider, model'
+    });
+  }
+
+  try {
+    const result = await db.query(`
+      INSERT INTO llm_configurations (
+        use_case, use_case_description, provider, model,
+        priority, weight, enabled, temperature, max_tokens,
+        timeout_ms, cost_per_1k_tokens, notes, updated_by
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+      RETURNING *
+    `, [
+      use_case, use_case_description, provider, model,
+      priority, weight, enabled, temperature, max_tokens,
+      timeout_ms, cost_per_1k_tokens, notes, updated_by
+    ]);
+
+    // Log to audit table
+    await db.query(`
+      INSERT INTO llm_config_audit_log (
+        config_id, action, changed_by, new_values
+      ) VALUES ($1, $2, $3, $4)
+    `, [
+      result.rows[0].id,
+      'created',
+      updated_by,
+      JSON.stringify(result.rows[0])
+    ]);
+
+    res.status(201).json({
+      success: true,
+      message: 'Configuration created successfully',
+      configuration: result.rows[0]
+    });
+  } catch (error: any) {
+    // Check for unique constraint violation
+    if (error.code === '23505') {
+      return res.status(409).json({
+        success: false,
+        error: `Configuration for use_case '${use_case}' with provider '${provider}' already exists`
+      });
+    }
+
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+}));
+
+/**
+ * Delete LLM configuration
+ */
+router.delete('/llm-config/:id', asyncHandler(async (req: Request, res: Response) => {
+  const { db } = req.app.locals;
+  const { id } = req.params;
+  const { updated_by = 'system' } = req.body;
+
+  try {
+    // Get config before deletion for audit
+    const currentResult = await db.query(
+      'SELECT * FROM llm_configurations WHERE id = $1',
+      [id]
+    );
+
+    if (currentResult.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        error: 'Configuration not found'
+      });
+    }
+
+    const config = currentResult.rows[0];
+
+    // Log to audit table before deletion
+    await db.query(`
+      INSERT INTO llm_config_audit_log (
+        config_id, action, changed_by, old_values
+      ) VALUES ($1, $2, $3, $4)
+    `, [
+      id,
+      'deleted',
+      updated_by,
+      JSON.stringify(config)
+    ]);
+
+    // Delete configuration
+    await db.query('DELETE FROM llm_configurations WHERE id = $1', [id]);
+
+    res.json({
+      success: true,
+      message: 'Configuration deleted successfully',
+      deleted_configuration: config
+    });
+  } catch (error: any) {
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+}));
+
+/**
+ * Get LLM configuration summary (grouped by use case)
+ */
+router.get('/llm-config-summary', asyncHandler(async (req: Request, res: Response) => {
+  const { db } = req.app.locals;
+
+  try {
+    const result = await db.query(`
+      SELECT * FROM llm_config_summary
+      ORDER BY use_case
+    `);
+
+    res.json({
+      success: true,
+      summary: result.rows
+    });
+  } catch (error: any) {
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+}));
+
+/**
+ * Get LLM configuration audit log
+ */
+router.get('/llm-config-audit-log', asyncHandler(async (req: Request, res: Response) => {
+  const { db } = req.app.locals;
+  const { limit = 50, config_id } = req.query;
+
+  try {
+    let query = `
+      SELECT
+        l.*,
+        c.use_case,
+        c.provider,
+        c.model
+      FROM llm_config_audit_log l
+      LEFT JOIN llm_configurations c ON l.config_id = c.id
+      WHERE 1=1
+    `;
+
+    const params: any[] = [];
+    if (config_id) {
+      params.push(config_id);
+      query += ` AND l.config_id = $${params.length}`;
+    }
+
+    params.push(limit);
+    query += ` ORDER BY l.changed_at DESC LIMIT $${params.length}`;
+
+    const result = await db.query(query, params);
+
+    res.json({
+      success: true,
+      audit_log: result.rows,
+      total: result.rows.length
+    });
+  } catch (error: any) {
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+}));
+
+/**
+ * Toggle LLM configuration enabled/disabled
+ */
+router.post('/llm-config/:id/toggle', asyncHandler(async (req: Request, res: Response) => {
+  const { db } = req.app.locals;
+  const { id } = req.params;
+  const { updated_by = 'system' } = req.body;
+
+  try {
+    // Get current state
+    const currentResult = await db.query(
+      'SELECT * FROM llm_configurations WHERE id = $1',
+      [id]
+    );
+
+    if (currentResult.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        error: 'Configuration not found'
+      });
+    }
+
+    const currentConfig = currentResult.rows[0];
+    const newEnabledState = !currentConfig.enabled;
+
+    // Update
+    const result = await db.query(`
+      UPDATE llm_configurations
+      SET enabled = $1, updated_at = NOW(), updated_by = $2
+      WHERE id = $3
+      RETURNING *
+    `, [newEnabledState, updated_by, id]);
+
+    // Log to audit
+    await db.query(`
+      INSERT INTO llm_config_audit_log (
+        config_id, action, changed_by, old_values, new_values
+      ) VALUES ($1, $2, $3, $4, $5)
+    `, [
+      id,
+      newEnabledState ? 'enabled' : 'disabled',
+      updated_by,
+      JSON.stringify({ enabled: currentConfig.enabled }),
+      JSON.stringify({ enabled: newEnabledState })
+    ]);
+
+    res.json({
+      success: true,
+      message: `Configuration ${newEnabledState ? 'enabled' : 'disabled'} successfully`,
+      configuration: result.rows[0]
+    });
+  } catch (error: any) {
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+}));
+
 export default router;

@@ -178,6 +178,24 @@ interface ReprocessHistoryEntry {
   current_phase: string;
 }
 
+interface LLMConfiguration {
+  id: number;
+  use_case: string;
+  use_case_description: string;
+  provider: string;
+  model: string;
+  priority: number;
+  weight: number;
+  enabled: boolean;
+  temperature: number;
+  max_tokens: number;
+  timeout_ms: number;
+  cost_per_1k_tokens?: number;
+  updated_at: string;
+  updated_by: string;
+  notes?: string;
+}
+
 // ========================================
 // Main Component
 // ========================================
@@ -189,9 +207,9 @@ export default function SystemControlCenter() {
   // State
   const [loading, setLoading] = useState(true);
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
-  const [activeTab, setActiveTab] = useState<'health' | 'queue' | 'cache' | 'logs' | 'audits' | 'performance' | 'settings' | 'emergency' | 'loop-detection'>(() => {
+  const [activeTab, setActiveTab] = useState<'health' | 'queue' | 'cache' | 'logs' | 'audits' | 'performance' | 'settings' | 'emergency' | 'loop-detection' | 'llm-config'>(() => {
     const tab = searchParams.get('tab');
-    if (tab && ['health', 'queue', 'cache', 'logs', 'audits', 'performance', 'settings', 'emergency', 'loop-detection'].includes(tab)) {
+    if (tab && ['health', 'queue', 'cache', 'logs', 'audits', 'performance', 'settings', 'emergency', 'loop-detection', 'llm-config'].includes(tab)) {
       return tab as any;
     }
     return 'health';
@@ -241,6 +259,12 @@ export default function SystemControlCenter() {
   const [reprocessHistory, setReprocessHistory] = useState<ReprocessHistoryEntry[]>([]);
   const [loopLoading, setLoopLoading] = useState(false);
   const [historyHours, setHistoryHours] = useState(24);
+
+  // LLM Configuration State
+  const [llmConfigs, setLlmConfigs] = useState<LLMConfiguration[]>([]);
+  const [llmConfigsLoading, setLlmConfigsLoading] = useState(false);
+  const [editingConfig, setEditingConfig] = useState<number | null>(null);
+  const [editFormData, setEditFormData] = useState<Partial<LLMConfiguration>>({});
 
   // Auto-refresh interval
   const [autoRefresh, setAutoRefresh] = useState(true);
@@ -493,9 +517,74 @@ export default function SystemControlCenter() {
     setLoopLoading(false);
   };
 
+  const fetchLLMConfigs = async () => {
+    setLlmConfigsLoading(true);
+    try {
+      const response = await fetchWithTimeout(`${API_GATEWAY}/api/admin/control/system/llm-config`);
+      if (response.ok) {
+        const data = await response.json();
+        setLlmConfigs(data.configurations || []);
+      } else {
+        showToast('error', 'Failed to fetch LLM configurations', `Status: ${response.status}`);
+      }
+    } catch (error: any) {
+      showToast('error', 'Failed to fetch LLM configurations', error.message);
+    } finally {
+      setLlmConfigsLoading(false);
+    }
+  };
+
   // ========================================
   // Action Functions
   // ========================================
+
+  const toggleLLMConfig = async (configId: number) => {
+    try {
+      const response = await fetchWithTimeout(
+        `${API_GATEWAY}/api/admin/control/system/llm-config/${configId}/toggle`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ updated_by: 'admin' })
+        }
+      );
+
+      if (response.ok) {
+        showToast('success', 'Configuration toggled successfully');
+        fetchLLMConfigs(); // Refresh
+      } else {
+        const errorData = await response.json().catch(() => ({}));
+        showToast('error', 'Failed to toggle configuration', errorData.error || `Status: ${response.status}`);
+      }
+    } catch (error: any) {
+      showToast('error', 'Failed to toggle configuration', error.message);
+    }
+  };
+
+  const updateLLMConfig = async (configId: number, updates: Partial<LLMConfiguration>) => {
+    try {
+      const response = await fetchWithTimeout(
+        `${API_GATEWAY}/api/admin/control/system/llm-config/${configId}`,
+        {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ ...updates, updated_by: 'admin' })
+        }
+      );
+
+      if (response.ok) {
+        showToast('success', 'Configuration updated successfully');
+        setEditingConfig(null);
+        setEditFormData({});
+        fetchLLMConfigs(); // Refresh
+      } else {
+        const errorData = await response.json().catch(() => ({}));
+        showToast('error', 'Failed to update configuration', errorData.error || `Status: ${response.status}`);
+      }
+    } catch (error: any) {
+      showToast('error', 'Failed to update configuration', error.message);
+    }
+  };
 
   const toggleFlag = async (flagKey: string) => {
     const flag = flags.find(f => f.key === flagKey);
@@ -846,6 +935,7 @@ export default function SystemControlCenter() {
       if (activeTab === 'performance') fetchPerformanceMetrics();
       if (activeTab === 'settings') fetchFeatureFlags();
       if (activeTab === 'loop-detection') fetchAllLoopData();
+      if (activeTab === 'llm-config') fetchLLMConfigs();
     }, refreshInterval);
 
     return () => clearInterval(interval);
@@ -862,6 +952,12 @@ export default function SystemControlCenter() {
       fetchAllLoopData();
     }
   }, [activeTab, historyHours]);
+
+  useEffect(() => {
+    if (activeTab === 'llm-config') {
+      fetchLLMConfigs();
+    }
+  }, [activeTab]);
 
   // ========================================
   // Helper Functions
@@ -1911,6 +2007,236 @@ export default function SystemControlCenter() {
     </div>
   );
 
+  const renderLLMConfigTab = () => {
+    // Group configs by use case
+    const groupedConfigs = llmConfigs.reduce((acc, config) => {
+      if (!acc[config.use_case]) {
+        acc[config.use_case] = [];
+      }
+      acc[config.use_case].push(config);
+      return acc;
+    }, {} as Record<string, LLMConfiguration[]>);
+
+    return (
+      <div className="space-y-6">
+        {/* Header Info */}
+        <div className="glassmorphism rounded-lg p-6 border border-blue-500/30">
+          <div className="flex items-start justify-between mb-4">
+            <div className="flex items-center gap-3">
+              <Cpu className="w-8 h-8 text-blue-400" />
+              <div>
+                <h3 className="text-xl font-semibold">LLM Configuration Management</h3>
+                <p className="text-sm text-gray-400 mt-1">
+                  Centralized control for all AI models across Intelligence Engine and API Gateway
+                </p>
+              </div>
+            </div>
+            <button
+              onClick={fetchLLMConfigs}
+              disabled={llmConfigsLoading}
+              className="px-4 py-2 rounded-lg bg-blue-500/20 border border-blue-500/50 hover:bg-blue-500/30 disabled:opacity-50 flex items-center gap-2 text-sm font-medium transition-all"
+            >
+              <RefreshCw className={`w-4 h-4 ${llmConfigsLoading ? 'animate-spin' : ''}`} />
+              Refresh
+            </button>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4 p-4 bg-black/20 rounded-lg">
+            <div>
+              <div className="text-sm text-gray-400">Total Configurations</div>
+              <div className="text-2xl font-bold text-blue-400">{llmConfigs.length}</div>
+            </div>
+            <div>
+              <div className="text-sm text-gray-400">Enabled</div>
+              <div className="text-2xl font-bold text-green-400">
+                {llmConfigs.filter(c => c.enabled).length}
+              </div>
+            </div>
+            <div>
+              <div className="text-sm text-gray-400">Use Cases</div>
+              <div className="text-2xl font-bold text-purple-400">
+                {Object.keys(groupedConfigs).length}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Configurations by Use Case */}
+        {Object.entries(groupedConfigs).map(([useCase, configs]) => (
+          <motion.div
+            key={useCase}
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="glassmorphism rounded-lg p-6 border border-gray-500/30"
+          >
+            {/* Use Case Header */}
+            <div className="mb-4">
+              <h4 className="text-lg font-semibold capitalize">{useCase.replace(/_/g, ' ')}</h4>
+              {configs[0].use_case_description && (
+                <p className="text-sm text-gray-400 mt-1">{configs[0].use_case_description}</p>
+              )}
+            </div>
+
+            {/* Provider Configurations */}
+            <div className="space-y-3">
+              {configs.sort((a, b) => a.priority - b.priority).map((config) => (
+                <div
+                  key={config.id}
+                  className={`rounded-lg p-4 border transition-all ${
+                    config.enabled
+                      ? 'bg-green-500/5 border-green-500/30'
+                      : 'bg-gray-500/5 border-gray-500/30'
+                  }`}
+                >
+                  {editingConfig === config.id ? (
+                    // Edit Mode
+                    <div className="space-y-4">
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div>
+                          <label className="block text-sm text-gray-400 mb-1">Model</label>
+                          <input
+                            type="text"
+                            value={editFormData.model || config.model}
+                            onChange={(e) => setEditFormData({...editFormData, model: e.target.value})}
+                            className="w-full px-3 py-2 rounded-lg bg-black/30 border border-gray-500/30 focus:border-blue-500/50 focus:outline-none text-sm"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-sm text-gray-400 mb-1">Temperature</label>
+                          <input
+                            type="number"
+                            step="0.1"
+                            min="0"
+                            max="2"
+                            value={editFormData.temperature ?? config.temperature}
+                            onChange={(e) => setEditFormData({...editFormData, temperature: parseFloat(e.target.value)})}
+                            className="w-full px-3 py-2 rounded-lg bg-black/30 border border-gray-500/30 focus:border-blue-500/50 focus:outline-none text-sm"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-sm text-gray-400 mb-1">Max Tokens</label>
+                          <input
+                            type="number"
+                            value={editFormData.max_tokens ?? config.max_tokens}
+                            onChange={(e) => setEditFormData({...editFormData, max_tokens: parseInt(e.target.value)})}
+                            className="w-full px-3 py-2 rounded-lg bg-black/30 border border-gray-500/30 focus:border-blue-500/50 focus:outline-none text-sm"
+                          />
+                        </div>
+                      </div>
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => updateLLMConfig(config.id, editFormData)}
+                          className="px-4 py-2 rounded-lg bg-green-500/20 border border-green-500/50 hover:bg-green-500/30 text-sm font-medium"
+                        >
+                          <Save className="w-4 h-4 inline mr-2" />
+                          Save
+                        </button>
+                        <button
+                          onClick={() => {
+                            setEditingConfig(null);
+                            setEditFormData({});
+                          }}
+                          className="px-4 py-2 rounded-lg bg-gray-500/20 border border-gray-500/50 hover:bg-gray-500/30 text-sm font-medium"
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    // View Mode
+                    <div className="flex items-start justify-between">
+                      <div className="flex-1 grid grid-cols-1 md:grid-cols-4 gap-4">
+                        <div>
+                          <div className="text-xs text-gray-400 mb-1">Provider</div>
+                          <div className="font-medium">
+                            <span className={`px-2 py-1 rounded text-xs ${
+                              config.provider === 'openai' ? 'bg-blue-500/20 text-blue-400' :
+                              config.provider === 'anthropic' ? 'bg-purple-500/20 text-purple-400' :
+                              config.provider === 'google' ? 'bg-green-500/20 text-green-400' :
+                              'bg-gray-500/20 text-gray-400'
+                            }`}>
+                              {config.provider.toUpperCase()}
+                            </span>
+                          </div>
+                        </div>
+                        <div>
+                          <div className="text-xs text-gray-400 mb-1">Model</div>
+                          <div className="font-mono text-sm">{config.model}</div>
+                        </div>
+                        <div>
+                          <div className="text-xs text-gray-400 mb-1">Priority / Temp</div>
+                          <div className="text-sm">
+                            Priority {config.priority} · {config.temperature}°
+                          </div>
+                        </div>
+                        <div>
+                          <div className="text-xs text-gray-400 mb-1">Max Tokens / Timeout</div>
+                          <div className="text-sm">
+                            {config.max_tokens.toLocaleString()} · {config.timeout_ms/1000}s
+                          </div>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2 ml-4">
+                        <button
+                          onClick={() => {
+                            setEditingConfig(config.id);
+                            setEditFormData({
+                              model: config.model,
+                              temperature: config.temperature,
+                              max_tokens: config.max_tokens,
+                              timeout_ms: config.timeout_ms
+                            });
+                          }}
+                          className="px-3 py-1 rounded-lg bg-blue-500/20 border border-blue-500/50 hover:bg-blue-500/30 text-xs font-medium"
+                        >
+                          Edit
+                        </button>
+                        <button
+                          onClick={() => toggleLLMConfig(config.id)}
+                          className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out ${
+                            config.enabled ? 'bg-green-600' : 'bg-gray-600'
+                          }`}
+                          title={config.enabled ? 'Click to disable' : 'Click to enable'}
+                        >
+                          <span
+                            className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
+                              config.enabled ? 'translate-x-5' : 'translate-x-0'
+                            }`}
+                          />
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Notes */}
+                  {config.notes && !editingConfig && (
+                    <div className="mt-3 pt-3 border-t border-gray-700">
+                      <div className="text-xs text-gray-400">
+                        <Info className="w-3 h-3 inline mr-1" />
+                        {config.notes}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          </motion.div>
+        ))}
+
+        {/* Empty State */}
+        {llmConfigs.length === 0 && !llmConfigsLoading && (
+          <div className="glassmorphism rounded-lg p-12 border border-gray-500/30 text-center">
+            <Cpu className="w-16 h-16 text-gray-600 mx-auto mb-4" />
+            <h3 className="text-xl font-semibold mb-2">No LLM Configurations Found</h3>
+            <p className="text-sm text-gray-400">
+              Run the database migration to set up LLM configuration management.
+            </p>
+          </div>
+        )}
+      </div>
+    );
+  };
+
   // ========================================
   // Main Render
   // ========================================
@@ -1973,6 +2299,7 @@ export default function SystemControlCenter() {
             { id: 'audits', label: 'Active Audits', icon: Server },
             { id: 'performance', label: 'Performance', icon: TrendingUp },
             { id: 'loop-detection', label: 'Loop Detection', icon: RotateCw },
+            { id: 'llm-config', label: 'LLM Config', icon: Cpu },
             { id: 'settings', label: 'Settings', icon: Settings },
             { id: 'emergency', label: 'Emergency', icon: ShieldAlert }
           ].map((tab) => (
@@ -2009,6 +2336,7 @@ export default function SystemControlCenter() {
             {activeTab === 'audits' && renderAuditsTab()}
             {activeTab === 'performance' && renderPerformanceTab()}
             {activeTab === 'loop-detection' && renderLoopDetectionTab()}
+            {activeTab === 'llm-config' && renderLLMConfigTab()}
             {activeTab === 'settings' && renderSettingsTab()}
             {activeTab === 'emergency' && renderEmergencyTab()}
           </motion.div>
